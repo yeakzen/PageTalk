@@ -1464,6 +1464,182 @@ export function updateSelectedTabsBarUI(selectedTabs, elements, onRemoveTabCallb
     // 调整聊天消息区域的底部内边距，为标签栏腾出空间
     if (elements.chatMessages) {
         const barHeight = bar.offsetHeight;
-        elements.chatMessages.style.paddingBottom = `calc(${barHeight}px + var(--spacing-sm))`; 
+        elements.chatMessages.style.paddingBottom = `calc(${barHeight}px + var(--spacing-sm))`;
     }
+}
+
+/**
+ * 创建多模型响应容器
+ * @param {Array<{modelId: string, displayName: string, providerName: string, iconFile: string}>} modelInfos - 模型信息数组
+ * @param {object} elements - DOM elements reference
+ * @param {boolean} isUserNearBottom - 是否接近底部
+ * @returns {HTMLElement} 创建的容器元素
+ */
+export function createMultiModelResponseContainer(modelInfos, elements, isUserNearBottom) {
+    const container = document.createElement('div');
+    container.className = 'multi-model-response-container';
+    container.dataset.messageId = generateUniqueId();
+
+    modelInfos.forEach(modelInfo => {
+        const column = document.createElement('div');
+        column.className = 'bot-message-column';
+        column.dataset.modelId = modelInfo.modelId;
+
+        // 模型名称标签
+        const modelLabel = document.createElement('div');
+        modelLabel.className = 'model-response-label';
+
+        // 供应商图标
+        if (modelInfo.iconFile) {
+            const icon = document.createElement('img');
+            icon.src = `../icons/${modelInfo.iconFile}`;
+            icon.alt = modelInfo.providerName;
+            icon.className = 'provider-icon-img';
+            modelLabel.appendChild(icon);
+        }
+
+        // 模型名称
+        const nameSpan = document.createElement('span');
+        nameSpan.className = 'model-name';
+        nameSpan.textContent = modelInfo.displayName;
+        nameSpan.title = modelInfo.displayName;
+        modelLabel.appendChild(nameSpan);
+
+        column.appendChild(modelLabel);
+
+        // 消息内容区域（初始为空，等待流式内容）
+        const messageContent = document.createElement('div');
+        messageContent.className = 'bot-message';
+        messageContent.dataset.modelId = modelInfo.modelId;
+        column.appendChild(messageContent);
+
+        container.appendChild(column);
+    });
+
+    elements.chatMessages.appendChild(container);
+
+    // 滚动到底部
+    if (isUserNearBottom) {
+        elements.chatMessages.scrollTop = elements.chatMessages.scrollHeight;
+    }
+
+    return container;
+}
+
+/**
+ * 在多模型响应容器的指定列中添加 thinking 动画
+ * @param {HTMLElement} container - 多模型响应容器
+ * @param {string} modelId - 模型ID
+ * @returns {HTMLElement} thinking 动画元素
+ */
+export function addThinkingAnimationToColumn(container, modelId) {
+    const column = container.querySelector(`.bot-message-column[data-model-id="${modelId}"]`);
+    if (!column) return null;
+
+    const messageContent = column.querySelector('.bot-message');
+    if (!messageContent) return null;
+
+    const thinkingDiv = document.createElement('div');
+    thinkingDiv.classList.add('thinking-animation');
+    thinkingDiv.innerHTML = `
+        <div class="thinking-dot"></div>
+        <div class="thinking-dot"></div>
+        <div class="thinking-dot"></div>
+    `;
+
+    messageContent.appendChild(thinkingDiv);
+    return thinkingDiv;
+}
+
+/**
+ * 更新多模型响应容器中指定模型的流式内容
+ * @param {HTMLElement} container - 多模型响应容器
+ * @param {string} modelId - 模型ID
+ * @param {string} content - 内容
+ * @param {boolean} shouldScroll - 是否滚动
+ * @param {object} elements - DOM elements reference
+ */
+export function updateMultiModelStreamingMessage(container, modelId, content, shouldScroll, elements) {
+    const column = container.querySelector(`.bot-message-column[data-model-id="${modelId}"]`);
+    if (!column) return;
+
+    const messageContent = column.querySelector('.bot-message');
+    if (!messageContent) return;
+
+    // 移除 thinking 动画
+    const thinkingEl = messageContent.querySelector('.thinking-animation');
+    if (thinkingEl) {
+        thinkingEl.remove();
+    }
+
+    // 渲染内容
+    const renderedContent = renderDynamicContent(content);
+    messageContent.innerHTML = renderedContent;
+
+    // 滚动
+    if (shouldScroll && elements.chatMessages) {
+        elements.chatMessages.scrollTop = elements.chatMessages.scrollHeight;
+    }
+}
+
+/**
+ * 完成多模型响应容器中指定模型的消息
+ * @param {HTMLElement} container - 多模型响应容器
+ * @param {string} modelId - 模型ID
+ * @param {string} finalContent - 最终内容
+ * @param {function} addCopyButtonToCodeBlock - 添加复制按钮回调
+ * @param {boolean} shouldScroll - 是否滚动
+ * @param {object} elements - DOM elements reference
+ */
+export function finalizeMultiModelMessage(container, modelId, finalContent, addCopyButtonToCodeBlock, shouldScroll, elements) {
+    const column = container.querySelector(`.bot-message-column[data-model-id="${modelId}"]`);
+    if (!column) return;
+
+    const messageContent = column.querySelector('.bot-message');
+    if (!messageContent) return;
+
+    // 移除 thinking 动画
+    const thinkingEl = messageContent.querySelector('.thinking-animation');
+    if (thinkingEl) {
+        thinkingEl.remove();
+    }
+
+    // 渲染最终内容
+    const renderedContent = renderDynamicContent(finalContent);
+    messageContent.innerHTML = renderedContent;
+
+    // 添加代码块复制按钮
+    if (addCopyButtonToCodeBlock) {
+        messageContent.querySelectorAll('pre code').forEach(block => {
+            addCopyButtonToCodeBlock(block);
+        });
+    }
+
+    // 滚动
+    if (shouldScroll && elements.chatMessages) {
+        elements.chatMessages.scrollTop = elements.chatMessages.scrollHeight;
+    }
+}
+
+/**
+ * 在多模型响应容器中显示错误
+ * @param {HTMLElement} container - 多模型响应容器
+ * @param {string} modelId - 模型ID
+ * @param {string} errorMessage - 错误消息
+ */
+export function showMultiModelError(container, modelId, errorMessage) {
+    const column = container.querySelector(`.bot-message-column[data-model-id="${modelId}"]`);
+    if (!column) return;
+
+    const messageContent = column.querySelector('.bot-message');
+    if (!messageContent) return;
+
+    // 移除 thinking 动画
+    const thinkingEl = messageContent.querySelector('.thinking-animation');
+    if (thinkingEl) {
+        thinkingEl.remove();
+    }
+
+    // 显示错误
+    messageContent.innerHTML = `<div class="error-message" style="color: var(--error-color); padding: 12px;">${escapeHtml(errorMessage)}</div>`;
 }

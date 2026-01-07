@@ -6,6 +6,48 @@ import { tr as _ } from './utils/i18n.js';
 
 // 使用 utils/i18n.js 提供的 tr 作为翻译函数
 
+// 供应商图标映射
+const providerIconMap = {
+    'Google': 'Gemini.svg',
+    'Anthropic': 'Claude.svg',
+    'OpenAI': 'OpenAI.svg',
+    'DeepSeek': 'DeepSeek.svg',
+    'OpenRouter': 'OpenRouter.svg',
+    'SiliconFlow': 'SiliconFlow.svg',
+    'Groq': 'groq.svg',
+    'Cerebras': 'cerebras.svg',
+    'Ollama': 'ollama.svg',
+    'LMStudio': 'lmstudio.svg',
+    'ChatGLM': 'ChatGLM.svg',
+    'ModelScope': 'modelscope.svg',
+    'Vercel': 'vercel.svg'
+};
+
+/**
+ * 获取模型信息
+ * @param {string} modelValue - 模型值
+ * @param {object} elements - DOM elements
+ * @returns {object|null} 模型信息
+ */
+function getModelInfo(modelValue, elements) {
+    const select = elements.chatModelSelection;
+    if (!select) return null;
+
+    const option = select.querySelector(`option[value="${modelValue}"]`);
+    if (!option) return null;
+
+    const optgroup = option.parentElement;
+    const providerName = optgroup && optgroup.tagName === 'OPTGROUP' ? optgroup.label : '';
+    const iconFile = providerIconMap[providerName];
+
+    return {
+        modelId: modelValue,
+        displayName: option.textContent,
+        providerName,
+        iconFile
+    };
+}
+
 /**
  * Sends a user message and initiates the AI response process.
  * @param {object} state - Global state reference
@@ -151,59 +193,607 @@ export async function sendUserMessage(state, elements, currentTranslations, show
         clearVideosCallback(); // This callback clears state.videos and updates the UI
     }
 
-    // Call the addThinkingAnimationCallback passed from main.js.
-    // It uses elements from main.js's scope and captures the live isUserNearBottom.
-    // It expects only the element to insert after (or null).
-    const thinkingElement = addThinkingAnimationCallback(null);
+    // 获取选中的模型列表
+    const selectedModels = state.selectedModels && state.selectedModels.length > 0
+        ? state.selectedModels
+        : [state.model];
 
-    try {
-        // Prepare API callbacks object
-        const apiUiCallbacks = {
-            // addMessageToChatCallback is main.js#addMessageToChatUI, which correctly uses live isUserNearBottom
-            addMessageToChat: addMessageToChatCallback,
-            // These now call the wrappers on `window` (defined in main.js) which use live isUserNearBottom from main.js
-            updateStreamingMessage: (el, content) => window.updateStreamingMessage(el, content),
-            finalizeBotMessage: (el, content) => {
-                window.finalizeBotMessage(el, content);
-                // 此处不再需要处理 selectedContextTabs 的逻辑，已提前处理
-            },
-            showToast: showToastCallback,
-            restoreSendButtonAndInput: restoreSendButtonAndInputCallback // Add this callback
-        };
+    // 判断是单模型还是多模型
+    const isMultiModel = selectedModels.length > 1;
 
-        // Call API，传递用户消息对象以便API模块添加到历史记录
-        await window.GeminiAPI.callGeminiAPIWithImages(
+    if (isMultiModel) {
+        // ========== 多模型并行调用 ==========
+        await sendMultiModelMessage(
             userMessage,
-            currentImages, // Use the copied currentImages
-            currentVideos, // Use the copied currentVideos
-            thinkingElement,
-            state, // Pass full state reference
-            apiUiCallbacks, // Pass callbacks object
-            contextTabsForApi, // <--- Pass the prepared context tabs
-            userMessageForHistory // <--- Pass user message object for history
+            currentImages,
+            currentVideos,
+            userMessageForHistory,
+            contextTabsForApi,
+            selectedModels,
+            state,
+            elements,
+            currentTranslations,
+            addMessageToChatCallback,
+            showToastCallback,
+            restoreSendButtonAndInputCallback
         );
-        // finalizeBotMessage (called by API module on success) will restore button state
+    } else {
+        // ========== 单模型调用（保持原有逻辑） ==========
+        // Call the addThinkingAnimationCallback passed from main.js.
+        // It uses elements from main.js's scope and captures the live isUserNearBottom.
+        // It expects only the element to insert after (or null).
+        const thinkingElement = addThinkingAnimationCallback(null);
 
-    } catch (error) {
-        console.error('Error during sendUserMessage API call:', error);
-        if (thinkingElement && thinkingElement.parentNode) thinkingElement.remove();
+        try {
+            // Prepare API callbacks object
+            const apiUiCallbacks = {
+                // addMessageToChatCallback is main.js#addMessageToChatUI, which correctly uses live isUserNearBottom
+                addMessageToChat: addMessageToChatCallback,
+                // These now call the wrappers on `window` (defined in main.js) which use live isUserNearBottom from main.js
+                updateStreamingMessage: (el, content) => window.updateStreamingMessage(el, content),
+                finalizeBotMessage: (el, content) => {
+                    window.finalizeBotMessage(el, content);
+                    // 此处不再需要处理 selectedContextTabs 的逻辑，已提前处理
+                },
+                showToast: showToastCallback,
+                restoreSendButtonAndInput: restoreSendButtonAndInputCallback // Add this callback
+            };
 
-        // 如果API调用失败，需要从历史记录中移除刚刚添加的用户消息
-        if (userMessageForHistory) {
-            const messageIndex = state.chatHistory.findIndex(msg => msg.id === userMessageForHistory.id);
-            if (messageIndex !== -1) {
-                state.chatHistory.splice(messageIndex, 1);
-                console.log(`Removed failed user message from history`);
+            // Call API，传递用户消息对象以便API模块添加到历史记录
+            await window.GeminiAPI.callGeminiAPIWithImages(
+                userMessage,
+                currentImages, // Use the copied currentImages
+                currentVideos, // Use the copied currentVideos
+                thinkingElement,
+                state, // Pass full state reference
+                apiUiCallbacks, // Pass callbacks object
+                contextTabsForApi, // <--- Pass the prepared context tabs
+                userMessageForHistory // <--- Pass user message object for history
+            );
+            // finalizeBotMessage (called by API module on success) will restore button state
+
+        } catch (error) {
+            console.error('Error during sendUserMessage API call:', error);
+            if (thinkingElement && thinkingElement.parentNode) thinkingElement.remove();
+
+            // 如果API调用失败，需要从历史记录中移除刚刚添加的用户消息
+            if (userMessageForHistory) {
+                const messageIndex = state.chatHistory.findIndex(msg => msg.id === userMessageForHistory.id);
+                if (messageIndex !== -1) {
+                    state.chatHistory.splice(messageIndex, 1);
+                    console.log(`Removed failed user message from history`);
+                }
             }
-        }
 
-        // Add error message to chat (don't force scroll)
-        // addMessageToChatCallback already handles isUserNearBottom correctly
-        // addMessageToChatCallback(_('apiCallFailed', { error: error.message }, currentTranslations), 'bot', {}); // Commented out as per task
-        restoreSendButtonAndInputCallback(); // Restore button on error
+            // Add error message to chat (don't force scroll)
+            // addMessageToChatCallback already handles isUserNearBottom correctly
+            // addMessageToChatCallback(_('apiCallFailed', { error: error.message }, currentTranslations), 'bot', {}); // Commented out as per task
+            restoreSendButtonAndInputCallback(); // Restore button on error
+        }
     }
 }
 
+/**
+ * 多模型并行调用
+ */
+async function sendMultiModelMessage(
+    userMessage,
+    currentImages,
+    currentVideos,
+    userMessageForHistory,
+    contextTabsForApi,
+    selectedModels,
+    state,
+    elements,
+    currentTranslations,
+    addMessageToChatCallback,
+    showToastCallback,
+    restoreSendButtonAndInputCallback
+) {
+    // 获取模型信息
+    const modelInfos = selectedModels
+        .map(modelId => getModelInfo(modelId, elements))
+        .filter(info => info !== null);
+
+    if (modelInfos.length === 0) {
+        console.error('[MultiModel] No valid model info found');
+        restoreSendButtonAndInputCallback();
+        return;
+    }
+
+    // 先显示统一的 thinking 动画
+    const thinkingElement = document.createElement('div');
+    thinkingElement.classList.add('message', 'bot-message', 'thinking');
+    const thinkingDots = document.createElement('div');
+    thinkingDots.classList.add('thinking-dots');
+    for (let i = 0; i < 3; i++) {
+        const dot = document.createElement('span');
+        thinkingDots.appendChild(dot);
+    }
+    thinkingElement.appendChild(thinkingDots);
+    elements.chatMessages.appendChild(thinkingElement);
+    elements.chatMessages.scrollTop = elements.chatMessages.scrollHeight;
+
+    // 创建多模型响应容器（但先不添加到 DOM）
+    const container = document.createElement('div');
+    container.className = 'multi-model-response-container';
+    container.dataset.messageId = generateUniqueId();
+
+    modelInfos.forEach(modelInfo => {
+        const column = document.createElement('div');
+        column.className = 'bot-message-column';
+        column.dataset.modelId = modelInfo.modelId;
+
+        // 模型名称标签
+        const modelLabel = document.createElement('div');
+        modelLabel.className = 'model-response-label';
+
+        // 供应商图标
+        if (modelInfo.iconFile) {
+            const icon = document.createElement('img');
+            icon.src = `../icons/${modelInfo.iconFile}`;
+            icon.alt = modelInfo.providerName;
+            icon.className = 'provider-icon-img';
+            modelLabel.appendChild(icon);
+        }
+
+        // 模型名称
+        const nameSpan = document.createElement('span');
+        nameSpan.className = 'model-name';
+        nameSpan.textContent = modelInfo.displayName;
+        nameSpan.title = modelInfo.displayName;
+        modelLabel.appendChild(nameSpan);
+
+        column.appendChild(modelLabel);
+
+        // 消息内容区域（初始为空）
+        const messageContent = document.createElement('div');
+        messageContent.className = 'bot-message';
+        messageContent.dataset.modelId = modelInfo.modelId;
+
+        column.appendChild(messageContent);
+        container.appendChild(column);
+    });
+
+    // 添加用户消息到历史记录
+    if (userMessageForHistory) {
+        state.chatHistory.push(userMessageForHistory);
+    }
+
+    // 跟踪完成的模型数量
+    let completedCount = 0;
+    const totalModels = modelInfos.length;
+
+    // 存储每个模型的响应内容
+    const modelResponses = {};
+
+    // 标记是否已显示容器
+    let containerShown = false;
+
+    // 显示多模型容器（移除 thinking 动画）
+    function showContainer() {
+        if (!containerShown) {
+            containerShown = true;
+            // 移除 thinking 动画
+            if (thinkingElement && thinkingElement.parentNode) {
+                thinkingElement.remove();
+            }
+            // 添加多模型容器
+            elements.chatMessages.appendChild(container);
+            elements.chatMessages.scrollTop = elements.chatMessages.scrollHeight;
+        }
+    }
+
+    // 并行调用所有模型
+    const promises = modelInfos.map(async (modelInfo) => {
+        const modelId = modelInfo.modelId;
+
+        try {
+            // 创建临时状态，使用当前模型
+            const tempState = {
+                ...state,
+                model: modelId,
+                chatHistory: [...state.chatHistory] // 使用相同的历史记录
+            };
+
+            // 获取对应列的消息内容区域
+            const column = container.querySelector(`.bot-message-column[data-model-id="${modelId}"]`);
+            const messageContent = column?.querySelector('.bot-message');
+
+            if (!messageContent) {
+                throw new Error('Message content element not found');
+            }
+
+            // 为 messageContent 添加 messageId（API 需要）
+            const messageId = generateUniqueId();
+            messageContent.dataset.messageId = messageId;
+
+            // 累积的响应内容
+            let accumulatedContent = '';
+            let hasReceivedFirstChunk = false;
+
+            // 创建针对该模型的 UI 回调
+            const modelUiCallbacks = {
+                addMessageToChat: (content, sender, options) => {
+                    // 返回已创建的元素，API 会用这个元素来更新内容
+                    return messageContent;
+                },
+                updateStreamingMessage: (el, content) => {
+                    accumulatedContent = content;
+
+                    // 第一次收到内容时显示多模型容器
+                    if (!hasReceivedFirstChunk) {
+                        hasReceivedFirstChunk = true;
+                        showContainer(); // 显示容器，移除统一的 thinking 动画
+                    }
+
+                    // 使用 MarkdownRenderer 渲染内容
+                    const formattedContent = window.MarkdownRenderer.render(content);
+                    messageContent.innerHTML = formattedContent;
+
+                    // 滚动
+                    if (!state.userScrolledUpDuringStream) {
+                        elements.chatMessages.scrollTop = elements.chatMessages.scrollHeight;
+                    }
+                },
+                finalizeBotMessage: (el, content) => {
+                    accumulatedContent = content || accumulatedContent;
+                    modelResponses[modelId] = accumulatedContent;
+
+                    // 确保容器已显示
+                    showContainer();
+
+                    // 渲染最终内容
+                    if (accumulatedContent) {
+                        const formattedContent = window.MarkdownRenderer.render(accumulatedContent);
+                        messageContent.innerHTML = formattedContent;
+                    }
+
+                    // 添加代码块复制按钮
+                    if (window.addCopyButtonToCodeBlockCallback) {
+                        messageContent.querySelectorAll('pre code').forEach(block => {
+                            window.addCopyButtonToCodeBlockCallback(block);
+                        });
+                    }
+
+                    completedCount++;
+                    console.log(`[MultiModel] ${modelId} completed (${completedCount}/${totalModels})`);
+
+                    // 所有模型都完成后恢复按钮状态
+                    if (completedCount >= totalModels) {
+                        state.isStreaming = false;
+                        restoreSendButtonAndInputCallback();
+
+                        // 将第一个模型的响应添加到历史记录（用于后续对话）
+                        const firstModelResponse = modelResponses[modelInfos[0].modelId];
+                        if (firstModelResponse) {
+                            state.chatHistory.push({
+                                role: 'model',
+                                parts: [{ text: firstModelResponse }],
+                                id: generateUniqueId(),
+                                multiModelResponses: modelResponses // 存储所有模型的响应
+                            });
+                        }
+                    }
+                },
+                showToast: showToastCallback,
+                restoreSendButtonAndInput: () => {
+                    // API 层面发生错误时会调用这个回调
+                    // 增加完成计数并检查是否所有模型都完成
+                    completedCount++;
+                    console.log(`[MultiModel] ${modelId} failed/aborted (${completedCount}/${totalModels})`);
+
+                    if (completedCount >= totalModels) {
+                        state.isStreaming = false;
+                        restoreSendButtonAndInputCallback();
+                    }
+                }
+            };
+
+            // 调用 API
+            await window.GeminiAPI.callGeminiAPIWithImages(
+                userMessage,
+                currentImages,
+                currentVideos,
+                null, // thinkingElement - 我们已经在容器中创建了
+                tempState,
+                modelUiCallbacks,
+                contextTabsForApi,
+                null // 不再传递 userMessageForHistory，已手动添加
+            );
+
+        } catch (error) {
+            console.error(`[MultiModel] Error calling ${modelId}:`, error);
+
+            // 确保容器已显示
+            showContainer();
+
+            // 显示错误
+            const column = container.querySelector(`.bot-message-column[data-model-id="${modelId}"]`);
+            const messageContent = column?.querySelector('.bot-message');
+
+            if (messageContent) {
+                messageContent.innerHTML = `<div class="error-message" style="color: var(--error-color); padding: 12px;">Error: ${error.message || 'Unknown error'}</div>`;
+            }
+
+            // 注意：completedCount 已经在 restoreSendButtonAndInput 回调中增加了
+            // 这里不需要再增加，也不需要再检查是否完成
+        }
+    });
+
+    // 等待所有调用完成
+    await Promise.allSettled(promises);
+
+    // 最终清理：确保 thinking 动画被移除，状态被恢复
+    if (thinkingElement && thinkingElement.parentNode) {
+        thinkingElement.remove();
+    }
+    // 如果所有模型都失败了（容器从未显示），也需要恢复状态
+    if (!containerShown) {
+        state.isStreaming = false;
+        restoreSendButtonAndInputCallback();
+    }
+}
+
+
+/**
+ * 多模型并行重新生成
+ */
+async function regenerateMultiModelMessage(
+    userMessageText,
+    userImages,
+    userVideos,
+    contextTabsForApi,
+    historyForApi,
+    userIndex,
+    userMessageElement,
+    selectedModels,
+    state,
+    elements,
+    currentTranslations,
+    addMessageToChatCallback,
+    showToastCallback,
+    restoreSendButtonAndInputCallback
+) {
+    // 获取模型信息
+    const modelInfos = selectedModels
+        .map(modelId => getModelInfo(modelId, elements))
+        .filter(info => info !== null);
+
+    if (modelInfos.length === 0) {
+        console.error('[MultiModel Regen] No valid model info found');
+        restoreSendButtonAndInputCallback();
+        return;
+    }
+
+    // 先显示统一的 thinking 动画（插入到用户消息后面）
+    const thinkingElement = document.createElement('div');
+    thinkingElement.classList.add('message', 'bot-message', 'thinking');
+    const thinkingDots = document.createElement('div');
+    thinkingDots.classList.add('thinking-dots');
+    for (let i = 0; i < 3; i++) {
+        const dot = document.createElement('span');
+        thinkingDots.appendChild(dot);
+    }
+    thinkingElement.appendChild(thinkingDots);
+    userMessageElement.insertAdjacentElement('afterend', thinkingElement);
+    elements.chatMessages.scrollTop = elements.chatMessages.scrollHeight;
+
+    // 创建多模型响应容器（但先不添加到 DOM）
+    const container = document.createElement('div');
+    container.className = 'multi-model-response-container';
+    container.dataset.messageId = generateUniqueId();
+
+    modelInfos.forEach(modelInfo => {
+        const column = document.createElement('div');
+        column.className = 'bot-message-column';
+        column.dataset.modelId = modelInfo.modelId;
+
+        // 模型名称标签
+        const modelLabel = document.createElement('div');
+        modelLabel.className = 'model-response-label';
+
+        // 供应商图标
+        if (modelInfo.iconFile) {
+            const icon = document.createElement('img');
+            icon.src = `../icons/${modelInfo.iconFile}`;
+            icon.alt = modelInfo.providerName;
+            icon.className = 'provider-icon-img';
+            modelLabel.appendChild(icon);
+        }
+
+        // 模型名称
+        const nameSpan = document.createElement('span');
+        nameSpan.className = 'model-name';
+        nameSpan.textContent = modelInfo.displayName;
+        nameSpan.title = modelInfo.displayName;
+        modelLabel.appendChild(nameSpan);
+
+        column.appendChild(modelLabel);
+
+        // 消息内容区域（初始为空）
+        const messageContent = document.createElement('div');
+        messageContent.className = 'bot-message';
+        messageContent.dataset.modelId = modelInfo.modelId;
+
+        column.appendChild(messageContent);
+        container.appendChild(column);
+    });
+
+    // 跟踪完成的模型数量
+    let completedCount = 0;
+    const totalModels = modelInfos.length;
+
+    // 存储每个模型的响应内容
+    const modelResponses = {};
+
+    // 标记是否已显示容器
+    let containerShown = false;
+
+    // 显示多模型容器（移除 thinking 动画，插入到用户消息后面）
+    function showContainer() {
+        if (!containerShown) {
+            containerShown = true;
+            // 移除 thinking 动画
+            if (thinkingElement && thinkingElement.parentNode) {
+                thinkingElement.remove();
+            }
+            // 插入多模型容器到用户消息后面
+            userMessageElement.insertAdjacentElement('afterend', container);
+            elements.chatMessages.scrollTop = elements.chatMessages.scrollHeight;
+        }
+    }
+
+    // 并行调用所有模型
+    const promises = modelInfos.map(async (modelInfo) => {
+        const modelId = modelInfo.modelId;
+
+        try {
+            // 创建临时状态，使用当前模型和提供的历史记录
+            const tempState = {
+                ...state,
+                model: modelId,
+                chatHistory: [...historyForApi] // 使用重新生成前的历史记录
+            };
+
+            // 获取对应列的消息内容区域
+            const column = container.querySelector(`.bot-message-column[data-model-id="${modelId}"]`);
+            const messageContent = column?.querySelector('.bot-message');
+
+            if (!messageContent) {
+                throw new Error('Message content element not found');
+            }
+
+            // 为 messageContent 添加 messageId（API 需要）
+            const messageId = generateUniqueId();
+            messageContent.dataset.messageId = messageId;
+
+            // 累积的响应内容
+            let accumulatedContent = '';
+            let hasReceivedFirstChunk = false;
+
+            // 创建针对该模型的 UI 回调
+            const modelUiCallbacks = {
+                addMessageToChat: (content, sender, options) => {
+                    // 返回已创建的元素，API 会用这个元素来更新内容
+                    return messageContent;
+                },
+                updateStreamingMessage: (el, content) => {
+                    accumulatedContent = content;
+
+                    // 第一次收到内容时显示多模型容器
+                    if (!hasReceivedFirstChunk) {
+                        hasReceivedFirstChunk = true;
+                        showContainer();
+                    }
+
+                    // 使用 MarkdownRenderer 渲染内容
+                    const formattedContent = window.MarkdownRenderer.render(content);
+                    messageContent.innerHTML = formattedContent;
+
+                    // 滚动
+                    if (!state.userScrolledUpDuringStream) {
+                        elements.chatMessages.scrollTop = elements.chatMessages.scrollHeight;
+                    }
+                },
+                finalizeBotMessage: (el, content) => {
+                    accumulatedContent = content || accumulatedContent;
+                    modelResponses[modelId] = accumulatedContent;
+
+                    // 确保容器已显示
+                    showContainer();
+
+                    // 渲染最终内容
+                    if (accumulatedContent) {
+                        const formattedContent = window.MarkdownRenderer.render(accumulatedContent);
+                        messageContent.innerHTML = formattedContent;
+                    }
+
+                    // 添加代码块复制按钮
+                    if (window.addCopyButtonToCodeBlockCallback) {
+                        messageContent.querySelectorAll('pre code').forEach(block => {
+                            window.addCopyButtonToCodeBlockCallback(block);
+                        });
+                    }
+
+                    completedCount++;
+                    console.log(`[MultiModel Regen] ${modelId} completed (${completedCount}/${totalModels})`);
+
+                    // 所有模型都完成后恢复按钮状态
+                    if (completedCount >= totalModels) {
+                        state.isStreaming = false;
+                        restoreSendButtonAndInputCallback();
+
+                        // 将第一个模型的响应添加到历史记录（用于后续对话）
+                        const firstModelResponse = modelResponses[modelInfos[0].modelId];
+                        if (firstModelResponse) {
+                            state.chatHistory.push({
+                                role: 'model',
+                                parts: [{ text: firstModelResponse }],
+                                id: generateUniqueId(),
+                                multiModelResponses: modelResponses // 存储所有模型的响应
+                            });
+                        }
+                    }
+                },
+                showToast: showToastCallback,
+                restoreSendButtonAndInput: () => {
+                    // API 层面发生错误时会调用这个回调
+                    // 增加完成计数并检查是否所有模型都完成
+                    completedCount++;
+                    console.log(`[MultiModel Regen] ${modelId} failed/aborted (${completedCount}/${totalModels})`);
+
+                    if (completedCount >= totalModels) {
+                        state.isStreaming = false;
+                        restoreSendButtonAndInputCallback();
+                    }
+                }
+            };
+
+            // 调用 API（使用 callGeminiAPIWithImages，传入历史记录）
+            await window.GeminiAPI.callGeminiAPIWithImages(
+                userMessageText,
+                userImages,
+                userVideos,
+                null, // thinkingElement - 我们已经在容器中创建了
+                tempState,
+                modelUiCallbacks,
+                contextTabsForApi,
+                null // 不传递 userMessageForHistory，重新生成不需要再添加用户消息
+            );
+
+        } catch (error) {
+            console.error(`[MultiModel Regen] Error calling ${modelId}:`, error);
+
+            // 确保容器已显示
+            showContainer();
+
+            // 显示错误
+            const column = container.querySelector(`.bot-message-column[data-model-id="${modelId}"]`);
+            const messageContent = column?.querySelector('.bot-message');
+
+            if (messageContent) {
+                messageContent.innerHTML = `<div class="error-message" style="color: var(--error-color); padding: 12px;">Error: ${error.message || 'Unknown error'}</div>`;
+            }
+
+            // 注意：completedCount 已经在 restoreSendButtonAndInput 回调中增加了
+            // 这里不需要再增加，也不需要再检查是否完成
+        }
+    });
+
+    // 等待所有调用完成
+    await Promise.allSettled(promises);
+
+    // 最终清理：确保 thinking 动画被移除，状态被恢复
+    if (thinkingElement && thinkingElement.parentNode) {
+        thinkingElement.remove();
+    }
+    // 如果所有模型都失败了（容器从未显示），也需要恢复状态
+    if (!containerShown) {
+        state.isStreaming = false;
+        restoreSendButtonAndInputCallback();
+    }
+}
 
 /**
  * Clears the chat context and history.
@@ -340,10 +930,19 @@ export async function regenerateMessage(messageId, state, elements, currentTrans
     let removedAICount = 0;
     while (state.chatHistory[userIndex + 1]?.role === 'model') {
         const oldAiMessageId = state.chatHistory[userIndex + 1].id;
+        // 尝试移除单模型响应
         const oldAiElement = document.querySelector(`.message[data-message-id="${oldAiMessageId}"]`);
         if (oldAiElement) oldAiElement.remove();
+        // 尝试移除多模型响应容器
+        const oldMultiModelContainer = document.querySelector(`.multi-model-response-container[data-message-id="${oldAiMessageId}"]`);
+        if (oldMultiModelContainer) oldMultiModelContainer.remove();
         state.chatHistory.splice(userIndex + 1, 1);
         removedAICount++;
+    }
+    // 也尝试移除用户消息后面紧跟的多模型容器（可能没有在历史记录中）
+    const nextSibling = userMessageElement.nextElementSibling;
+    if (nextSibling && nextSibling.classList.contains('multi-model-response-container')) {
+        nextSibling.remove();
     }
     console.log(`Removed ${removedAICount} old AI response(s) starting after index ${userIndex}`);
 
@@ -399,48 +998,78 @@ export async function regenerateMessage(messageId, state, elements, currentTrans
     elements.sendMessage.setAttribute('aria-label', stopTitle);
     // --- End Streaming State ---
 
-    // Add thinking animation after the user message
-    // The callback `addThinkingAnimationCallback` (defined in main.js) will use the live `isUserNearBottom`.
-    // It expects `afterEl` as its first argument.
-    const thinkingElement = addThinkingAnimationCallback(userMessageElement);
+    // 获取选中的模型列表
+    const selectedModels = state.selectedModels && state.selectedModels.length > 0
+        ? state.selectedModels
+        : [state.model];
 
-    try {
-        // Prepare API callbacks object (similar to sendUserMessage)
-        const apiUiCallbacks = {
-            // addMessageToChatCallback is main.js#addMessageToChatUI, which correctly uses live isUserNearBottom
-            addMessageToChat: addMessageToChatCallback,
-            // These now call the wrappers on `window` (defined in main.js) which use live isUserNearBottom from main.js
-            updateStreamingMessage: (el, content) => window.updateStreamingMessage(el, content),
-            finalizeBotMessage: (el, content) => {
-                window.finalizeBotMessage(el, content);
-                // 此处不再需要处理 selectedContextTabs 的逻辑，已提前处理
-            },
-            clearImages: () => { }, // Don't clear images on regenerate
-            showToast: showToastCallback // Pass the received showToastCallback
-        };
+    // 判断是单模型还是多模型
+    const isMultiModel = selectedModels.length > 1;
 
-        // Call API to insert response
-        await window.GeminiAPI.callApiAndInsertResponse(
+    if (isMultiModel) {
+        // ========== 多模型并行重新生成 ==========
+        await regenerateMultiModelMessage(
             userMessageText,
             userImages,
             userVideos,
-            thinkingElement,
+            contextTabsForApiRegen,
             historyForApi,
-            userIndex + 1, // Insert *after* the user message index
-            userMessageElement, // Insert *after* this DOM element
+            userIndex,
+            userMessageElement,
+            selectedModels,
             state,
-            apiUiCallbacks,
-            contextTabsForApiRegen // <--- Pass the prepared context tabs
+            elements,
+            currentTranslations,
+            addMessageToChatCallback,
+            showToastCallback,
+            restoreSendButtonAndInputCallback
         );
-        // finalizeBotMessage will restore button state on success
+    } else {
+        // ========== 单模型重新生成（保持原有逻辑） ==========
+        // Add thinking animation after the user message
+        // The callback `addThinkingAnimationCallback` (defined in main.js) will use the live `isUserNearBottom`.
+        // It expects `afterEl` as its first argument.
+        const thinkingElement = addThinkingAnimationCallback(userMessageElement);
 
-    } catch (error) {
-        console.error(`Regenerate failed:`, error);
-        if (thinkingElement && thinkingElement.parentNode) thinkingElement.remove();
-        // Add error message after the user message
-        // addMessageToChatCallback already handles isUserNearBottom correctly
-        addMessageToChatCallback(_('regenerateError', { error: error.message }, currentTranslations), 'bot', { insertAfterElement: userMessageElement });
-        restoreSendButtonAndInputCallback(); // Restore button on error
+        try {
+            // Prepare API callbacks object (similar to sendUserMessage)
+            const apiUiCallbacks = {
+                // addMessageToChatCallback is main.js#addMessageToChatUI, which correctly uses live isUserNearBottom
+                addMessageToChat: addMessageToChatCallback,
+                // These now call the wrappers on `window` (defined in main.js) which use live isUserNearBottom from main.js
+                updateStreamingMessage: (el, content) => window.updateStreamingMessage(el, content),
+                finalizeBotMessage: (el, content) => {
+                    window.finalizeBotMessage(el, content);
+                    // 此处不再需要处理 selectedContextTabs 的逻辑，已提前处理
+                },
+                clearImages: () => { }, // Don't clear images on regenerate
+                showToast: showToastCallback, // Pass the received showToastCallback
+                restoreSendButtonAndInput: restoreSendButtonAndInputCallback // Add this callback for error handling
+            };
+
+            // Call API to insert response
+            await window.GeminiAPI.callApiAndInsertResponse(
+                userMessageText,
+                userImages,
+                userVideos,
+                thinkingElement,
+                historyForApi,
+                userIndex + 1, // Insert *after* the user message index
+                userMessageElement, // Insert *after* this DOM element
+                state,
+                apiUiCallbacks,
+                contextTabsForApiRegen // <--- Pass the prepared context tabs
+            );
+            // finalizeBotMessage will restore button state on success
+
+        } catch (error) {
+            console.error(`Regenerate failed:`, error);
+            if (thinkingElement && thinkingElement.parentNode) thinkingElement.remove();
+            // Add error message after the user message
+            // addMessageToChatCallback already handles isUserNearBottom correctly
+            addMessageToChatCallback(_('regenerateError', { error: error.message }, currentTranslations), 'bot', { insertAfterElement: userMessageElement });
+            restoreSendButtonAndInputCallback(); // Restore button on error
+        }
     }
 }
 

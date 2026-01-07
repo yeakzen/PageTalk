@@ -57,7 +57,7 @@ export function loadSettings(state, elements, updateConnectionIndicatorCallback,
         console.log('[Settings] Updated manual add button for language:', newLanguage);
     });
 
-    chrome.storage.sync.get(['apiKey', 'model', 'language', 'proxyAddress', 'providerSettings'], async (syncResult) => {
+    chrome.storage.sync.get(['apiKey', 'model', 'selectedModels', 'language', 'proxyAddress', 'providerSettings'], async (syncResult) => {
         // 初始化 ModelManager
         if (window.ModelManager?.instance) {
             try {
@@ -76,6 +76,14 @@ export function loadSettings(state, elements, updateConnectionIndicatorCallback,
             }
         }
         if (syncResult.model) state.model = syncResult.model;
+
+        // 加载多模型选择
+        if (syncResult.selectedModels && Array.isArray(syncResult.selectedModels) && syncResult.selectedModels.length > 0) {
+            state.selectedModels = syncResult.selectedModels;
+        } else {
+            // 如果没有保存的多模型选择，使用当前单模型作为默认
+            state.selectedModels = [state.model];
+        }
 
         // 加载自定义提供商
         await window.ProviderManager?.loadCustomProviders();

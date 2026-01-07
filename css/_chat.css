@@ -1174,12 +1174,79 @@ body.dark-mode .bot-message:hover {
 .model-option.selected {
     color: var(--primary-color);
     font-weight: 500;
+    background-color: rgba(70, 116, 255, 0.08);
 }
 
-.model-option.selected::before {
-    content: '✓';
-    margin-right: 8px;
+/* 多选模式复选框样式 */
+.model-checkbox {
+    width: 16px;
+    height: 16px;
+    min-width: 16px;
+    border: 2px solid var(--border-color);
+    border-radius: 4px;
+    margin-right: 10px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: all 0.15s ease;
+    background-color: transparent;
+}
+
+.model-option.selected .model-checkbox {
+    background-color: var(--primary-color);
+    border-color: var(--primary-color);
+}
+
+.model-option.selected .model-checkbox::after {
+    content: '';
+    width: 5px;
+    height: 8px;
+    border: solid white;
+    border-width: 0 2px 2px 0;
+    transform: rotate(45deg);
+    margin-bottom: 2px;
+}
+
+.model-option-name {
+    flex: 1;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+/* 多模型显示样式 */
+.model-display-icon.multi {
+    width: 16px;
+    height: 16px;
+    margin-right: -4px;
+    border: 2px solid var(--card-background);
+    border-radius: 50%;
+    background-color: var(--card-background);
+}
+
+.model-display-icon.multi:first-child {
+    margin-left: 0;
+}
+
+.model-count-badge {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-width: 18px;
+    height: 18px;
+    padding: 0 4px;
+    margin-left: 2px;
+    background-color: var(--primary-color);
+    color: white;
+    font-size: 10px;
+    font-weight: 600;
+    border-radius: 9px;
+}
+
+.model-count {
+    margin-left: 6px;
     font-size: 12px;
+    color: var(--text-secondary);
 }
 
 /* 发送按钮 */
@@ -2697,4 +2764,147 @@ body.dark-mode .tab-selection-actions .tab-action.cancel {
 */
 .bot-message:has(.mermaid) {
     width: 100%;
+}
+
+/* ========================================
+   多模型并行响应容器样式
+   ======================================== */
+
+/* 多模型响应容器 - 水平排列 */
+.multi-model-response-container {
+    display: flex;
+    gap: 4px;
+    width: 100%;
+    padding: 4px 0;
+    animation: fadeIn 0.3s ease;
+}
+
+/* 隐藏滚动条但保持滚动功能 */
+.multi-model-response-container::-webkit-scrollbar {
+    height: 6px;
+}
+
+.multi-model-response-container::-webkit-scrollbar-track {
+    background: transparent;
+}
+
+.multi-model-response-container::-webkit-scrollbar-thumb {
+    background-color: var(--border-color);
+    border-radius: 3px;
+}
+
+.multi-model-response-container::-webkit-scrollbar-thumb:hover {
+    background-color: var(--text-secondary);
+}
+
+/* 单个模型响应列 */
+.bot-message-column {
+    flex: 1;
+    min-width: 280px;
+    display: flex;
+    flex-direction: column;
+    animation: slideUp 0.3s ease;
+}
+
+/* 当只有两个模型时，各占50% */
+.multi-model-response-container:has(.bot-message-column:nth-child(2):last-child) .bot-message-column {
+    flex: 1;
+    min-width: 0;
+}
+
+/* 当有三个或更多模型时，允许水平滚动 */
+.multi-model-response-container:has(.bot-message-column:nth-child(3)) {
+    overflow-x: auto;
+}
+
+.multi-model-response-container:has(.bot-message-column:nth-child(3)) .bot-message-column {
+    min-width: 280px;
+    flex: 0 0 auto;
+}
+
+@keyframes slideUp {
+    from {
+        opacity: 0;
+        transform: translateY(10px);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+/* 模型名称标签 */
+.model-response-label {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    padding: 8px 14px;
+    font-size: 12px;
+    font-weight: 600;
+    color: var(--text-secondary);
+    background: var(--card-background);
+    border-radius: 14px 14px 0 0;
+    border: 1px solid var(--border-color);
+    border-bottom: none;
+    width: 100%;
+    box-sizing: border-box;
+}
+
+.model-response-label .provider-icon-img {
+    width: 16px;
+    height: 16px;
+    object-fit: contain;
+}
+
+.model-response-label .model-name {
+    flex: 1;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+/* 多模型容器内的 bot-message 样式调整 */
+.bot-message-column .bot-message {
+    border-radius: 0 0 14px 14px;
+    border: 1px solid var(--border-color);
+    border-top: none;
+    margin: 0;
+    animation: none;
+    width: 100%;
+    max-width: 100%; /* 覆盖默认的 90% */
+    box-sizing: border-box;
+    /* 移除悬停效果 */
+    transform: none;
+}
+
+.bot-message-column .bot-message:hover {
+    transform: none;
+}
+
+/* 多模型容器内的 thinking 动画 */
+.bot-message-column .thinking-animation {
+    padding: 20px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+/* 响应式调整 */
+@media (max-width: 600px) {
+    .multi-model-response-container {
+        flex-direction: column;
+    }
+
+    .bot-message-column {
+        max-width: 100%;
+        min-width: 100%;
+    }
+
+    .model-response-label {
+        border-radius: 14px 14px 0 0;
+    }
+
+    .bot-message-column .bot-message {
+        border-radius: 0 0 14px 14px;
+    }
 }

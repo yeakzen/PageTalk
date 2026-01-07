@@ -51,7 +51,12 @@ import {
     showCopyMessageFeedback,
     showTabSelectionPopupUI,
     closeTabSelectionPopupUI as uiCloseTabSelectionPopupUI, // Alias to avoid naming conflict if any future local var
-    updateSelectedTabsBarUI
+    updateSelectedTabsBarUI,
+    createMultiModelResponseContainer,
+    addThinkingAnimationToColumn,
+    updateMultiModelStreamingMessage,
+    finalizeMultiModelMessage,
+    showMultiModelError
 } from './ui.js';
 import { initCometCaret } from './comet-caret.js';
 
@@ -59,6 +64,7 @@ import { initCometCaret } from './comet-caret.js';
 const state = {
     apiKey: '',
     model: 'google::gemini-2.5-flash',
+    selectedModels: [], // 新增：多模型选择数组
     agents: [],
     currentAgentId: null,
     // Settings derived from current agent
@@ -393,6 +399,11 @@ async function init() {
 
     // Expose state object to global scope for settings functions
     window.state = state;
+
+    // Expose addCopyButtonToCodeBlock for multi-model responses
+    window.addCopyButtonToCodeBlockCallback = (block) => {
+        addCopyButtonToCodeBlockUI(block);
+    };
 
     console.log("Pagetalk Initialized.");
 }
@@ -887,7 +898,7 @@ function handleChatModelChange() {
     });
 }
 
-// 渲染自定义模型选择菜单
+// 渲染自定义模型选择菜单（支持多选）
 function renderModelSelectorMenu() {
     const menu = elements.modelSelectorMenu;
     const select = elements.chatModelSelection;
@@ -922,6 +933,39 @@ function renderModelSelectorMenu() {
         return '<svg class="provider-icon-svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/></svg>';
     }
 
+    // 创建模型选项（带复选框）
+    function createModelOption(option, providerName) {
+        const btn = document.createElement('button');
+        btn.className = 'model-option';
+        btn.dataset.value = option.value;
+        btn.type = 'button'; // 防止表单提交
+
+        // 复选框
+        const checkbox = document.createElement('span');
+        checkbox.className = 'model-checkbox';
+
+        // 模型名称
+        const nameSpan = document.createElement('span');
+        nameSpan.className = 'model-option-name';
+        nameSpan.textContent = option.textContent;
+
+        btn.appendChild(checkbox);
+        btn.appendChild(nameSpan);
+
+        // 检查是否已选中
+        if (state.selectedModels.includes(option.value)) {
+            btn.classList.add('selected');
+        }
+
+        // 点击切换选中状态
+        btn.addEventListener('click', (e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            toggleModelSelection(option.value);
+        });
+
+        return btn;
+    }
 
     // 获取 optgroup 结构
     const optgroups = select.querySelectorAll('optgroup');
@@ -939,14 +983,7 @@ function renderModelSelectorMenu() {
             group.appendChild(label);
 
             optgroup.querySelectorAll('option').forEach(option => {
-                const btn = document.createElement('button');
-                btn.className = 'model-option';
-                btn.textContent = option.textContent;
-                btn.dataset.value = option.value;
-                if (option.value === state.model) {
-                    btn.classList.add('selected');
-                }
-                btn.addEventListener('click', () => selectModelFromMenu(option.value));
+                const btn = createModelOption(option, providerName);
                 group.appendChild(btn);
             });
 
@@ -955,21 +992,67 @@ function renderModelSelectorMenu() {
     } else {
         // 没有分组，直接渲染 options
         select.querySelectorAll('option').forEach(option => {
-            const btn = document.createElement('button');
-            btn.className = 'model-option';
-            btn.textContent = option.textContent;
-            btn.dataset.value = option.value;
-            if (option.value === state.model) {
-                btn.classList.add('selected');
-            }
-            btn.addEventListener('click', () => selectModelFromMenu(option.value));
+            const btn = createModelOption(option, '');
             menu.appendChild(btn);
         });
     }
 }
 
 
-// 从自定义菜单选择模型
+// 切换模型选中状态（多选模式）
+function toggleModelSelection(value) {
+    const index = state.selectedModels.indexOf(value);
+    if (index > -1) {
+        // 如果已选中，取消选中（但至少保留一个）
+        if (state.selectedModels.length > 1) {
+            state.selectedModels.splice(index, 1);
+        }
+    } else {
+        // 如果未选中，添加到选中列表
+        state.selectedModels.push(value);
+    }
+
+    // 更新主模型为第一个选中的模型（向后兼容）
+    if (state.selectedModels.length > 0) {
+        state.model = state.selectedModels[0];
+        elements.chatModelSelection.value = state.model;
+    }
+
+    // 更新菜单中的选中状态
+    const menu = elements.modelSelectorMenu;
+    if (menu) {
+        menu.querySelectorAll('.model-option').forEach(btn => {
+            if (state.selectedModels.includes(btn.dataset.value)) {
+                btn.classList.add('selected');
+            } else {
+                btn.classList.remove('selected');
+            }
+        });
+    }
+
+    // 更新显示
+    updateCurrentModelDisplay();
+
+    // 保存选择
+    saveSelectedModels();
+}
+
+// 保存选中的模型
+function saveSelectedModels() {
+    chrome.storage.sync.set({
+        model: state.model,
+        selectedModels: state.selectedModels
+    }, () => {
+        if (chrome.runtime.lastError) {
+            console.error("Error saving model selection:", chrome.runtime.lastError);
+            showToastUI(_('saveFailedToast', { error: chrome.runtime.lastError.message }, currentTranslations), 'error');
+        } else {
+            console.log(`Model selection saved: ${state.selectedModels.join(', ')}`);
+        }
+    });
+}
+
+// 从自定义菜单选择模型（单选模式 - 保留用于向后兼容）
 function selectModelFromMenu(value) {
     elements.chatModelSelection.value = value;
     handleChatModelChange();
@@ -978,40 +1061,74 @@ function selectModelFromMenu(value) {
     elements.inlineModelSelector.classList.remove('active');
 }
 
-// 更新当前模型显示（包含供应商图标）
+// 更新当前模型显示（支持多模型显示）
 function updateCurrentModelDisplay() {
     if (!elements.currentModelDisplay || !elements.chatModelSelection) return;
-    const selectedOption = elements.chatModelSelection.selectedOptions[0];
-    if (selectedOption) {
-        // 获取供应商名称（从 optgroup 获取）
-        const optgroup = selectedOption.parentElement;
-        let providerName = optgroup && optgroup.tagName === 'OPTGROUP' ? optgroup.label : '';
 
-        // 供应商图标映射
-        const providerIconMap = {
-            'Google': 'Gemini.svg',
-            'Anthropic': 'Claude.svg',
-            'OpenAI': 'OpenAI.svg',
-            'DeepSeek': 'DeepSeek.svg',
-            'OpenRouter': 'OpenRouter.svg',
-            'SiliconFlow': 'SiliconFlow.svg',
-            'Groq': 'groq.svg',
-            'Cerebras': 'cerebras.svg',
-            'Ollama': 'ollama.svg',
-            'LMStudio': 'lmstudio.svg',
-            'ChatGLM': 'ChatGLM.svg',
-            'ModelScope': 'modelscope.svg',
-            'Vercel': 'vercel.svg'
-        };
+    // 供应商图标映射
+    const providerIconMap = {
+        'Google': 'Gemini.svg',
+        'Anthropic': 'Claude.svg',
+        'OpenAI': 'OpenAI.svg',
+        'DeepSeek': 'DeepSeek.svg',
+        'OpenRouter': 'OpenRouter.svg',
+        'SiliconFlow': 'SiliconFlow.svg',
+        'Groq': 'groq.svg',
+        'Cerebras': 'cerebras.svg',
+        'Ollama': 'ollama.svg',
+        'LMStudio': 'lmstudio.svg',
+        'ChatGLM': 'ChatGLM.svg',
+        'ModelScope': 'modelscope.svg',
+        'Vercel': 'vercel.svg'
+    };
 
+    // 获取模型信息的辅助函数
+    function getModelInfo(modelValue) {
+        const select = elements.chatModelSelection;
+        const option = select.querySelector(`option[value="${modelValue}"]`);
+        if (!option) return null;
+
+        const optgroup = option.parentElement;
+        const providerName = optgroup && optgroup.tagName === 'OPTGROUP' ? optgroup.label : '';
         const iconFile = providerIconMap[providerName];
-        const displayName = selectedOption.textContent;
 
-        if (iconFile) {
-            elements.currentModelDisplay.innerHTML = `<img src="../icons/${iconFile}" alt="${providerName}" class="model-display-icon">${displayName}`;
-        } else {
-            elements.currentModelDisplay.textContent = displayName;
+        return {
+            value: modelValue,
+            displayName: option.textContent,
+            providerName,
+            iconFile
+        };
+    }
+
+    // 如果只有一个模型，使用简洁显示
+    if (state.selectedModels.length === 1) {
+        const modelInfo = getModelInfo(state.selectedModels[0]);
+        if (modelInfo) {
+            if (modelInfo.iconFile) {
+                elements.currentModelDisplay.innerHTML = `<img src="../icons/${modelInfo.iconFile}" alt="${modelInfo.providerName}" class="model-display-icon">${modelInfo.displayName}`;
+            } else {
+                elements.currentModelDisplay.textContent = modelInfo.displayName;
+            }
         }
+    } else {
+        // 多个模型，显示数量和图标
+        let html = '';
+        const maxDisplay = 3; // 最多显示3个图标
+        const displayModels = state.selectedModels.slice(0, maxDisplay);
+
+        displayModels.forEach((modelValue, index) => {
+            const modelInfo = getModelInfo(modelValue);
+            if (modelInfo && modelInfo.iconFile) {
+                html += `<img src="../icons/${modelInfo.iconFile}" alt="${modelInfo.providerName}" class="model-display-icon multi" title="${modelInfo.displayName}">`;
+            }
+        });
+
+        if (state.selectedModels.length > maxDisplay) {
+            html += `<span class="model-count-badge">+${state.selectedModels.length - maxDisplay}</span>`;
+        }
+
+        html += `<span class="model-count">${state.selectedModels.length} models</span>`;
+        elements.currentModelDisplay.innerHTML = html;
     }
 }
 
