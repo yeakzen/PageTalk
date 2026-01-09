@@ -24,8 +24,8 @@
     background: linear-gradient(
         180deg,
         var(--primary-color) 0%,
-        rgba(116, 143, 252, 0.8) 50%,
-        rgba(116, 143, 252, 0.4) 100%
+        rgba(227, 124, 235, 0.8) 50%,
+        rgba(227, 124, 235, 0.4) 100%
     );
     border-radius: 1px;
     opacity: 0;
@@ -35,8 +35,8 @@
         height 0.1s ease,
         opacity 0.15s ease;
     box-shadow: 
-        0 0 8px rgba(116, 143, 252, 0.6),
-        0 0 16px rgba(116, 143, 252, 0.3);
+        0 0 8px rgba(227, 124, 235, 0.6),
+        0 0 16px rgba(227, 124, 235, 0.3);
     transform-origin: center top;
 }
 
@@ -71,7 +71,7 @@
     background: radial-gradient(
         circle,
         rgba(102, 131, 253, 0.8) 0%, /* 稍微加深颜色 */
-        rgba(116, 143, 252, 0.5) 60%,
+        rgba(227, 124, 235, 0.5) 60%,
         transparent 100%
     );
     pointer-events: none;
@@ -111,7 +111,7 @@
     bottom: -2px;
     background: radial-gradient(
         ellipse at center,
-        rgba(116, 143, 252, 0.3) 0%,
+        rgba(227, 124, 235, 0.3) 0%,
         transparent 70%
     );
     border-radius: 50%;
@@ -142,20 +142,20 @@ body.dark-mode .comet-caret {
     background: linear-gradient(
         180deg,
         #748ffc 0%,
-        rgba(116, 143, 252, 0.9) 50%,
-        rgba(116, 143, 252, 0.5) 100%
+        rgba(227, 124, 235, 0.9) 50%,
+        rgba(227, 124, 235, 0.5) 100%
     );
     box-shadow: 
-        0 0 10px rgba(116, 143, 252, 0.7),
-        0 0 20px rgba(116, 143, 252, 0.4),
-        0 0 30px rgba(116, 143, 252, 0.2);
+        0 0 10px rgba(227, 124, 235, 0.7),
+        0 0 20px rgba(227, 124, 235, 0.4),
+        0 0 30px rgba(227, 124, 235, 0.2);
 }
 
 body.dark-mode .comet-trail {
     background: radial-gradient(
         circle,
-        rgba(116, 143, 252, 1) 0%,
-        rgba(116, 143, 252, 0.6) 50%,
+        rgba(227, 124, 235, 1) 0%,
+        rgba(227, 124, 235, 0.6) 50%,
         transparent 100%
     );
 }
@@ -163,7 +163,7 @@ body.dark-mode .comet-trail {
 body.dark-mode .comet-caret::before {
     background: radial-gradient(
         ellipse at center,
-        rgba(116, 143, 252, 0.4) 0%,
+        rgba(227, 124, 235, 0.4) 0%,
         transparent 70%
     );
 }

@@ -2020,7 +2020,7 @@ html body .pagetalk-function-window.dark-mode .pagetalk-quote-text.collapsed::af
 .custom-option-dialog-save:hover {
     background-color: var(--secondary-color);
     transform: translateY(-1px);
-    box-shadow: 0 2px 8px rgba(116, 143, 252, 0.3);
+    box-shadow: 0 2px 8px rgba(227, 124, 235, 0.3);
 }
 
 .custom-option-dialog-cancel {
@@ -2293,7 +2293,7 @@ input[name="translate-context-mode"][value="full"]:checked + label + .context-in
 .icon-picker input[type="text"]:focus {
     outline: none;
     border-color: var(--primary-color);
-    box-shadow: 0 0 0 2px rgba(116, 143, 252, 0.2);
+    box-shadow: 0 0 0 2px rgba(227, 124, 235, 0.2);
 }
 
 .icon-picker .icon-grid {
@@ -2351,8 +2351,8 @@ input[name="translate-context-mode"][value="full"]:checked + label + .context-in
 
 .icon-picker .icon-item.selected {
     border-color: var(--primary-color);
-    background: rgba(116, 143, 252, 0.1);
-    box-shadow: 0 2px 8px rgba(116, 143, 252, 0.3);
+    background: rgba(227, 124, 235, 0.1);
+    box-shadow: 0 2px 8px rgba(227, 124, 235, 0.3);
 }
 
 .icon-picker .icon-item svg {
@@ -2551,8 +2551,8 @@ html body .pagetalk-function-window.dark-mode {
     --code-border: #495057;
     --table-header-bg: #748FFC;
     --table-even-row-bg: rgba(255, 255, 255, 0.04);
-    --button-hover-bg: rgba(116, 143, 252, 0.15);
-    --blockquote-bg: rgba(116, 143, 252, 0.1);
+    --button-hover-bg: rgba(227, 124, 235, 0.15);
+    --blockquote-bg: rgba(227, 124, 235, 0.1);
     --blockquote-text: #ADB5BD;
     --inline-code-bg: rgba(175, 184, 193, 0.2);
     --inline-code-text: #e9ecef;
@@ -2594,7 +2594,7 @@ html body .pagetalk-function-window.dark-mode {
 }
 
 .pagetalk-options-bar.pagetalk-dark-mode .pagetalk-option:hover {
-    background: rgba(116, 143, 252, 0.15) !important;
+    background: rgba(227, 124, 235, 0.15) !important;
 }
 
 .pagetalk-options-bar.pagetalk-dark-mode .pagetalk-option-icon {
@@ -2602,14 +2602,14 @@ html body .pagetalk-function-window.dark-mode {
 }
 
 .pagetalk-options-bar.pagetalk-dark-mode .pagetalk-add-option-btn {
-    background: rgba(116, 143, 252, 0.15) !important;
-    border-color: rgba(116, 143, 252, 0.3) !important;
+    background: rgba(227, 124, 235, 0.15) !important;
+    border-color: rgba(227, 124, 235, 0.3) !important;
     color: #748FFC !important;
 }
 
 .pagetalk-options-bar.pagetalk-dark-mode .pagetalk-add-option-btn:hover {
-    background: rgba(116, 143, 252, 0.25) !important;
-    border-color: rgba(116, 143, 252, 0.5) !important;
+    background: rgba(227, 124, 235, 0.25) !important;
+    border-color: rgba(227, 124, 235, 0.5) !important;
 }
 
 /* ===== 深色模式适配完成 ===== */
@@ -2670,7 +2670,7 @@ html body .pagetalk-function-window.dark-mode .pagetalk-chat-input textarea {
 body.dark-mode .pagetalk-chat-input textarea:focus,
 body .pagetalk-function-window.dark-mode .pagetalk-chat-input textarea:focus {
     border-color: var(--primary-color) !important;
-    box-shadow: 0 0 0 2px rgba(116, 143, 252, 0.2) !important;
+    box-shadow: 0 0 0 2px rgba(227, 124, 235, 0.2) !important;
 }
 
 body.dark-mode .pagetalk-chat-input textarea::placeholder,
@@ -2692,7 +2692,7 @@ body .pagetalk-function-window.dark-mode .pagetalk-window-controls select:focus,
 html body .pagetalk-function-window.dark-mode select:focus {
     background: var(--card-background) !important;
     border-color: var(--primary-color) !important;
-    box-shadow: 0 0 0 2px rgba(116, 143, 252, 0.2) !important;
+    box-shadow: 0 0 0 2px rgba(227, 124, 235, 0.2) !important;
 }
 
 body.dark-mode .pagetalk-window-controls select option,
@@ -2716,7 +2716,7 @@ body.dark-mode .pagetalk-window-controls button,
 
 body.dark-mode .pagetalk-window-controls button:hover,
 .pagetalk-function-window.dark-mode .pagetalk-window-controls button:hover {
-    background: rgba(116, 143, 252, 0.25) !important;
+    background: rgba(227, 124, 235, 0.25) !important;
     color: var(--primary-color) !important;
 }
 
@@ -2809,7 +2809,7 @@ body.dark-mode .pagetalk-function-window .setting-group select:focus,
 .pagetalk-function-window.dark-mode .setting-group select:focus {
     background: var(--card-background) !important;
     border-color: var(--primary-color) !important;
-    box-shadow: 0 0 0 2px rgba(116, 143, 252, 0.2) !important;
+    box-shadow: 0 0 0 2px rgba(227, 124, 235, 0.2) !important;
 }
 
 body.dark-mode .pagetalk-function-window .setting-group label,
@@ -2839,7 +2839,7 @@ body.dark-mode #settings-text-selection-helper .setting-card {
 
 body.dark-mode #settings-text-selection-helper .setting-card:hover {
     border-color: var(--primary-color);
-    box-shadow: 0 4px 12px rgba(116, 143, 252, 0.15);
+    box-shadow: 0 4px 12px rgba(227, 124, 235, 0.15);
 }
 
 body.dark-mode #settings-text-selection-helper .setting-card-header h3 {
@@ -2880,7 +2880,7 @@ body.dark-mode #settings-text-selection-helper .setting-group textarea:focus,
 body.dark-mode #settings-text-selection-helper .setting-group select:focus {
     background-color: var(--card-background);
     border-color: var(--primary-color);
-    box-shadow: 0 0 0 2px rgba(116, 143, 252, 0.2);
+    box-shadow: 0 0 0 2px rgba(227, 124, 235, 0.2);
 }
 
 body.dark-mode #settings-text-selection-helper .temperature-control input[type="range"] {
@@ -2912,9 +2912,9 @@ body.dark-mode #settings-text-selection-helper .order-option-item:hover {
 }
 
 body.dark-mode #settings-text-selection-helper .order-option-item.drag-over {
-    background: rgba(116, 143, 252, 0.1);
+    background: rgba(227, 124, 235, 0.1);
     border-color: var(--primary-color);
-    box-shadow: 0 4px 8px rgba(116, 143, 252, 0.2);
+    box-shadow: 0 4px 8px rgba(227, 124, 235, 0.2);
 }
 
 body.dark-mode #settings-text-selection-helper .order-option-name {
@@ -2942,7 +2942,7 @@ body.dark-mode #settings-text-selection-helper .custom-option-item {
 
 body.dark-mode #settings-text-selection-helper .custom-option-item:hover {
     border-color: var(--primary-color);
-    box-shadow: 0 2px 8px rgba(116, 143, 252, 0.15);
+    box-shadow: 0 2px 8px rgba(227, 124, 235, 0.15);
 }
 
 body.dark-mode #settings-text-selection-helper .custom-option-item:hover .custom-option-icon svg {
@@ -2977,7 +2977,7 @@ body.dark-mode #settings-text-selection-helper .custom-option-actions button {
 
 body.dark-mode #settings-text-selection-helper .edit-custom-option-btn:hover {
     color: var(--primary-color);
-    background-color: rgba(116, 143, 252, 0.15);
+    background-color: rgba(227, 124, 235, 0.15);
     transform: scale(1.1);
 }
 
@@ -3066,7 +3066,7 @@ body.dark-mode #settings-text-selection-helper .add-custom-option-btn:hover {
     background-color: var(--secondary-color);
     color: white;
     transform: translateY(-1px);
-    box-shadow: 0 2px 8px rgba(116, 143, 252, 0.3);
+    box-shadow: 0 2px 8px rgba(227, 124, 235, 0.3);
 }
 
 /* 深色模式下的自定义选项对话框样式 */
@@ -3113,7 +3113,7 @@ body.dark-mode .custom-option-dialog-content select:focus,
 body.dark-mode .custom-option-dialog-content textarea:focus {
     background: var(--card-background);
     border-color: var(--primary-color);
-    box-shadow: 0 0 0 2px rgba(116, 143, 252, 0.2);
+    box-shadow: 0 0 0 2px rgba(227, 124, 235, 0.2);
 }
 
 body.dark-mode .custom-option-dialog-footer {
@@ -3213,7 +3213,7 @@ body.dark-mode .icon-picker input[type="text"] {
 
 body.dark-mode .icon-picker input[type="text"]:focus {
     border-color: var(--primary-color);
-    box-shadow: 0 0 0 2px rgba(116, 143, 252, 0.2);
+    box-shadow: 0 0 0 2px rgba(227, 124, 235, 0.2);
 }
 
 body.dark-mode .icon-picker .icon-grid {
@@ -3231,7 +3231,7 @@ body.dark-mode .icon-picker .icon-item:hover {
 
 body.dark-mode .icon-picker .icon-item.selected {
     border-color: var(--primary-color);
-    background: rgba(116, 143, 252, 0.15);
+    background: rgba(227, 124, 235, 0.15);
 }
 
 body.dark-mode .icon-picker .icon-item svg {

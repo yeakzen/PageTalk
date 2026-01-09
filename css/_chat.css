@@ -76,12 +76,12 @@ body.dark-mode .welcome-message {
 }
 
 body.dark-mode .welcome-message:hover {
-    border-color: rgba(116, 143, 252, 0.25);
+    border-color: rgba(227, 124, 235, 0.25);
     box-shadow:
         0 2px 4px rgba(0, 0, 0, 0.15),
         0 4px 8px rgba(0, 0, 0, 0.12),
         0 8px 16px rgba(0, 0, 0, 0.1),
-        0 0 0 1px rgba(116, 143, 252, 0.1);
+        0 0 0 1px rgba(227, 124, 235, 0.1);
 }
 
 @keyframes welcomeSlideIn {
@@ -374,7 +374,7 @@ body.dark-mode .sent-tab-item {
 body.dark-mode .sent-tab-item:hover {
     background-color: rgba(44, 46, 51, 0.95);
     /* 深色模式悬停时稍微减少透明度 */
-    border-color: rgba(116, 143, 252, 0.6);
+    border-color: rgba(227, 124, 235, 0.6);
     /* 深色模式悬停边框 */
 }
 
@@ -523,12 +523,12 @@ body.dark-mode .bot-message {
 }
 
 body.dark-mode .bot-message:hover {
-    border-color: rgba(116, 143, 252, 0.3);
+    border-color: rgba(227, 124, 235, 0.3);
     box-shadow:
         0 2px 4px rgba(0, 0, 0, 0.15),
         0 4px 8px rgba(0, 0, 0, 0.12),
         0 8px 16px rgba(0, 0, 0, 0.1),
-        0 0 0 1px rgba(116, 143, 252, 0.15);
+        0 0 0 1px rgba(227, 124, 235, 0.15);
 }
 
 .bot-message p {
@@ -1253,16 +1253,6 @@ body.dark-mode .bot-message:hover {
 #send-message {
     --send-btn-size: 32px;
     --send-accent: var(--primary-color);
-    --send-ring-color: rgba(70, 116, 255, 0.28);
-    --send-bg: rgba(70, 116, 255, 0.18);
-    --send-bg-hover: rgba(70, 116, 255, 0.24);
-    --send-bg-active: rgba(70, 116, 255, 0.16);
-    --send-border: rgba(70, 116, 255, 0.30);
-    --send-border-hover: rgba(70, 116, 255, 0.40);
-    --send-highlight: linear-gradient(135deg, rgba(255, 255, 255, 0.42), rgba(255, 255, 255, 0));
-    --send-shadow: 0 8px 18px rgba(0, 0, 0, 0.10);
-    --send-shadow-hover: 0 12px 26px rgba(0, 0, 0, 0.12);
-    --send-shadow-active: 0 6px 14px rgba(0, 0, 0, 0.10);
 
     width: var(--send-btn-size);
     height: var(--send-btn-size);
@@ -1290,8 +1280,27 @@ body.dark-mode .bot-message:hover {
     transition: transform 0.12s ease, box-shadow 0.12s ease, background-color 0.12s ease, border-color 0.12s ease, color 0.12s ease;
 }
 
+/* 发送按钮悬停时的波纹效果 */
+#send-message::before {
+    content: '';
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    width: 0;
+    height: 0;
+    background-color: rgba(255, 255, 255, 0.2);
+    border-radius: 50%;
+    transform: translate(-50%, -50%);
+    transition: width 0.3s ease, height 0.3s ease;
+}
+
+#send-message:hover::before {
+    width: 100%;
+    height: 100%;
+}
+
 #send-message:hover {
-    transform: translateY(-1px);
+    transform: scale(1.08);
     background-color: var(--send-bg-hover);
     border-color: var(--send-border-hover);
     box-shadow: var(--send-shadow-hover);
@@ -1302,7 +1311,7 @@ body.dark-mode .bot-message:hover {
 }
 
 #send-message:active {
-    transform: translateY(0);
+    transform: scale(0.95);
     background-color: var(--send-bg-active);
     box-shadow: var(--send-shadow-active);
 }
@@ -1324,28 +1333,17 @@ body.dark-mode .bot-message:hover {
     color: var(--button-secondary-text);
 }
 
-#send-message .send-icon {
-    width: 16px;
-    height: 16px;
-    position: absolute;
-    inset: 0;
-    margin: auto;
+#send-message img {
+    width: 100%;
+    height: 100%;
+    object-fit: contain;
+    position: relative;
     z-index: 1;
-    transition: opacity 0.12s ease, transform 0.12s ease;
+    transition: transform 0.12s ease;
 }
 
-#send-message .send-icon--send {
-    opacity: 1;
-    transform: translateX(0) scale(1);
-}
-
-#send-message:hover .send-icon--send {
-    transform: translateX(0.6px) scale(1);
-}
-
-#send-message .send-icon--stop {
-    opacity: 0;
-    transform: scale(0.92);
+#send-message:hover img {
+    transform: translateX(1px);
 }
 
 #send-message.stop-streaming {
@@ -1362,27 +1360,27 @@ body.dark-mode .bot-message:hover {
     --send-accent: var(--danger-hover);
 }
 
-#send-message.stop-streaming .send-icon--send {
-    opacity: 0;
-    transform: scale(0.92);
-}
-
-#send-message.stop-streaming .send-icon--stop {
-    opacity: 1;
-    transform: scale(1);
-}
-
 #send-message.stop-streaming:focus-visible {
     box-shadow: 0 0 0 3px var(--send-ring-color), var(--send-shadow-hover);
 }
 
+/* 流式输出时的呼吸动画效果 */
+#send-message.stop-streaming img {
+    animation: breathing 1.5s ease-in-out infinite;
+}
+
+/* 悬停时暂停呼吸动画，增强交互感 */
+#send-message.stop-streaming:hover img {
+    animation-play-state: paused;
+}
+
 body.dark-mode #send-message {
-    --send-ring-color: rgba(116, 143, 252, 0.30);
-    --send-bg: rgba(116, 143, 252, 0.22);
-    --send-bg-hover: rgba(116, 143, 252, 0.28);
-    --send-bg-active: rgba(116, 143, 252, 0.18);
-    --send-border: rgba(116, 143, 252, 0.34);
-    --send-border-hover: rgba(116, 143, 252, 0.44);
+    --send-ring-color: rgba(227, 124, 235, 0.30);
+    --send-bg: rgba(227, 124, 235, 0.22);
+    --send-bg-hover: rgba(227, 124, 235, 0.28);
+    --send-bg-active: rgba(227, 124, 235, 0.18);
+    --send-border: rgba(227, 124, 235, 0.34);
+    --send-border-hover: rgba(227, 124, 235, 0.44);
     --send-highlight: linear-gradient(135deg, rgba(255, 255, 255, 0.20), rgba(255, 255, 255, 0));
     --send-shadow: 0 10px 22px rgba(0, 0, 0, 0.28);
     --send-shadow-hover: 0 14px 28px rgba(0, 0, 0, 0.32);
@@ -1417,12 +1415,28 @@ body.dark-mode #send-message.stop-streaming {
     animation: sendPulse 0.55s ease-out;
 }
 
+/* 定义呼吸式缩放动画 */
+@keyframes breathing {
+    0% {
+        transform: scale(1);
+        opacity: 1;
+    }
+    50% {
+        transform: scale(0.85);
+        opacity: 0.7;
+    }
+    100% {
+        transform: scale(1);
+        opacity: 1;
+    }
+}
+
 @media (prefers-reduced-motion: reduce) {
     #send-message {
         transition: none;
     }
 
-    #send-message .send-icon {
+    #send-message img {
         transition: none;
     }
 
@@ -1431,11 +1445,15 @@ body.dark-mode #send-message.stop-streaming {
         transform: none;
     }
 
-    #send-message:hover .send-icon--send {
-        transform: translateX(0) scale(1);
+    #send-message:hover img {
+        transform: none;
     }
 
     #send-message.sending {
+        animation: none;
+    }
+
+    #send-message.stop-streaming img {
         animation: none;
     }
 }
@@ -2303,8 +2321,8 @@ body.dark-mode .selected-tab-chip {
 /* 深色模式下的悬停样式 */
 body.dark-mode .selected-tab-chip:hover,
 body.dark-mode .selected-tab-chip.active {
-    border-color: rgba(116, 143, 252, 0.5);
-    background-color: rgba(116, 143, 252, 0.15);
+    border-color: rgba(227, 124, 235, 0.5);
+    background-color: rgba(227, 124, 235, 0.15);
     box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
 }
 
@@ -2369,8 +2387,8 @@ body.dark-mode .selected-tab-chip button:hover {
 
 /* 深色模式下的加载状态 */
 body.dark-mode .selected-tab-chip.loading {
-    border-color: rgba(116, 143, 252, 0.3);
-    background-color: rgba(116, 143, 252, 0.08);
+    border-color: rgba(227, 124, 235, 0.3);
+    background-color: rgba(227, 124, 235, 0.08);
 }
 
 .selected-tab-chip.error {
