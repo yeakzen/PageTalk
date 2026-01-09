@@ -379,10 +379,10 @@ export function handleExportChat(state, elements, showToastCallback, currentTran
 
     if (format === 'markdown') {
         filename += '.md';
-        content = exportChatToMarkdown(state, currentTranslations);
+        content = exportChatToMarkdown(state, elements, currentTranslations);
     } else { // text format
         filename += '.txt';
-        content = exportChatToText(state, currentTranslations);
+        content = exportChatToText(state, elements, currentTranslations);
     }
 
     if (!content) {
@@ -412,12 +412,25 @@ export function handleExportChat(state, elements, showToastCallback, currentTran
 }
 
 /**
+ * 获取模型显示名称
+ * @param {string} modelId - 模型ID
+ * @param {object} elements - DOM elements reference
+ * @returns {string} 模型显示名称
+ */
+function getModelDisplayName(modelId, elements) {
+    if (!elements || !elements.chatModelSelection) return modelId;
+    const option = elements.chatModelSelection.querySelector(`option[value="${modelId}"]`);
+    return option ? option.textContent : modelId;
+}
+
+/**
  * Exports chat history to Markdown format.
  * @param {object} state - Global state reference
+ * @param {object} elements - DOM elements reference
  * @param {object} currentTranslations - Translations object
  * @returns {string} Markdown content
  */
-function exportChatToMarkdown(state, currentTranslations) {
+function exportChatToMarkdown(state, elements, currentTranslations) {
     if (state.chatHistory.length === 0) return '';
 
     const _tr = (key, rep = {}) => _(key, rep, currentTranslations);
@@ -429,30 +442,48 @@ function exportChatToMarkdown(state, currentTranslations) {
 
     state.chatHistory.forEach(message => {
         const { text, images } = extractPartsFromMessage(message); // Use helper
-        const role = message.role === 'user' ? _tr('userLabel') : _tr('appName');
-        markdown += `## ${role}\n\n`;
 
-        // 添加上下文标签页信息（如果有）
-        if (message.role === 'user' && message.sentContextTabsInfo && message.sentContextTabsInfo.length > 0) {
-            markdown += `**${_tr('contextPagesLabel')}:**\n`;
-            message.sentContextTabsInfo.forEach((tab, index) => {
-                markdown += `${index + 1}. [${tab.title}](${tab.url || tab.id})\n`;
-            });
-            markdown += '\n';
-        }
+        if (message.role === 'user') {
+            markdown += `## ${_tr('userLabel')}\n\n`;
 
-        if (images.length > 0) {
-            images.forEach((img, index) => {
-                // Include image placeholder, maybe with mime type
-                markdown += `[${_tr('imageAlt', { index: index + 1 })} - ${img.mimeType}]\n`;
-            });
-            markdown += '\n';
-        }
+            // 添加上下文标签页信息（如果有）
+            if (message.sentContextTabsInfo && message.sentContextTabsInfo.length > 0) {
+                markdown += `**${_tr('contextPagesLabel')}:**\n`;
+                message.sentContextTabsInfo.forEach((tab, index) => {
+                    markdown += `${index + 1}. [${tab.title}](${tab.url || tab.id})\n`;
+                });
+                markdown += '\n';
+            }
 
-        if (text) {
-            // Basic Markdown escaping (optional, depends on desired output)
-            // const escapedText = text.replace(/([\\`*_{}[\]()#+.!-])/g, '\\$1');
-            markdown += `${text}\n\n`; // Use original text for Markdown
+            if (images.length > 0) {
+                images.forEach((img, index) => {
+                    markdown += `[${_tr('imageAlt', { index: index + 1 })} - ${img.mimeType}]\n`;
+                });
+                markdown += '\n';
+            }
+
+            if (text) {
+                markdown += `${text}\n\n`;
+            }
+        } else {
+            // 模型响应
+            if (message.multiModelResponses && Object.keys(message.multiModelResponses).length > 0) {
+                // 多模型响应：为每个模型创建单独的标题
+                Object.entries(message.multiModelResponses).forEach(([modelId, responseText]) => {
+                    const modelName = getModelDisplayName(modelId, elements);
+                    markdown += `## ${modelName}\n\n`;
+                    if (responseText) {
+                        markdown += `${responseText}\n\n`;
+                    }
+                });
+            } else {
+                // 单模型响应：使用模型名称作为标题
+                const modelName = getModelDisplayName(state.selectedModels?.[0] || '', elements) || _tr('appName');
+                markdown += `## ${modelName}\n\n`;
+                if (text) {
+                    markdown += `${text}\n\n`;
+                }
+            }
         }
     });
 
@@ -462,10 +493,11 @@ function exportChatToMarkdown(state, currentTranslations) {
 /**
  * Exports chat history to plain text format.
  * @param {object} state - Global state reference
+ * @param {object} elements - DOM elements reference
  * @param {object} currentTranslations - Translations object
  * @returns {string} Plain text content
  */
-function exportChatToText(state, currentTranslations) {
+function exportChatToText(state, elements, currentTranslations) {
     if (state.chatHistory.length === 0) return '';
 
     const _tr = (key, rep = {}) => _(key, rep, currentTranslations);
@@ -477,30 +509,53 @@ function exportChatToText(state, currentTranslations) {
 
     state.chatHistory.forEach(message => {
         const { text, images } = extractPartsFromMessage(message); // Use helper
-        const role = message.role === 'user' ? _tr('userLabel') : _tr('appName');
-        textContent += `--- ${role} ---\n`;
 
-        // 添加上下文标签页信息（如果有）
-        if (message.role === 'user' && message.sentContextTabsInfo && message.sentContextTabsInfo.length > 0) {
-            textContent += `${_tr('contextPagesLabel')}:\n`;
-            message.sentContextTabsInfo.forEach((tab, index) => {
-                textContent += `${index + 1}. ${tab.title}`;
-                if (tab.url) {
-                    textContent += ` (${tab.url})`;
+        if (message.role === 'user') {
+            textContent += `--- ${_tr('userLabel')} ---\n`;
+
+            // 添加上下文标签页信息（如果有）
+            if (message.sentContextTabsInfo && message.sentContextTabsInfo.length > 0) {
+                textContent += `${_tr('contextPagesLabel')}:\n`;
+                message.sentContextTabsInfo.forEach((tab, index) => {
+                    textContent += `${index + 1}. ${tab.title}`;
+                    if (tab.url) {
+                        textContent += ` (${tab.url})`;
+                    }
+                    textContent += '\n';
+                });
+                textContent += '\n';
+            }
+
+            if (images.length > 0) {
+                textContent += `[${_tr('containsNImages', { count: images.length })}]\n`;
+            }
+
+            if (text) {
+                textContent += `${text}\n`;
+            }
+            textContent += '\n';
+        } else {
+            // 模型响应
+            if (message.multiModelResponses && Object.keys(message.multiModelResponses).length > 0) {
+                // 多模型响应：为每个模型创建单独的标题
+                Object.entries(message.multiModelResponses).forEach(([modelId, responseText]) => {
+                    const modelName = getModelDisplayName(modelId, elements);
+                    textContent += `--- ${modelName} ---\n`;
+                    if (responseText) {
+                        textContent += `${responseText}\n`;
+                    }
+                    textContent += '\n';
+                });
+            } else {
+                // 单模型响应：使用模型名称作为标题
+                const modelName = getModelDisplayName(state.selectedModels?.[0] || '', elements) || _tr('appName');
+                textContent += `--- ${modelName} ---\n`;
+                if (text) {
+                    textContent += `${text}\n`;
                 }
                 textContent += '\n';
-            });
-            textContent += '\n';
+            }
         }
-
-        if (images.length > 0) {
-            textContent += `[${_tr('containsNImages', { count: images.length })}]\n`;
-        }
-
-        if (text) {
-            textContent += `${text}\n`;
-        }
-        textContent += '\n';
     });
 
     return textContent;
