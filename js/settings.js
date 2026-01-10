@@ -983,6 +983,24 @@ async function removeModelFromSelection(modelKey) {
         await modelManager.removeModel(modelKey);
     }
 
+    // 同步更新 state.selectedModels，移除被删除的模型
+    if (window.state && Array.isArray(window.state.selectedModels)) {
+        const index = window.state.selectedModels.indexOf(modelKey);
+        if (index > -1) {
+            window.state.selectedModels.splice(index, 1);
+            // 如果删除的是当前主模型，更新为第一个选中的模型
+            if (window.state.model === modelKey && window.state.selectedModels.length > 0) {
+                window.state.model = window.state.selectedModels[0];
+            }
+            // 保存更新后的选择到存储
+            chrome.storage.sync.set({
+                model: window.state.model,
+                selectedModels: window.state.selectedModels
+            });
+            console.log(`[Settings] Synced state.selectedModels after removal: ${window.state.selectedModels.join(', ')}`);
+        }
+    }
+
     // 更新UI
     await updateModelCardsDisplay();
 
@@ -1047,6 +1065,11 @@ async function removeModelFromSelection(modelKey) {
                 selectElement.value = modelOptions[0].value;
             }
         });
+    }
+
+    // 更新内联模型选择器的显示
+    if (typeof window.updateCurrentModelDisplay === 'function') {
+        window.updateCurrentModelDisplay();
     }
 
     console.log(`[Settings] Removed model: ${modelKey}`);

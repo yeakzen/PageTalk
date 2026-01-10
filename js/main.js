@@ -1065,6 +1065,34 @@ function selectModelFromMenu(value) {
 function updateCurrentModelDisplay() {
     if (!elements.currentModelDisplay || !elements.chatModelSelection) return;
 
+    // 过滤掉已经不存在于下拉选择器中的模型
+    const validModels = state.selectedModels.filter(modelValue => {
+        return elements.chatModelSelection.querySelector(`option[value="${modelValue}"]`) !== null;
+    });
+
+    // 如果有模型被过滤掉了，更新 state.selectedModels
+    if (validModels.length !== state.selectedModels.length) {
+        state.selectedModels = validModels;
+        // 确保至少有一个模型被选中
+        if (state.selectedModels.length === 0) {
+            const firstOption = elements.chatModelSelection.querySelector('option');
+            if (firstOption) {
+                state.selectedModels = [firstOption.value];
+            }
+        }
+        // 更新主模型
+        if (state.selectedModels.length > 0) {
+            state.model = state.selectedModels[0];
+            elements.chatModelSelection.value = state.model;
+        }
+        // 保存更新后的选择
+        chrome.storage.sync.set({
+            model: state.model,
+            selectedModels: state.selectedModels
+        });
+        console.log(`[Main] Cleaned up invalid models, remaining: ${state.selectedModels.join(', ')}`);
+    }
+
     // 供应商图标映射
     const providerIconMap = {
         'Google': 'Gemini.svg',
@@ -1761,6 +1789,7 @@ window.addMessageActionButtons = addMessageActionButtonsUI;
 // window.updateStreamingMessage and window.finalizeBotMessage are set in init()
 window.showToast = showToastUI; // Expose toast globally if needed
 window.showToastUI = showToastUI; // Also expose as showToastUI for consistency
+window.updateCurrentModelDisplay = updateCurrentModelDisplay; // Expose for settings.js to update inline model selector
 
 // 假设这是在"首次操作"完成，并且聊天消息等已添加到DOM之后
 function onFirstOperationComplete() {
