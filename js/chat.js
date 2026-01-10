@@ -451,29 +451,36 @@ async function sendMultiModelMessage(
 
                     // 添加代码块复制按钮
                     if (window.addCopyButtonToCodeBlockCallback) {
-                        messageContent.querySelectorAll('pre code').forEach(block => {
+                        messageContent.querySelectorAll('.code-block').forEach(block => {
                             window.addCopyButtonToCodeBlockCallback(block);
                         });
+                    }
+
+                    // 添加消息操作按钮（复制、重新生成、删除）
+                    if (window.addMessageActionButtons) {
+                        window.addMessageActionButtons(messageContent, accumulatedContent);
                     }
 
                     completedCount++;
                     console.log(`[MultiModel] ${modelId} completed (${completedCount}/${totalModels})`);
 
-                    // 所有模型都完成后恢复按钮状态
+                    // 所有模型都完成后恢复按钮状态并添加历史记录
                     if (completedCount >= totalModels) {
                         state.isStreaming = false;
                         restoreSendButtonAndInputCallback();
 
-                        // 将第一个模型的响应添加到历史记录（用于后续对话）
-                        const firstModelResponse = modelResponses[modelInfos[0].modelId];
-                        if (firstModelResponse) {
-                            state.chatHistory.push({
-                                role: 'model',
-                                parts: [{ text: firstModelResponse }],
-                                id: generateUniqueId(),
-                                multiModelResponses: modelResponses // 存储所有模型的响应
-                            });
-                        }
+                        // 将响应添加到历史记录（用于后续对话）
+                        // 优先使用第一个成功的模型响应，如果都失败则使用空字符串
+                        const firstSuccessfulResponse = modelInfos
+                            .map(info => modelResponses[info.modelId])
+                            .find(response => response && response.trim() !== '');
+
+                        state.chatHistory.push({
+                            role: 'model',
+                            parts: [{ text: firstSuccessfulResponse || '' }],
+                            id: container.dataset.messageId, // 使用容器的 messageId，确保与 DOM 一致
+                            multiModelResponses: modelResponses // 存储所有模型的响应
+                        });
                     }
                 },
                 showToast: showToastCallback,
@@ -483,9 +490,38 @@ async function sendMultiModelMessage(
                     completedCount++;
                     console.log(`[MultiModel] ${modelId} failed/aborted (${completedCount}/${totalModels})`);
 
+                    // 检查 messageContent 是否需要添加操作按钮（错误情况）
+                    // 如果 messageContent 存在且没有 message-actions，添加操作按钮
+                    if (messageContent && !messageContent.querySelector('.message-actions')) {
+                        // 确保 messageContent 有 messageId
+                        if (!messageContent.dataset.messageId) {
+                            messageContent.dataset.messageId = generateUniqueId();
+                        }
+                        // 添加操作按钮（重试和删除）
+                        if (window.addMessageActionButtons) {
+                            window.addMessageActionButtons(messageContent, '');
+                        }
+                    }
+
                     if (completedCount >= totalModels) {
                         state.isStreaming = false;
                         restoreSendButtonAndInputCallback();
+
+                        // 检查历史记录是否已添加（可能由 finalizeBotMessage 添加）
+                        const historyExists = state.chatHistory.some(msg => msg.id === container.dataset.messageId);
+                        if (!historyExists) {
+                            // 将响应添加到历史记录
+                            const firstSuccessfulResponse = modelInfos
+                                .map(info => modelResponses[info.modelId])
+                                .find(response => response && response.trim() !== '');
+
+                            state.chatHistory.push({
+                                role: 'model',
+                                parts: [{ text: firstSuccessfulResponse || '' }],
+                                id: container.dataset.messageId,
+                                multiModelResponses: modelResponses
+                            });
+                        }
                     }
                 }
             };
@@ -513,7 +549,17 @@ async function sendMultiModelMessage(
             const messageContent = column?.querySelector('.bot-message');
 
             if (messageContent) {
+                // 确保 messageContent 有 messageId
+                if (!messageContent.dataset.messageId) {
+                    messageContent.dataset.messageId = generateUniqueId();
+                }
+
                 messageContent.innerHTML = `<div class="error-message" style="color: var(--error-color); padding: 12px;">Error: ${error.message || 'Unknown error'}</div>`;
+
+                // 添加操作按钮（重试和删除）
+                if (window.addMessageActionButtons) {
+                    window.addMessageActionButtons(messageContent, '');
+                }
             }
 
             // 注意：completedCount 已经在 restoreSendButtonAndInput 回调中增加了
@@ -711,29 +757,36 @@ async function regenerateMultiModelMessage(
 
                     // 添加代码块复制按钮
                     if (window.addCopyButtonToCodeBlockCallback) {
-                        messageContent.querySelectorAll('pre code').forEach(block => {
+                        messageContent.querySelectorAll('.code-block').forEach(block => {
                             window.addCopyButtonToCodeBlockCallback(block);
                         });
+                    }
+
+                    // 添加消息操作按钮（复制、重新生成、删除）
+                    if (window.addMessageActionButtons) {
+                        window.addMessageActionButtons(messageContent, accumulatedContent);
                     }
 
                     completedCount++;
                     console.log(`[MultiModel Regen] ${modelId} completed (${completedCount}/${totalModels})`);
 
-                    // 所有模型都完成后恢复按钮状态
+                    // 所有模型都完成后恢复按钮状态并添加历史记录
                     if (completedCount >= totalModels) {
                         state.isStreaming = false;
                         restoreSendButtonAndInputCallback();
 
-                        // 将第一个模型的响应添加到历史记录（用于后续对话）
-                        const firstModelResponse = modelResponses[modelInfos[0].modelId];
-                        if (firstModelResponse) {
-                            state.chatHistory.push({
-                                role: 'model',
-                                parts: [{ text: firstModelResponse }],
-                                id: generateUniqueId(),
-                                multiModelResponses: modelResponses // 存储所有模型的响应
-                            });
-                        }
+                        // 将响应添加到历史记录（用于后续对话）
+                        // 优先使用第一个成功的模型响应，如果都失败则使用空字符串
+                        const firstSuccessfulResponse = modelInfos
+                            .map(info => modelResponses[info.modelId])
+                            .find(response => response && response.trim() !== '');
+
+                        state.chatHistory.push({
+                            role: 'model',
+                            parts: [{ text: firstSuccessfulResponse || '' }],
+                            id: container.dataset.messageId, // 使用容器的 messageId，确保与 DOM 一致
+                            multiModelResponses: modelResponses // 存储所有模型的响应
+                        });
                     }
                 },
                 showToast: showToastCallback,
@@ -743,9 +796,38 @@ async function regenerateMultiModelMessage(
                     completedCount++;
                     console.log(`[MultiModel Regen] ${modelId} failed/aborted (${completedCount}/${totalModels})`);
 
+                    // 检查 messageContent 是否需要添加操作按钮（错误情况）
+                    // 如果 messageContent 存在且没有 message-actions，添加操作按钮
+                    if (messageContent && !messageContent.querySelector('.message-actions')) {
+                        // 确保 messageContent 有 messageId
+                        if (!messageContent.dataset.messageId) {
+                            messageContent.dataset.messageId = generateUniqueId();
+                        }
+                        // 添加操作按钮（重试和删除）
+                        if (window.addMessageActionButtons) {
+                            window.addMessageActionButtons(messageContent, '');
+                        }
+                    }
+
                     if (completedCount >= totalModels) {
                         state.isStreaming = false;
                         restoreSendButtonAndInputCallback();
+
+                        // 检查历史记录是否已添加（可能由 finalizeBotMessage 添加）
+                        const historyExists = state.chatHistory.some(msg => msg.id === container.dataset.messageId);
+                        if (!historyExists) {
+                            // 将响应添加到历史记录
+                            const firstSuccessfulResponse = modelInfos
+                                .map(info => modelResponses[info.modelId])
+                                .find(response => response && response.trim() !== '');
+
+                            state.chatHistory.push({
+                                role: 'model',
+                                parts: [{ text: firstSuccessfulResponse || '' }],
+                                id: container.dataset.messageId,
+                                multiModelResponses: modelResponses
+                            });
+                        }
                     }
                 }
             };
@@ -773,7 +855,17 @@ async function regenerateMultiModelMessage(
             const messageContent = column?.querySelector('.bot-message');
 
             if (messageContent) {
+                // 确保 messageContent 有 messageId
+                if (!messageContent.dataset.messageId) {
+                    messageContent.dataset.messageId = generateUniqueId();
+                }
+
                 messageContent.innerHTML = `<div class="error-message" style="color: var(--error-color); padding: 12px;">Error: ${error.message || 'Unknown error'}</div>`;
+
+                // 添加操作按钮（重试和删除）
+                if (window.addMessageActionButtons) {
+                    window.addMessageActionButtons(messageContent, '');
+                }
             }
 
             // 注意：completedCount 已经在 restoreSendButtonAndInput 回调中增加了
@@ -790,6 +882,180 @@ async function regenerateMultiModelMessage(
     }
     // 如果所有模型都失败了（容器从未显示），也需要恢复状态
     if (!containerShown) {
+        state.isStreaming = false;
+        restoreSendButtonAndInputCallback();
+    }
+}
+
+/**
+ * 在多模型容器中重新生成单个模型的响应
+ * @param {object} regenInfo - { container, modelId, messageElement, historyIndex }
+ * @param {object} state - Global state reference
+ * @param {object} elements - DOM elements reference
+ * @param {object} currentTranslations - Translations object
+ * @param {function} showToastCallback - Callback to show toast notifications
+ * @param {function} restoreSendButtonAndInputCallback - Callback to restore button state
+ */
+async function regenerateSingleModelInContainer(
+    regenInfo,
+    state,
+    elements,
+    currentTranslations,
+    showToastCallback,
+    restoreSendButtonAndInputCallback
+) {
+    const { container, modelId, messageElement, historyIndex } = regenInfo;
+
+    // 获取历史记录中的 AI 消息和对应的用户消息
+    const aiMessage = state.chatHistory[historyIndex];
+    const userIndex = historyIndex - 1;
+
+    if (userIndex < 0 || state.chatHistory[userIndex].role !== 'user') {
+        console.error('[SingleModelRegen] Could not find preceding user message.');
+        if (showToastCallback) showToastCallback(_('regenerateFailedNoUserMessage', {}, currentTranslations), 'error');
+        return;
+    }
+
+    const userMessageData = state.chatHistory[userIndex];
+    const { text: userMessageText, images: userImages, videos: userVideos } = extractPartsFromMessage(userMessageData);
+
+    // 提取上下文标签页
+    const contextTabsForApi = userMessageData.sentContextTabsInfo || [];
+
+    // 准备历史记录（不包括当前轮次）
+    const historyForApi = state.chatHistory.slice(0, userIndex);
+
+    // 获取模型信息
+    const modelInfo = getModelInfo(modelId, elements);
+    if (!modelInfo) {
+        console.error(`[SingleModelRegen] Model info not found for ${modelId}`);
+        if (showToastCallback) showToastCallback(_('regenerateFailedNotFound', {}, currentTranslations), 'error');
+        return;
+    }
+
+    // 设置流式状态
+    state.isStreaming = true;
+    state.userScrolledUpDuringStream = false;
+    elements.sendMessage.classList.add('stop-streaming');
+    const stopTitle = _('stopStreamingTitle', {}, currentTranslations);
+    elements.sendMessage.title = stopTitle;
+    elements.sendMessage.setAttribute('aria-label', stopTitle);
+
+    // 在消息元素中显示 thinking 动画
+    messageElement.innerHTML = `
+        <div class="thinking-animation">
+            <div class="thinking-dot"></div>
+            <div class="thinking-dot"></div>
+            <div class="thinking-dot"></div>
+        </div>
+    `;
+
+    // 移除旧的 message-actions
+    const oldActions = messageElement.querySelector('.message-actions');
+    if (oldActions) oldActions.remove();
+
+    try {
+        // 创建临时状态，使用指定的模型
+        const tempState = {
+            ...state,
+            model: modelId,
+            chatHistory: [...historyForApi]
+        };
+
+        // 累积的响应内容
+        let accumulatedContent = '';
+
+        // 创建 UI 回调
+        const modelUiCallbacks = {
+            addMessageToChat: () => messageElement,
+            updateStreamingMessage: (el, content) => {
+                accumulatedContent = content;
+                const formattedContent = window.MarkdownRenderer.render(content);
+                messageElement.innerHTML = formattedContent;
+
+                if (!state.userScrolledUpDuringStream) {
+                    elements.chatMessages.scrollTop = elements.chatMessages.scrollHeight;
+                }
+            },
+            finalizeBotMessage: (el, content) => {
+                accumulatedContent = content || accumulatedContent;
+
+                // 渲染最终内容
+                if (accumulatedContent) {
+                    const formattedContent = window.MarkdownRenderer.render(accumulatedContent);
+                    messageElement.innerHTML = formattedContent;
+                }
+
+                // 添加代码块复制按钮
+                if (window.addCopyButtonToCodeBlockCallback) {
+                    messageElement.querySelectorAll('.code-block').forEach(block => {
+                        window.addCopyButtonToCodeBlockCallback(block);
+                    });
+                }
+
+                // 添加消息操作按钮
+                if (window.addMessageActionButtons) {
+                    window.addMessageActionButtons(messageElement, accumulatedContent);
+                }
+
+                // 更新历史记录中的 multiModelResponses
+                if (aiMessage.multiModelResponses) {
+                    aiMessage.multiModelResponses[modelId] = accumulatedContent;
+
+                    // 如果重新生成的是第一个模型，也更新主要的 parts
+                    const firstModelId = Object.keys(aiMessage.multiModelResponses)[0];
+                    if (modelId === firstModelId) {
+                        aiMessage.parts = [{ text: accumulatedContent }];
+                    }
+                }
+
+                state.isStreaming = false;
+                restoreSendButtonAndInputCallback();
+
+                console.log(`[SingleModelRegen] ${modelId} completed`);
+            },
+            showToast: showToastCallback,
+            restoreSendButtonAndInput: () => {
+                // API 层面发生错误时会调用这个回调
+                // 检查 messageElement 是否需要添加操作按钮（错误情况）
+                if (messageElement && !messageElement.querySelector('.message-actions')) {
+                    // 清除 thinking 动画，显示错误信息
+                    const thinkingAnim = messageElement.querySelector('.thinking-animation');
+                    if (thinkingAnim) {
+                        messageElement.innerHTML = `<div class="error-message" style="color: var(--error-color); padding: 12px;">Request failed</div>`;
+                    }
+                    // 添加操作按钮（重试和删除）
+                    if (window.addMessageActionButtons) {
+                        window.addMessageActionButtons(messageElement, '');
+                    }
+                }
+
+                state.isStreaming = false;
+                restoreSendButtonAndInputCallback();
+            }
+        };
+
+        // 调用 API
+        await window.GeminiAPI.callGeminiAPIWithImages(
+            userMessageText,
+            userImages,
+            userVideos,
+            null,
+            tempState,
+            modelUiCallbacks,
+            contextTabsForApi,
+            null
+        );
+
+    } catch (error) {
+        console.error(`[SingleModelRegen] Error:`, error);
+        messageElement.innerHTML = `<div class="error-message" style="color: var(--error-color); padding: 12px;">Error: ${error.message || 'Unknown error'}</div>`;
+
+        // 添加操作按钮（重试和删除）
+        if (window.addMessageActionButtons) {
+            window.addMessageActionButtons(messageElement, '');
+        }
+
         state.isStreaming = false;
         restoreSendButtonAndInputCallback();
     }
@@ -827,8 +1093,10 @@ export async function clearContext(state, elements, clearImagesCallback, clearVi
  * @param {object} state - Global state reference
  */
 export function deleteMessage(messageId, state) {
+    // 首先尝试查找普通消息
     const messageElement = document.querySelector(`.message[data-message-id="${messageId}"]`);
     let domRemoved = false;
+
     if (messageElement) {
         // 循环删除所有与此消息关联的前置容器（图片、标签页等）
         let prevSibling = messageElement.previousElementSibling;
@@ -839,6 +1107,54 @@ export function deleteMessage(messageId, state) {
         }
         messageElement.remove();
         domRemoved = true;
+    } else {
+        // 检查是否是多模型容器中的单个模型消息
+        const botMessageElement = document.querySelector(`.bot-message[data-message-id="${messageId}"]`);
+        if (botMessageElement) {
+            const multiModelContainer = botMessageElement.closest('.multi-model-response-container');
+            if (multiModelContainer) {
+                const column = botMessageElement.closest('.bot-message-column');
+                const modelId = column?.dataset.modelId;
+
+                if (column && modelId) {
+                    // 获取容器的 messageId 来查找历史记录
+                    const containerMessageId = multiModelContainer.dataset.messageId;
+                    const historyIndex = state.chatHistory.findIndex(msg => msg.id === containerMessageId);
+
+                    if (historyIndex !== -1) {
+                        const aiMessage = state.chatHistory[historyIndex];
+
+                        // 从 multiModelResponses 中删除该模型的响应
+                        if (aiMessage.multiModelResponses && aiMessage.multiModelResponses[modelId]) {
+                            delete aiMessage.multiModelResponses[modelId];
+                            console.log(`[DeleteSingleModel] Removed ${modelId} from multiModelResponses`);
+
+                            // 如果删除后还有其他模型的响应，更新 parts 为第一个剩余模型的响应
+                            const remainingModelIds = Object.keys(aiMessage.multiModelResponses);
+                            if (remainingModelIds.length > 0) {
+                                const firstRemainingResponse = aiMessage.multiModelResponses[remainingModelIds[0]];
+                                aiMessage.parts = [{ text: firstRemainingResponse }];
+                            }
+                        }
+
+                        // 从 DOM 中移除该列
+                        column.remove();
+                        domRemoved = true;
+
+                        // 检查容器中是否还有其他列，如果没有则删除整个容器和历史记录
+                        const remainingColumns = multiModelContainer.querySelectorAll('.bot-message-column');
+                        if (remainingColumns.length === 0) {
+                            multiModelContainer.remove();
+                            state.chatHistory.splice(historyIndex, 1);
+                            console.log(`[DeleteSingleModel] Removed entire multi-model container and history`);
+                        }
+
+                        console.log(`Message ${messageId} (model: ${modelId}) deleted from multi-model container`);
+                        return; // 提前返回，不执行后续的普通删除逻辑
+                    }
+                }
+            }
+        }
     }
 
     const messageIndex = state.chatHistory.findIndex(msg => msg.id === messageId);
@@ -881,10 +1197,54 @@ export async function regenerateMessage(messageId, state, elements, currentTrans
         return;
     }
 
-    const clickedMessageIndex = state.chatHistory.findIndex(msg => msg.id === messageId);
+    let clickedMessageIndex = state.chatHistory.findIndex(msg => msg.id === messageId);
+
+    // 检查是否是多模型响应中的某个消息需要单独重新生成
+    let singleModelRegenInfo = null; // { container, modelId, messageElement, historyIndex }
+
+    if (clickedMessageIndex === -1) {
+        // 查找包含该 messageId 的多模型容器
+        const messageElement = document.querySelector(`.bot-message[data-message-id="${messageId}"]`);
+        if (messageElement) {
+            const multiModelContainer = messageElement.closest('.multi-model-response-container');
+            if (multiModelContainer) {
+                // 找到多模型容器，获取模型ID
+                const column = messageElement.closest('.bot-message-column');
+                const modelId = column?.dataset.modelId;
+
+                // 使用容器的 messageId 查找历史记录
+                const containerMessageId = multiModelContainer.dataset.messageId;
+                clickedMessageIndex = state.chatHistory.findIndex(msg => msg.id === containerMessageId);
+
+                if (clickedMessageIndex !== -1 && modelId) {
+                    // 标记为单模型重新生成
+                    singleModelRegenInfo = {
+                        container: multiModelContainer,
+                        modelId: modelId,
+                        messageElement: messageElement,
+                        historyIndex: clickedMessageIndex
+                    };
+                }
+            }
+        }
+    }
+
     if (clickedMessageIndex === -1) {
         console.error("Regenerate failed: Message not found in history.");
         if (showToastCallback) showToastCallback(_('regenerateFailedNotFound', {}, currentTranslations), 'error');
+        return;
+    }
+
+    // 如果是多模型容器中的单个模型重新生成
+    if (singleModelRegenInfo) {
+        await regenerateSingleModelInContainer(
+            singleModelRegenInfo,
+            state,
+            elements,
+            currentTranslations,
+            showToastCallback,
+            restoreSendButtonAndInputCallback
+        );
         return;
     }
 
