@@ -102,6 +102,25 @@
                         </div>
                         <!-- 操作按钮组 -->
                         <div class="chat-header-actions">
+                            <!-- 保存对话按钮 -->
+                            <button id="save-chat-session" data-i18n-title="saveChatSessionTitle" title="保存当前对话"
+                                class="action-button">
+                                <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="none"
+                                    stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24">
+                                    <path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z" />
+                                    <polyline points="17 21 17 13 7 13 7 21" />
+                                    <polyline points="7 3 7 8 15 8" />
+                                </svg>
+                            </button>
+                            <!-- 历史记录按钮 -->
+                            <button id="chat-history-btn" data-i18n-title="chatHistoryTitle" title="已保存的对话"
+                                class="action-button">
+                                <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="none"
+                                    stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24">
+                                    <circle cx="12" cy="12" r="10" />
+                                    <polyline points="12 6 12 12 16 14" />
+                                </svg>
+                            </button>
                             <button id="clear-context" data-i18n-title="clearContextTitle" title="清除上下文和聊天记录"
                                 class="action-button">
                                 <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor"
@@ -153,6 +172,25 @@
                                 <button id="cancel-youtube" class="cancel-btn" data-i18n="cancelButton"></button>
                                 <button id="confirm-youtube" class="confirm-btn" data-i18n="addButton"></button>
                             </div>
+                        </div>
+                    </div>
+                    <!-- 已保存对话历史弹出层 -->
+                    <div id="saved-sessions-popup" class="saved-sessions-popup" style="display:none;">
+                        <div class="saved-sessions-header">
+                            <h3 data-i18n="savedSessionsTitle">已保存的对话</h3>
+                            <button id="close-saved-sessions" class="close-popup-btn">
+                                <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor"
+                                    viewBox="0 0 16 16">
+                                    <path
+                                        d="M4.646 4.646a.5.5 0 0 1 .708 0L8 7.293l2.646-2.647a.5.5 0 0 1 .708.708L8.707 8l2.647 2.646a.5.5 0 0 1-.708.708L8 8.707l-2.646 2.647a.5.5 0 0 1-.708-.708L7.293 8 4.646 5.354a.5.5 0 0 1 0-.708z" />
+                                </svg>
+                            </button>
+                        </div>
+                        <div id="saved-sessions-list" class="saved-sessions-list">
+                            <!-- 已保存的对话列表将通过 JavaScript 动态填充 -->
+                        </div>
+                        <div id="saved-sessions-empty" class="saved-sessions-empty" style="display:none;">
+                            <p data-i18n="noSavedSessions">暂无已保存的对话</p>
                         </div>
                     </div>
                     <!-- 新增：聊天界面状态消息区域 -->

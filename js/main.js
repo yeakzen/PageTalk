@@ -145,6 +145,12 @@ const elements = {
     chatModelSelection: document.getElementById('chat-model-selection'),
     chatAgentSelection: document.getElementById('chat-agent-selection'),
     clearContextBtn: document.getElementById('clear-context'),
+    saveChatSessionBtn: document.getElementById('save-chat-session'),
+    chatHistoryBtn: document.getElementById('chat-history-btn'),
+    savedSessionsPopup: document.getElementById('saved-sessions-popup'),
+    savedSessionsList: document.getElementById('saved-sessions-list'),
+    savedSessionsEmpty: document.getElementById('saved-sessions-empty'),
+    closeSavedSessionsBtn: document.getElementById('close-saved-sessions'),
     closePanelBtnChat: document.getElementById('close-panel'),
     // 新增：加号菜单和模型选择器元素
     attachmentMenuBtn: document.getElementById('attachment-menu-btn'),
@@ -450,6 +456,38 @@ function setupEventListeners() {
         // Also clear the UI for selected tabs
         state.selectedContextTabs = [];
         updateSelectedTabsBarFromMain();
+    });
+
+    // 保存对话按钮事件
+    if (elements.saveChatSessionBtn) {
+        elements.saveChatSessionBtn.addEventListener('click', () => {
+            saveChatSession(state, currentTranslations, showToastUI);
+        });
+    }
+
+    // 历史记录按钮事件
+    if (elements.chatHistoryBtn) {
+        elements.chatHistoryBtn.addEventListener('click', (e) => {
+            e.stopPropagation();
+            toggleSavedSessionsPopup();
+        });
+    }
+
+    // 关闭历史记录弹出层按钮
+    if (elements.closeSavedSessionsBtn) {
+        elements.closeSavedSessionsBtn.addEventListener('click', () => {
+            hideSavedSessionsPopup();
+        });
+    }
+
+    // 点击弹出层外部关闭
+    document.addEventListener('click', (e) => {
+        if (elements.savedSessionsPopup &&
+            elements.savedSessionsPopup.style.display !== 'none' &&
+            !elements.savedSessionsPopup.contains(e.target) &&
+            e.target !== elements.chatHistoryBtn) {
+            hideSavedSessionsPopup();
+        }
     });
 
     elements.chatModelSelection.addEventListener('change', handleChatModelChange);
@@ -2295,4 +2333,410 @@ async function importAllSettingsData(importData) {
             });
         });
     });
+}
+
+// ========== 聊天记录保存与恢复功能 ==========
+
+/**
+ * 保存当前对话到 chrome.storage.local
+ */
+async function saveChatSession(state, currentTranslations, showToastCallback) {
+    if (!state.chatHistory || state.chatHistory.length === 0) {
+        showToastCallback(_('saveSessionEmpty'), 'warning');
+        return;
+    }
+
+    // 生成对话标题（取第一条用户消息的前30个字符）
+    let title = '';
+    const firstUserMessage = state.chatHistory.find(msg => msg.role === 'user');
+    if (firstUserMessage && firstUserMessage.parts) {
+        const textPart = firstUserMessage.parts.find(p => p.text);
+        if (textPart && textPart.text) {
+            title = textPart.text.substring(0, 30);
+            if (textPart.text.length > 30) title += '...';
+        }
+    }
+
+    // 如果没有文本，使用默认标题
+    if (!title) {
+        const now = new Date();
+        const dateStr = now.toLocaleDateString();
+        title = _('sessionTitleDefault', { date: dateStr });
+    }
+
+    const session = {
+        id: generateUniqueId(),
+        title: title,
+        savedAt: Date.now(),
+        chatHistory: JSON.parse(JSON.stringify(state.chatHistory)), // 深拷贝
+        agentId: state.currentAgentId,
+        model: state.model,
+        selectedModels: state.selectedModels ? [...state.selectedModels] : []
+    };
+
+    try {
+        // 获取现有的已保存对话
+        const result = await chrome.storage.local.get('savedChatSessions');
+        const sessions = result.savedChatSessions || [];
+
+        // 添加新对话到列表开头
+        sessions.unshift(session);
+
+        // 保存到 storage
+        await chrome.storage.local.set({ savedChatSessions: sessions });
+
+        showToastCallback(_('saveSessionSuccess'), 'success');
+        console.log('[SaveSession] Session saved:', session.id, session.title);
+    } catch (error) {
+        console.error('[SaveSession] Error saving session:', error);
+        showToastCallback(_('error') + ': ' + error.message, 'error');
+    }
+}
+
+/**
+ * 加载已保存的对话列表
+ */
+async function loadSavedSessions() {
+    try {
+        const result = await chrome.storage.local.get('savedChatSessions');
+        return result.savedChatSessions || [];
+    } catch (error) {
+        console.error('[LoadSessions] Error loading sessions:', error);
+        return [];
+    }
+}
+
+/**
+ * 显示/隐藏已保存对话弹出层
+ */
+function toggleSavedSessionsPopup() {
+    if (elements.savedSessionsPopup.style.display === 'none') {
+        showSavedSessionsPopup();
+    } else {
+        hideSavedSessionsPopup();
+    }
+}
+
+/**
+ * 显示已保存对话弹出层
+ */
+async function showSavedSessionsPopup() {
+    const sessions = await loadSavedSessions();
+    renderSavedSessionsList(sessions);
+    elements.savedSessionsPopup.style.display = 'flex';
+}
+
+/**
+ * 隐藏已保存对话弹出层
+ */
+function hideSavedSessionsPopup() {
+    elements.savedSessionsPopup.style.display = 'none';
+}
+
+/**
+ * 渲染已保存对话列表
+ */
+function renderSavedSessionsList(sessions) {
+    const listContainer = elements.savedSessionsList;
+    const emptyContainer = elements.savedSessionsEmpty;
+
+    listContainer.innerHTML = '';
+
+    if (!sessions || sessions.length === 0) {
+        listContainer.style.display = 'none';
+        emptyContainer.style.display = 'block';
+        return;
+    }
+
+    listContainer.style.display = 'block';
+    emptyContainer.style.display = 'none';
+
+    sessions.forEach(session => {
+        const item = document.createElement('div');
+        item.className = 'saved-session-item';
+        item.dataset.sessionId = session.id;
+
+        const savedDate = new Date(session.savedAt);
+        const dateStr = savedDate.toLocaleDateString() + ' ' + savedDate.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+
+        item.innerHTML = `
+            <div class="saved-session-info">
+                <div class="saved-session-title" title="${escapeHtml(session.title)}">${escapeHtml(session.title)}</div>
+                <div class="saved-session-date">${dateStr}</div>
+            </div>
+            <div class="saved-session-actions">
+                <button class="session-action-btn delete-btn" data-session-id="${session.id}" title="${_('delete')}">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" fill="currentColor" viewBox="0 0 16 16">
+                        <path d="M5.5 5.5A.5.5 0 0 1 6 6v6a.5.5 0 0 1-1 0V6a.5.5 0 0 1 .5-.5zm2.5 0a.5.5 0 0 1 .5.5v6a.5.5 0 0 1-1 0V6a.5.5 0 0 1 .5-.5zm3 .5a.5.5 0 0 0-1 0v6a.5.5 0 0 0 1 0V6z"/>
+                        <path fill-rule="evenodd" d="M14.5 3a1 1 0 0 1-1 1H13v9a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V4h-.5a1 1 0 0 1-1-1V2a1 1 0 0 1 1-1H6a1 1 0 0 1 1-1h3.5a1 1 0 0 1 1 1v1zM4.118 4 4 4.059V13a1 1 0 0 0 1 1h6a1 1 0 0 0 1-1V4.059L11.882 4H4.118zM2.5 3V2h11v1h-11z"/>
+                    </svg>
+                </button>
+            </div>
+        `;
+
+        // 点击恢复对话
+        item.addEventListener('click', (e) => {
+            if (!e.target.closest('.session-action-btn')) {
+                restoreChatSession(session.id);
+            }
+        });
+
+        // 删除按钮事件
+        const deleteBtn = item.querySelector('.delete-btn');
+        deleteBtn.addEventListener('click', (e) => {
+            e.stopPropagation();
+            deleteSavedSession(session.id);
+        });
+
+        listContainer.appendChild(item);
+    });
+}
+
+/**
+ * 恢复指定的对话
+ */
+async function restoreChatSession(sessionId) {
+    // 如果当前有对话内容，询问是否覆盖
+    if (state.chatHistory && state.chatHistory.length > 0) {
+        if (!confirm(_('restoreSessionConfirm'))) {
+            return;
+        }
+    }
+
+    try {
+        const sessions = await loadSavedSessions();
+        const session = sessions.find(s => s.id === sessionId);
+
+        if (!session) {
+            console.error('[RestoreSession] Session not found:', sessionId);
+            return;
+        }
+
+        // 清空当前聊天 UI
+        elements.chatMessages.innerHTML = '';
+
+        // 恢复状态
+        state.chatHistory = session.chatHistory;
+        state.locallyIgnoredTabs = {};
+
+        // 重建聊天 UI
+        await renderChatHistoryFromSession(session);
+
+        // 隐藏弹出层
+        hideSavedSessionsPopup();
+
+        showToastUI(_('restoreSessionSuccess'), 'success');
+        console.log('[RestoreSession] Session restored:', sessionId);
+    } catch (error) {
+        console.error('[RestoreSession] Error restoring session:', error);
+        showToastUI(_('error') + ': ' + error.message, 'error');
+    }
+}
+
+/**
+ * 从保存的 session 数据重建聊天 UI
+ */
+async function renderChatHistoryFromSession(session) {
+    for (const message of session.chatHistory) {
+        if (message.role === 'user') {
+            // 提取用户消息内容
+            const { text, images, videos } = extractPartsFromMessageForRestore(message);
+            const sentContextTabs = message.sentContextTabsInfo || [];
+
+            // 渲染用户消息
+            addMessageToChatUI(text, 'user', {
+                id: message.id,
+                images,
+                videos,
+                sentContextTabs
+            });
+        } else if (message.role === 'model') {
+            // 检查是否是多模型响应
+            if (message.multiModelResponses && Object.keys(message.multiModelResponses).length > 1) {
+                // 渲染多模型响应容器
+                renderMultiModelResponseFromHistory(message);
+            } else {
+                // 渲染单模型响应
+                const text = message.parts?.[0]?.text || '';
+                const botElement = addMessageToChatUI(text, 'bot', {
+                    id: message.id
+                });
+                // 添加操作按钮
+                if (botElement && window.addMessageActionButtons) {
+                    window.addMessageActionButtons(botElement, text);
+                }
+            }
+        }
+    }
+}
+
+/**
+ * 从历史记录渲染多模型响应
+ */
+function renderMultiModelResponseFromHistory(message) {
+    const container = document.createElement('div');
+    container.className = 'multi-model-response-container';
+    container.dataset.messageId = message.id;
+
+    const modelResponses = message.multiModelResponses;
+
+    for (const [modelId, responseText] of Object.entries(modelResponses)) {
+        const column = document.createElement('div');
+        column.className = 'bot-message-column';
+        column.dataset.modelId = modelId;
+
+        // 模型名称标签
+        const modelLabel = document.createElement('div');
+        modelLabel.className = 'model-response-label';
+
+        // 尝试获取模型信息
+        const modelInfo = getModelInfoForRestore(modelId);
+        if (modelInfo && modelInfo.iconFile) {
+            const icon = document.createElement('img');
+            icon.src = `../icons/${modelInfo.iconFile}`;
+            icon.alt = modelInfo.providerName || '';
+            icon.className = 'provider-icon-img';
+            modelLabel.appendChild(icon);
+        }
+
+        const nameSpan = document.createElement('span');
+        nameSpan.className = 'model-name';
+        nameSpan.textContent = modelInfo?.displayName || modelId;
+        nameSpan.title = modelInfo?.displayName || modelId;
+        modelLabel.appendChild(nameSpan);
+
+        column.appendChild(modelLabel);
+
+        // 消息内容区域
+        const messageContent = document.createElement('div');
+        messageContent.className = 'bot-message';
+        messageContent.dataset.modelId = modelId;
+        messageContent.dataset.messageId = generateUniqueId();
+
+        // 渲染内容
+        if (responseText) {
+            const formattedContent = window.MarkdownRenderer.render(responseText);
+            messageContent.innerHTML = formattedContent;
+        }
+
+        // 添加代码块复制按钮
+        if (window.addCopyButtonToCodeBlockCallback) {
+            messageContent.querySelectorAll('.code-block').forEach(block => {
+                window.addCopyButtonToCodeBlockCallback(block);
+            });
+        }
+
+        // 添加消息操作按钮
+        if (window.addMessageActionButtons) {
+            window.addMessageActionButtons(messageContent, responseText || '');
+        }
+
+        column.appendChild(messageContent);
+        container.appendChild(column);
+    }
+
+    elements.chatMessages.appendChild(container);
+}
+
+/**
+ * 获取模型信息（用于恢复时显示）
+ */
+function getModelInfoForRestore(modelValue) {
+    const select = elements.chatModelSelection;
+    if (!select) return null;
+
+    const option = select.querySelector(`option[value="${modelValue}"]`);
+    if (!option) return { displayName: modelValue, providerName: '', iconFile: null };
+
+    const optgroup = option.parentElement;
+    const providerName = optgroup && optgroup.tagName === 'OPTGROUP' ? optgroup.label : '';
+
+    const providerIconMap = {
+        'Google': 'Gemini.svg',
+        'Anthropic': 'Claude.svg',
+        'OpenAI': 'OpenAI.svg',
+        'DeepSeek': 'DeepSeek.svg',
+        'OpenRouter': 'OpenRouter.svg',
+        'SiliconFlow': 'SiliconFlow.svg',
+        'Groq': 'groq.svg',
+        'Cerebras': 'cerebras.svg',
+        'Ollama': 'ollama.svg',
+        'LMStudio': 'lmstudio.svg',
+        'ChatGLM': 'ChatGLM.svg',
+        'ModelScope': 'modelscope.svg',
+        'Vercel': 'vercel.svg'
+    };
+
+    return {
+        modelId: modelValue,
+        displayName: option.textContent,
+        providerName,
+        iconFile: providerIconMap[providerName] || null
+    };
+}
+
+/**
+ * 从消息对象中提取文本、图片和视频（用于恢复）
+ */
+function extractPartsFromMessageForRestore(message) {
+    let text = '';
+    const images = [];
+    const videos = [];
+
+    if (message && message.parts && Array.isArray(message.parts)) {
+        message.parts.forEach(part => {
+            if (part.text) {
+                text += (text ? '\n' : '') + part.text;
+            } else if (part.inlineData && part.inlineData.data && part.inlineData.mimeType) {
+                if (part.inlineData.mimeType.startsWith('image/')) {
+                    images.push({
+                        dataUrl: `data:${part.inlineData.mimeType};base64,${part.inlineData.data}`,
+                        mimeType: part.inlineData.mimeType
+                    });
+                }
+            } else if (part.fileData && part.fileData.fileUri) {
+                videos.push({
+                    url: part.fileData.fileUri,
+                    type: 'youtube'
+                });
+            }
+        });
+    }
+
+    return { text, images, videos };
+}
+
+/**
+ * 删除已保存的对话
+ */
+async function deleteSavedSession(sessionId) {
+    if (!confirm(_('deleteSessionConfirm'))) {
+        return;
+    }
+
+    try {
+        const sessions = await loadSavedSessions();
+        const updatedSessions = sessions.filter(s => s.id !== sessionId);
+
+        await chrome.storage.local.set({ savedChatSessions: updatedSessions });
+
+        // 重新渲染列表
+        renderSavedSessionsList(updatedSessions);
+
+        showToastUI(_('deleteSessionSuccess'), 'success');
+        console.log('[DeleteSession] Session deleted:', sessionId);
+    } catch (error) {
+        console.error('[DeleteSession] Error deleting session:', error);
+        showToastUI(_('error') + ': ' + error.message, 'error');
+    }
+}
+
+/**
+ * HTML 转义辅助函数
+ */
+function escapeHtml(text) {
+    if (!text) return '';
+    const div = document.createElement('div');
+    div.textContent = text;
+    return div.innerHTML;
 }
