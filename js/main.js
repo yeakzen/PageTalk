@@ -73,6 +73,7 @@ const state = {
     maxTokens: '', // 改为空值，让模型使用自己的默认值
     // Other state
     pageContext: null, // Use null initially to indicate not yet extracted
+    pageTitle: '', // 当前页面标题，用于保存对话时作为标题
     chatHistory: [],
     isConnected: false,
     hasDeterminedConnection: false, // 新增：是否已判定连接状态，避免初始闪烁
@@ -1433,6 +1434,7 @@ function handleContentScriptMessages(event) {
     switch (message.action) {
         case 'pageContentExtracted':
             state.pageContext = message.content;
+            state.pageTitle = message.pageTitle || ''; // 保存页面标题
             updateContextStatus('contextStatusChars', { charCount: message.content.length }, elements, currentTranslations);
             if (message.showSuccessMessage) {
                 const msgText = _('pageContentExtractedSuccess', {}, currentTranslations);
@@ -2346,18 +2348,15 @@ async function saveChatSession(state, currentTranslations, showToastCallback) {
         return;
     }
 
-    // 生成对话标题（取第一条用户消息的前30个字符）
+    // 生成对话标题（优先使用页面标题，否则使用默认标题）
     let title = '';
-    const firstUserMessage = state.chatHistory.find(msg => msg.role === 'user');
-    if (firstUserMessage && firstUserMessage.parts) {
-        const textPart = firstUserMessage.parts.find(p => p.text);
-        if (textPart && textPart.text) {
-            title = textPart.text.substring(0, 30);
-            if (textPart.text.length > 30) title += '...';
-        }
+    if (state.pageTitle) {
+        // 使用页面标题，限制长度
+        title = state.pageTitle.substring(0, 50);
+        if (state.pageTitle.length > 50) title += '...';
     }
 
-    // 如果没有文本，使用默认标题
+    // 如果没有页面标题，使用默认标题
     if (!title) {
         const now = new Date();
         const dateStr = now.toLocaleDateString();

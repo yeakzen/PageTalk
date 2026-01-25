@@ -1348,6 +1348,7 @@ if (window.contentScriptInitialized) {
           iframe.contentWindow.postMessage({
             action: 'pageContentExtracted',
             content: content,
+            pageTitle: document.title, // 发送页面标题
             showSuccessMessage: showSuccess // 添加标志
           }, '*');
         }
