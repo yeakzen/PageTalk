@@ -63,6 +63,24 @@ if (window.contentScriptInitialized) {
     }
   }
 
+  // 获取页面标题的辅助函数（含 Twitter/X 特殊处理）
+  function getSmartPageTitle() {
+    let title = document.title;
+
+    // Twitter/X 特殊处理：当标题是 "X" 时，尝试获取文章真实标题
+    if (title === 'X' || title === 'x') {
+      const twitterArticleTitle = document.querySelector('[data-testid="twitter-article-title"]');
+      if (twitterArticleTitle) {
+        const realTitle = twitterArticleTitle.textContent?.trim();
+        if (realTitle) {
+          title = realTitle;
+        }
+      }
+    }
+
+    return title;
+  }
+
   // 初始化函数 - 创建面板DOM
   function initPagetalkPanel() {
     if (document.getElementById('pagetalk-panel-container')) {
@@ -1348,7 +1366,7 @@ if (window.contentScriptInitialized) {
           iframe.contentWindow.postMessage({
             action: 'pageContentExtracted',
             content: content,
-            pageTitle: document.title, // 发送页面标题
+            pageTitle: getSmartPageTitle(), // 发送页面标题（含 Twitter/X 特殊处理）
             showSuccessMessage: showSuccess // 添加标志
           }, '*');
         }
