@@ -412,6 +412,53 @@ export function handleExportChat(state, elements, showToastCallback, currentTran
 }
 
 /**
+ * Handles copying chat history to clipboard.
+ * @param {object} state - Global state reference
+ * @param {object} elements - DOM elements reference
+ * @param {function} showToastCallback - Callback
+ * @param {object} currentTranslations - Translations object
+ */
+export function handleCopyChat(state, elements, showToastCallback, currentTranslations) {
+    const format = elements.exportFormatSelect.value;
+    let content = '';
+
+    if (format === 'markdown') {
+        content = exportChatToMarkdown(state, elements, currentTranslations);
+    } else {
+        content = exportChatToText(state, elements, currentTranslations);
+    }
+
+    if (!content) {
+        showToastCallback(_('chatExportEmptyError', {}, currentTranslations), 'error');
+        return;
+    }
+
+    // 使用 textarea + execCommand 方式复制（兼容 Chrome 扩展环境）
+    const textarea = document.createElement('textarea');
+    textarea.value = content;
+    textarea.style.position = 'fixed';
+    textarea.style.left = '-9999px';
+    textarea.style.top = '0';
+    document.body.appendChild(textarea);
+    textarea.focus();
+    textarea.select();
+
+    try {
+        const successful = document.execCommand('copy');
+        if (successful) {
+            showToastCallback(_('chatCopySuccess', {}, currentTranslations), 'success');
+        } else {
+            showToastCallback(_('chatCopyError', { error: 'execCommand failed' }, currentTranslations), 'error');
+        }
+    } catch (error) {
+        console.error("Error copying to clipboard:", error);
+        showToastCallback(_('chatCopyError', { error: error.message }, currentTranslations), 'error');
+    } finally {
+        document.body.removeChild(textarea);
+    }
+}
+
+/**
  * 获取模型显示名称
  * @param {string} modelId - 模型ID
  * @param {object} elements - DOM elements reference
@@ -434,17 +481,16 @@ function exportChatToMarkdown(state, elements, currentTranslations) {
     if (state.chatHistory.length === 0) return '';
 
     const _tr = (key, rep = {}) => _(key, rep, currentTranslations);
-    const locale = state.language.toLowerCase() === 'zh-cn' ? 'zh-cn' : 'en';
-    if (typeof dayjs !== 'undefined') dayjs.locale(locale);
-    const timestamp = typeof dayjs !== 'undefined' ? dayjs().format('YYYY-MM-DD HH:mm:ss') : new Date().toLocaleString();
 
-    let markdown = `# ${_tr('appName')} ${_tr('chatHistoryLabel')} (${timestamp})\n\n`;
+    let markdown = '';
 
     state.chatHistory.forEach(message => {
         const { text, images } = extractPartsFromMessage(message); // Use helper
 
         if (message.role === 'user') {
-            markdown += `## ${_tr('userLabel')}\n\n`;
+            // 使用用户提问内容的首句作为标题
+            const firstSentence = getFirstSentence(text);
+            markdown += `## ${firstSentence || _tr('userLabel')}\n\n`;
 
             // 添加上下文标签页信息（如果有）
             if (message.sentContextTabsInfo && message.sentContextTabsInfo.length > 0) {
@@ -473,7 +519,7 @@ function exportChatToMarkdown(state, elements, currentTranslations) {
                     const modelName = getModelDisplayName(modelId, elements);
                     markdown += `## ${modelName}\n\n`;
                     if (responseText) {
-                        markdown += `${responseText}\n\n`;
+                        markdown += `${adjustMarkdownHeadingLevels(responseText)}\n\n`;
                     }
                 });
             } else {
@@ -481,7 +527,7 @@ function exportChatToMarkdown(state, elements, currentTranslations) {
                 const modelName = getModelDisplayName(state.selectedModels?.[0] || '', elements) || _tr('appName');
                 markdown += `## ${modelName}\n\n`;
                 if (text) {
-                    markdown += `${text}\n\n`;
+                    markdown += `${adjustMarkdownHeadingLevels(text)}\n\n`;
                 }
             }
         }
@@ -583,6 +629,47 @@ function extractPartsFromMessage(message) {
         });
     }
     return { text, images };
+}
+
+/**
+ * 将 Markdown 文本中的标题层级下调指定级数
+ * @param {string} text - Markdown 文本
+ * @param {number} levels - 下调的级数（默认2）
+ * @returns {string} 调整后的文本
+ */
+function adjustMarkdownHeadingLevels(text, levels = 2) {
+    if (!text) return text;
+
+    // 匹配行首的 # 标题（1-6个#）
+    return text.replace(/^(#{1,6})\s/gm, (match, hashes) => {
+        const currentLevel = hashes.length;
+        const newLevel = Math.min(currentLevel + levels, 6); // 最多6级标题
+        return '#'.repeat(newLevel) + ' ';
+    });
+}
+
+/**
+ * 提取文本的首句作为标题
+ * @param {string} text - 原始文本
+ * @param {number} maxLength - 最大长度（默认50）
+ * @returns {string} 首句文本
+ */
+function getFirstSentence(text, maxLength = 50) {
+    if (!text) return '';
+
+    // 去除首尾空白并获取第一行
+    const firstLine = text.trim().split('\n')[0].trim();
+
+    // 按句号、问号、感叹号分割，取第一句
+    const sentenceMatch = firstLine.match(/^[^。？！.?!]+[。？！.?!]?/);
+    let sentence = sentenceMatch ? sentenceMatch[0].trim() : firstLine;
+
+    // 如果超过最大长度，截断并添加省略号
+    if (sentence.length > maxLength) {
+        sentence = sentence.substring(0, maxLength) + '...';
+    }
+
+    return sentence;
 }
 
 /**

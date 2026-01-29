@@ -199,6 +199,9 @@ if (typeof window.translations === 'undefined') {
       agentImportErrorFileRead: '读取导入文件时出错。',
       'chatExportEmptyError': '没有聊天记录可导出',
       'chatExportSuccess': '聊天记录已导出',
+      'chatCopySuccess': '聊天记录已复制到剪贴板',
+      'chatCopyError': '复制失败: {error}',
+      'copyButton': '复制',
       'regenerateError': '重新生成响应时出错: {error}',
       'thinking': '思考中...', // For thinking animation (optional)
       'messageDeleted': '消息已删除', // Confirmation or log
@@ -725,6 +728,9 @@ Format：
       'minOneAgentError': 'Keep at least one agent',
       'chatExportEmptyError': 'No chat history to export',
       'chatExportSuccess': 'Chat history exported',
+      'chatCopySuccess': 'Chat history copied to clipboard',
+      'chatCopyError': 'Copy failed: {error}',
+      'copyButton': 'Copy',
       'regenerateError': 'Error regenerating response: {error}',
       'thinking': 'Thinking...',
       'messageDeleted': 'Message deleted',

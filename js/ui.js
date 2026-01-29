@@ -713,6 +713,7 @@ export function updateUIElementsWithTranslations(currentTranslations) {
     setText('#export-format option[value="markdown"]', 'exportFormatMarkdown');
     setText('#export-format option[value="text"]', 'exportFormatText');
     setText('#export-chat-history span[data-i18n="exportButton"]', 'exportButton');
+    setText('#copy-chat-history span[data-i18n="copyButton"]', 'copyButton');
 
     // Proxy setting card
     setText('.setting-card-title[data-i18n="proxyAddressLabel"]', 'proxyAddressLabel');

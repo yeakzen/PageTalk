@@ -24,7 +24,7 @@ import {
     loadCurrentAgentSettingsIntoState,
     autoSaveAgentSettings as autoSaveAgentSettingsFromAgent // Alias the import
 } from './agent.js';
-import { loadSettings as loadAppSettings, handleLanguageChange, handleExportChat, initModelSelection, updateModelCardsDisplay, handleProxyAddressChange, handleProxyTest, setupProviderEventListeners, initQuickActionsSettings, renderQuickActionsList } from './settings.js';
+import { loadSettings as loadAppSettings, handleLanguageChange, handleExportChat, handleCopyChat, initModelSelection, updateModelCardsDisplay, handleProxyAddressChange, handleProxyTest, setupProviderEventListeners, initQuickActionsSettings, renderQuickActionsList } from './settings.js';
 import * as QuickActionsManager from './quick-actions-manager.js';
 import { initTextSelectionHelperSettings, isTextSelectionHelperEnabled } from './text-selection-helper-settings.js';
 import { sendUserMessage as sendUserMessageAction, clearContext as clearContextAction, deleteMessage as deleteMessageAction, regenerateMessage as regenerateMessageAction, abortStreaming as abortStreamingAction, handleRemoveSentTabContext as handleRemoveSentTabContextAction, createWelcomeMessage } from './chat.js';
@@ -191,6 +191,7 @@ const elements = {
     sunIconSettings: document.getElementById('sun-icon'),
     exportFormatSelect: document.getElementById('export-format'),
     exportChatHistoryBtn: document.getElementById('export-chat-history'),
+    copyChatHistoryBtn: document.getElementById('copy-chat-history'),
     // Unified Import/Export
     exportAllSettingsBtn: document.getElementById('export-all-settings'),
     importAllSettingsBtn: document.getElementById('import-all-settings'),
@@ -588,6 +589,7 @@ function setupEventListeners() {
     // elements.toggleApiKey.addEventListener('click', () => toggleApiKeyVisibility(elements));
     elements.languageSelect.addEventListener('change', () => handleLanguageChange(state, elements, loadAndApplyTranslations, showToastUI, currentTranslations));
     elements.exportChatHistoryBtn.addEventListener('click', () => handleExportChat(state, elements, showToastUI, currentTranslations));
+    elements.copyChatHistoryBtn.addEventListener('click', () => handleCopyChat(state, elements, showToastUI, currentTranslations));
 
     // Proxy Address Change
     if (elements.proxyAddressInput) {
