@@ -13,7 +13,7 @@ if (window.contentScriptInitialized) {
   let panelActive = window.panelActive || false;
   let panelWidth = 520; // 默认宽度
   let minPanelWidth = 280; // 新增最小宽度限制
-  let maxPanelWidthPercentage = 0.8; // 最大宽度为窗口的80%
+  let maxPanelWidthPercentage = 0.98; // 最大宽度为窗口的95%
   let resizing = false;
   let messageShownForThisPageView = false; // 新增：跟踪当前页面视图是否已显示过提取成功消息
 
