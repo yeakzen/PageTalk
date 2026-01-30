@@ -2830,14 +2830,10 @@ body.dark-mode .tab-selection-actions .tab-action.cancel {
     min-width: 0;
 }
 
-/* 当有三个或更多模型时，允许水平滚动 */
-.multi-model-response-container:has(.bot-message-column:nth-child(3)) {
-    overflow-x: auto;
-}
-
+/* 当有三个或更多模型时，各列平分宽度 */
 .multi-model-response-container:has(.bot-message-column:nth-child(3)) .bot-message-column {
-    min-width: 280px;
-    flex: 0 0 auto;
+    flex: 1;
+    min-width: 0;
 }
 
 @keyframes slideUp {
