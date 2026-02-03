@@ -519,7 +519,9 @@ function exportChatToMarkdown(state, elements, currentTranslations) {
                     const modelName = getModelDisplayName(modelId, elements);
                     markdown += `## ${modelName}\n\n`;
                     if (responseText) {
-                        markdown += `${adjustMarkdownHeadingLevels(responseText)}\n\n`;
+                        // 移除思考内容后再导出
+                        const cleanedText = removeThinkingContent(responseText);
+                        markdown += `${adjustMarkdownHeadingLevels(cleanedText)}\n\n`;
                     }
                 });
             } else {
@@ -527,7 +529,9 @@ function exportChatToMarkdown(state, elements, currentTranslations) {
                 const modelName = getModelDisplayName(state.selectedModels?.[0] || '', elements) || _tr('appName');
                 markdown += `## ${modelName}\n\n`;
                 if (text) {
-                    markdown += `${adjustMarkdownHeadingLevels(text)}\n\n`;
+                    // 移除思考内容后再导出
+                    const cleanedText = removeThinkingContent(text);
+                    markdown += `${adjustMarkdownHeadingLevels(cleanedText)}\n\n`;
                 }
             }
         }
@@ -588,7 +592,9 @@ function exportChatToText(state, elements, currentTranslations) {
                     const modelName = getModelDisplayName(modelId, elements);
                     textContent += `--- ${modelName} ---\n`;
                     if (responseText) {
-                        textContent += `${responseText}\n`;
+                        // 移除思考内容后再导出
+                        const cleanedText = removeThinkingContent(responseText);
+                        textContent += `${cleanedText}\n`;
                     }
                     textContent += '\n';
                 });
@@ -597,7 +603,9 @@ function exportChatToText(state, elements, currentTranslations) {
                 const modelName = getModelDisplayName(state.selectedModels?.[0] || '', elements) || _tr('appName');
                 textContent += `--- ${modelName} ---\n`;
                 if (text) {
-                    textContent += `${text}\n`;
+                    // 移除思考内容后再导出
+                    const cleanedText = removeThinkingContent(text);
+                    textContent += `${cleanedText}\n`;
                 }
                 textContent += '\n';
             }
@@ -629,6 +637,17 @@ function extractPartsFromMessage(message) {
         });
     }
     return { text, images };
+}
+
+/**
+ * 移除文本中的 <think>...</think> 标签及其内容
+ * @param {string} text - 原始文本
+ * @returns {string} 移除思考内容后的文本
+ */
+function removeThinkingContent(text) {
+    if (!text) return text;
+    // 移除 <think>...</think> 标签及其内容（支持跨行）
+    return text.replace(/<think>[\s\S]*?<\/think>/gi, '').trim();
 }
 
 /**

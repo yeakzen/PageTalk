@@ -264,6 +264,9 @@ export function addMessageToChat(content, sender, options = {}, state, elements,
 
     renderDynamicContent(messageDiv, elements, messageId); // Render KaTeX/Mermaid with messageId for caching
 
+    // 绑定思考块的点击事件
+    bindThinkingBlockEvents(messageDiv);
+
     // Scroll only if forced or user is near bottom
     if (forceScroll || isUserNearBottom) {
         setTimeout(() => {
@@ -303,6 +306,9 @@ export function updateStreamingMessage(messageElement, content, shouldScroll, el
     // Trigger async render (will use cache if available or render new content)
     // We pass messageId so renderDynamicContent knows where to look/store in cache
     renderDynamicContent(messageElement, elements, messageId);
+
+    // 绑定思考块的点击事件（流式更新时也需要）
+    bindThinkingBlockEvents(messageElement);
 
     // 恢复 messageActions
     if (messageActions) {
@@ -415,6 +421,9 @@ export function finalizeBotMessage(messageElement, finalContent, addCopyButtonTo
 
     // Final render, ensure messageId is passed
     renderDynamicContent(messageElement, elements, msgId);
+
+    // 绑定思考块的点击事件
+    bindThinkingBlockEvents(messageElement);
 
     // Scroll to bottom if user was following the stream
     // Use requestAnimationFrame to wait for layout to settle
@@ -1573,9 +1582,15 @@ export function updateMultiModelStreamingMessage(container, modelId, content, sh
         thinkingEl.remove();
     }
 
-    // 渲染内容
-    const renderedContent = renderDynamicContent(content);
+    // 渲染内容 - 使用 MarkdownRenderer 渲染
+    const renderedContent = window.MarkdownRenderer.render(content);
     messageContent.innerHTML = renderedContent;
+
+    // 渲染动态内容 (KaTeX/Mermaid)
+    renderDynamicContent(messageContent, elements, messageContent.dataset.modelId);
+
+    // 绑定思考块的点击事件
+    bindThinkingBlockEvents(messageContent);
 
     // 滚动
     if (shouldScroll && elements.chatMessages) {
@@ -1605,13 +1620,19 @@ export function finalizeMultiModelMessage(container, modelId, finalContent, addC
         thinkingEl.remove();
     }
 
-    // 渲染最终内容
-    const renderedContent = renderDynamicContent(finalContent);
+    // 渲染最终内容 - 使用 MarkdownRenderer 渲染
+    const renderedContent = window.MarkdownRenderer.render(finalContent);
     messageContent.innerHTML = renderedContent;
+
+    // 渲染动态内容 (KaTeX/Mermaid)
+    renderDynamicContent(messageContent, elements, messageContent.dataset.modelId);
+
+    // 绑定思考块的点击事件
+    bindThinkingBlockEvents(messageContent);
 
     // 添加代码块复制按钮
     if (addCopyButtonToCodeBlock) {
-        messageContent.querySelectorAll('pre code').forEach(block => {
+        messageContent.querySelectorAll('.code-block').forEach(block => {
             addCopyButtonToCodeBlock(block);
         });
     }
@@ -1643,4 +1664,25 @@ export function showMultiModelError(container, modelId, errorMessage) {
 
     // 显示错误
     messageContent.innerHTML = `<div class="error-message" style="color: var(--error-color); padding: 12px;">${escapeHtml(errorMessage)}</div>`;
+}
+
+/**
+ * 绑定思考块的点击事件（展开/折叠）
+ * @param {HTMLElement} container - 包含思考块的容器元素
+ */
+export function bindThinkingBlockEvents(container) {
+    const thinkingHeaders = container.querySelectorAll('.thinking-header');
+    thinkingHeaders.forEach(header => {
+        // 避免重复绑定
+        if (header.dataset.bound === 'true') return;
+        header.dataset.bound = 'true';
+
+        header.addEventListener('click', () => {
+            const block = header.closest('.thinking-block');
+            if (block) {
+                block.classList.toggle('collapsed');
+                block.classList.toggle('expanded');
+            }
+        });
+    });
 }

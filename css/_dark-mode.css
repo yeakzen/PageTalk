@@ -703,3 +703,21 @@ body.dark-mode .chat-input:focus-within {
     border-color: var(--primary-color);
     box-shadow: 0 0 0 2px rgba(233, 150, 239, 0.15);
 }
+
+/* 思考内容折叠块深色模式 */
+body.dark-mode .thinking-block {
+    background: rgba(147, 112, 219, 0.08);
+    border-color: rgba(147, 112, 219, 0.2);
+}
+
+body.dark-mode .thinking-header:hover {
+    background: rgba(147, 112, 219, 0.12);
+}
+
+body.dark-mode .thinking-icon {
+    color: rgba(180, 150, 230, 0.9);
+}
+
+body.dark-mode .thinking-block.expanded .thinking-content {
+    border-top-color: rgba(147, 112, 219, 0.2);
+}

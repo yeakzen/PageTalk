@@ -56,7 +56,8 @@ import {
     addThinkingAnimationToColumn,
     updateMultiModelStreamingMessage,
     finalizeMultiModelMessage,
-    showMultiModelError
+    showMultiModelError,
+    bindThinkingBlockEvents
 } from './ui.js';
 import { initCometCaret } from './comet-caret.js';
 
@@ -412,6 +413,9 @@ async function init() {
     window.addCopyButtonToCodeBlockCallback = (block) => {
         addCopyButtonToCodeBlockUI(block);
     };
+
+    // Expose bindThinkingBlockEvents for multi-model responses
+    window.bindThinkingBlockEvents = bindThinkingBlockEvents;
 
     console.log("Pagetalk Initialized.");
 }

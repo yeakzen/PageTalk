@@ -204,6 +204,7 @@ if (typeof window.translations === 'undefined') {
       'copyButton': '复制',
       'regenerateError': '重新生成响应时出错: {error}',
       'thinking': '思考中...', // For thinking animation (optional)
+      'thinkingProcess': '思考过程', // For thinking block header
       'messageDeleted': '消息已删除', // Confirmation or log
       'deleteFailedNotFound': '删除失败：找不到消息',
       'deleteFailedElementNotFound': '删除失败：找不到消息元素',
@@ -733,6 +734,7 @@ Format：
       'copyButton': 'Copy',
       'regenerateError': 'Error regenerating response: {error}',
       'thinking': 'Thinking...',
+      'thinkingProcess': 'Thinking Process', // For thinking block header
       'messageDeleted': 'Message deleted',
       'deleteFailedNotFound': 'Delete failed: Message not found',
       'deleteFailedElementNotFound': 'Delete failed: Message element not found',

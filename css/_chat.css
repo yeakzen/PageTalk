@@ -3077,3 +3077,90 @@ body.dark-mode .tab-selection-actions .tab-action.cancel {
     font-size: 13px;
     color: var(--text-secondary);
 }
+
+/* ========================================
+   思考内容折叠块样式
+   ======================================== */
+
+.thinking-block {
+    margin: 12px 0;
+    border-radius: 12px;
+    border: 1px solid var(--border-color);
+    background: rgba(147, 112, 219, 0.05);
+    overflow: hidden;
+    transition: all 0.3s ease;
+}
+
+.thinking-header {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 10px 14px;
+    cursor: pointer;
+    user-select: none;
+    transition: background-color 0.2s ease;
+}
+
+.thinking-header:hover {
+    background: rgba(147, 112, 219, 0.08);
+}
+
+.thinking-icon {
+    width: 16px;
+    height: 16px;
+    color: rgba(147, 112, 219, 0.8);
+    flex-shrink: 0;
+}
+
+.thinking-label {
+    font-size: 13px;
+    font-weight: 500;
+    color: var(--text-secondary);
+    flex: 1;
+}
+
+.thinking-toggle-icon {
+    width: 12px;
+    height: 12px;
+    color: var(--text-secondary);
+    transition: transform 0.3s ease;
+    flex-shrink: 0;
+}
+
+.thinking-block.expanded .thinking-toggle-icon {
+    transform: rotate(90deg);
+}
+
+.thinking-content {
+    max-height: 0;
+    overflow: hidden;
+    transition: max-height 0.3s ease, padding 0.3s ease;
+    padding: 0 14px;
+    font-size: 13px;
+    color: var(--text-secondary);
+    line-height: 1.6;
+    border-top: 0 solid transparent;
+}
+
+.thinking-block.expanded .thinking-content {
+    max-height: 5000px;
+    padding: 0 14px 14px 14px;
+    border-top: 1px solid var(--border-color);
+}
+
+/* 思考内容内部的 markdown 样式调整 */
+.thinking-content .markdown-rendered {
+    font-size: 13px;
+}
+
+.thinking-content .markdown-rendered p {
+    margin: 0.5em 0;
+}
+
+.thinking-content .markdown-rendered p:first-child {
+    margin-top: 0.8em;
+}
+
+.thinking-content .markdown-rendered p:last-child {
+    margin-bottom: 0;
+}

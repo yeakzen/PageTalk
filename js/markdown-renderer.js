@@ -145,15 +145,27 @@ let mathFormulaCounter = 0;
 // 临时存储代码块的映射表
 let codeBlocksMap = new Map();
 let codeBlockCounter = 0;
+// 临时存储思考块的映射表
+let thinkBlocksMap = new Map();
+let thinkBlockCounter = 0;
 
 // 对内容进行预处理，处理特殊情况
 function preprocessContent(content) {
     // 规范化换行符
     let processedContent = content.replace(/\r\n/g, '\n');
-    
+
     // 处理连续的三个或更多换行符，避免过多空白
     processedContent = processedContent.replace(/\n{3,}/g, '\n\n');
-    
+
+    // 第零步：保护 <think>...</think> 标签，防止被 markdown-it 处理
+    // 支持跨行匹配
+    processedContent = processedContent.replace(/<think>([\s\S]*?)<\/think>/gi, (match, thinkContent) => {
+        const placeholder = `%%THINK_BLOCK_${thinkBlockCounter}%%`;
+        thinkBlocksMap.set(placeholder, thinkContent);
+        thinkBlockCounter++;
+        return placeholder;
+    });
+
     // 第一步：先保护代码块，防止其中的 $ 被误匹配为数学公式
     // 保护围栏代码块 ```...```
     processedContent = processedContent.replace(/```[\s\S]*?```/g, (match) => {
@@ -202,14 +214,14 @@ function restoreMathFormulas(html) {
     let result = html;
     mathFormulasMap.forEach((formula, placeholder) => {
         let replacement = formula; // 默认恢复原始公式
-        
+
         // 尝试直接渲染 LaTeX
         if (typeof window.katex !== 'undefined') {
             try {
                 // 提取公式内容和类型
                 let latex = '';
                 let displayMode = false;
-                
+
                 if (formula.startsWith('$$') && formula.endsWith('$$')) {
                     // 块级公式
                     latex = formula.slice(2, -2).trim();
@@ -219,7 +231,7 @@ function restoreMathFormulas(html) {
                     latex = formula.slice(1, -1).trim();
                     displayMode = false;
                 }
-                
+
                 if (latex) {
                     // 使用 KaTeX 渲染
                     const rendered = window.katex.renderToString(latex, {
@@ -236,7 +248,7 @@ function restoreMathFormulas(html) {
                 replacement = formula;
             }
         }
-        
+
         result = result.split(placeholder).join(replacement);
     });
     // 清空映射表准备下次使用
@@ -245,18 +257,62 @@ function restoreMathFormulas(html) {
     return result;
 }
 
+// 恢复被保护的思考块，包装成可折叠的 UI 组件
+function restoreThinkBlocks(html) {
+    let result = html;
+    thinkBlocksMap.forEach((thinkContent, placeholder) => {
+        // 对思考内容进行 Markdown 渲染（递归调用，但不会再匹配到 think 标签）
+        let renderedThinkContent = thinkContent.trim();
+
+        // 如果 markdownRenderer 可用，渲染思考内容
+        if (markdownRenderer) {
+            try {
+                renderedThinkContent = markdownRenderer.render(renderedThinkContent);
+            } catch (e) {
+                // 渲染失败时使用转义后的原始内容
+                renderedThinkContent = `<p>${escapeHtml(thinkContent)}</p>`;
+            }
+        } else {
+            renderedThinkContent = `<p>${escapeHtml(thinkContent)}</p>`;
+        }
+
+        // 包装成可折叠的 HTML 结构
+        const thinkBlockHtml = `<div class="thinking-block collapsed">
+  <div class="thinking-header">
+    <svg class="thinking-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+      <path d="M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8v.5z"/>
+    </svg>
+    <span class="thinking-label" data-i18n="thinkingProcess">思考过程</span>
+    <svg class="thinking-toggle-icon" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+      <polyline points="9 18 15 12 9 6"/>
+    </svg>
+  </div>
+  <div class="thinking-content">${renderedThinkContent}</div>
+</div>`;
+
+        result = result.split(placeholder).join(thinkBlockHtml);
+    });
+    // 清空映射表准备下次使用
+    thinkBlocksMap.clear();
+    thinkBlockCounter = 0;
+    return result;
+}
+
 // 对渲染后的HTML进行后处理
 function postprocessHtml(html) {
+    // 恢复被保护的思考块
+    html = restoreThinkBlocks(html);
+
     // 恢复被保护的数学公式
     html = restoreMathFormulas(html);
-    
+
     // 为代码块添加复制按钮的位置
-    html = html.replace(/<pre class="code-block/g, 
+    html = html.replace(/<pre class="code-block/g,
                          '<pre class="code-block code-block-with-copy');
-    
+
     // 添加markdown-rendered类，方便CSS选择器定位
     html = '<div class="markdown-rendered">' + html + '</div>';
-    
+
     return html;
 }
 

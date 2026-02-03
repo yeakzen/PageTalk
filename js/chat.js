@@ -431,6 +431,11 @@ async function sendMultiModelMessage(
                     const formattedContent = window.MarkdownRenderer.render(content);
                     messageContent.innerHTML = formattedContent;
 
+                    // 绑定思考块的点击事件
+                    if (window.bindThinkingBlockEvents) {
+                        window.bindThinkingBlockEvents(messageContent);
+                    }
+
                     // 滚动
                     if (!state.userScrolledUpDuringStream) {
                         elements.chatMessages.scrollTop = elements.chatMessages.scrollHeight;
@@ -447,6 +452,11 @@ async function sendMultiModelMessage(
                     if (accumulatedContent) {
                         const formattedContent = window.MarkdownRenderer.render(accumulatedContent);
                         messageContent.innerHTML = formattedContent;
+                    }
+
+                    // 绑定思考块的点击事件
+                    if (window.bindThinkingBlockEvents) {
+                        window.bindThinkingBlockEvents(messageContent);
                     }
 
                     // 添加代码块复制按钮
@@ -737,6 +747,11 @@ async function regenerateMultiModelMessage(
                     const formattedContent = window.MarkdownRenderer.render(content);
                     messageContent.innerHTML = formattedContent;
 
+                    // 绑定思考块的点击事件
+                    if (window.bindThinkingBlockEvents) {
+                        window.bindThinkingBlockEvents(messageContent);
+                    }
+
                     // 滚动
                     if (!state.userScrolledUpDuringStream) {
                         elements.chatMessages.scrollTop = elements.chatMessages.scrollHeight;
@@ -753,6 +768,11 @@ async function regenerateMultiModelMessage(
                     if (accumulatedContent) {
                         const formattedContent = window.MarkdownRenderer.render(accumulatedContent);
                         messageContent.innerHTML = formattedContent;
+                    }
+
+                    // 绑定思考块的点击事件
+                    if (window.bindThinkingBlockEvents) {
+                        window.bindThinkingBlockEvents(messageContent);
                     }
 
                     // 添加代码块复制按钮
