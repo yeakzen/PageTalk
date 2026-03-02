@@ -393,7 +393,7 @@ async function sendMultiModelMessage(
             const tempState = {
                 ...state,
                 model: modelId,
-                chatHistory: [...state.chatHistory] // 使用相同的历史记录
+                chatHistory: buildModelSpecificHistory(state.chatHistory, modelId)
             };
 
             // 获取对应列的消息内容区域
@@ -709,7 +709,7 @@ async function regenerateMultiModelMessage(
             const tempState = {
                 ...state,
                 model: modelId,
-                chatHistory: [...historyForApi] // 使用重新生成前的历史记录
+                chatHistory: buildModelSpecificHistory(historyForApi, modelId)
             };
 
             // 获取对应列的消息内容区域
@@ -979,7 +979,7 @@ async function regenerateSingleModelInContainer(
         const tempState = {
             ...state,
             model: modelId,
-            chatHistory: [...historyForApi]
+            chatHistory: buildModelSpecificHistory(historyForApi, modelId)
         };
 
         // 累积的响应内容
@@ -1451,6 +1451,25 @@ export async function regenerateMessage(messageId, state, elements, currentTrans
             restoreSendButtonAndInputCallback(); // Restore button on error
         }
     }
+}
+
+/**
+ * 为指定模型构建专属的历史记录。
+ * 将多模型响应中的 parts 替换为该模型自己的响应内容。
+ * @param {Array} chatHistory - 原始聊天历史
+ * @param {string} modelId - 目标模型ID
+ * @returns {Array} 该模型专属的历史记录副本
+ */
+function buildModelSpecificHistory(chatHistory, modelId) {
+    return chatHistory.map(msg => {
+        if (msg.role === 'model' && msg.multiModelResponses && msg.multiModelResponses[modelId]) {
+            return {
+                ...msg,
+                parts: [{ text: msg.multiModelResponses[modelId] }]
+            };
+        }
+        return msg;
+    });
 }
 
 /**
