@@ -2585,7 +2585,10 @@ function renderMultiModelResponseFromHistory(message) {
 
     const modelResponses = message.multiModelResponses;
 
-    for (const [modelId, responseText] of Object.entries(modelResponses)) {
+    const orderedModelIds = message.modelOrder || Object.keys(modelResponses);
+    for (const modelId of orderedModelIds) {
+        const responseText = modelResponses[modelId];
+        if (responseText === undefined) continue;
         const column = document.createElement('div');
         column.className = 'bot-message-column';
         column.dataset.modelId = modelId;

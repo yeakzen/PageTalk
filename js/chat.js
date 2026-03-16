@@ -489,7 +489,8 @@ async function sendMultiModelMessage(
                             role: 'model',
                             parts: [{ text: firstSuccessfulResponse || '' }],
                             id: container.dataset.messageId, // 使用容器的 messageId，确保与 DOM 一致
-                            multiModelResponses: modelResponses // 存储所有模型的响应
+                            multiModelResponses: modelResponses, // 存储所有模型的响应
+                            modelOrder: modelInfos.map(info => info.modelId) // 保存模型顺序
                         });
                     }
                 },
@@ -529,7 +530,8 @@ async function sendMultiModelMessage(
                                 role: 'model',
                                 parts: [{ text: firstSuccessfulResponse || '' }],
                                 id: container.dataset.messageId,
-                                multiModelResponses: modelResponses
+                                multiModelResponses: modelResponses,
+                                modelOrder: modelInfos.map(info => info.modelId)
                             });
                         }
                     }
@@ -805,7 +807,8 @@ async function regenerateMultiModelMessage(
                             role: 'model',
                             parts: [{ text: firstSuccessfulResponse || '' }],
                             id: container.dataset.messageId, // 使用容器的 messageId，确保与 DOM 一致
-                            multiModelResponses: modelResponses // 存储所有模型的响应
+                            multiModelResponses: modelResponses, // 存储所有模型的响应
+                            modelOrder: modelInfos.map(info => info.modelId)
                         });
                     }
                 },
@@ -845,7 +848,8 @@ async function regenerateMultiModelMessage(
                                 role: 'model',
                                 parts: [{ text: firstSuccessfulResponse || '' }],
                                 id: container.dataset.messageId,
-                                multiModelResponses: modelResponses
+                                multiModelResponses: modelResponses,
+                                modelOrder: modelInfos.map(info => info.modelId)
                             });
                         }
                     }
