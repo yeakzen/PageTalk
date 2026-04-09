@@ -126,6 +126,7 @@ if (typeof window.translations === 'undefined') {
       'navPrevUser': '上一条提问',
       'navNextUser': '下一条提问',
       'navToBottom': '滚动到底部',
+      'searchTabs': '搜索标签页...',
 
       // --- JS Dynamic Messages ---
       'apiKeyMissingError': '请先在"模型"选项卡中设置API密钥',
@@ -661,6 +662,7 @@ Format：
       'navPrevUser': 'Previous Question',
       'navNextUser': 'Next Question',
       'navToBottom': 'Scroll to Bottom',
+      'searchTabs': 'Search tabs...',
 
       // --- JS Dynamic Messages ---
       'apiKeyMissingError': 'Please set your API key in the "Model" tab first',

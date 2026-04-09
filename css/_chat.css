@@ -2651,6 +2651,36 @@ body.dark-mode .tab-selection-item.checked .check-indicator {
     display: flex;
     align-items: center;
     gap: var(--spacing-xs);
+    flex-shrink: 0;
+}
+
+/* 标签页搜索框 */
+.tab-search-input {
+    flex: 1;
+    min-width: 0;
+    height: 32px;
+    padding: 0 10px;
+    border: 1px solid var(--border-color);
+    border-radius: var(--radius-full);
+    background-color: var(--input-background);
+    color: var(--text-color);
+    font-size: 12px;
+    outline: none;
+    transition: all 0.2s ease;
+}
+
+.tab-search-input::placeholder {
+    color: var(--text-secondary);
+    font-size: 11px;
+}
+
+.tab-search-input:focus {
+    border-color: var(--primary-color);
+    box-shadow: 0 0 0 2px rgba(77, 10, 82, 0.1);
+}
+
+body.dark-mode .tab-search-input:focus {
+    box-shadow: 0 0 0 2px rgba(227, 124, 235, 0.15);
 }
 
 .tab-selection-actions .tab-action {
@@ -2943,10 +2973,10 @@ body.dark-mode .tab-selection-actions .tab-action.cancel {
     display: flex;
     flex-direction: column;
     overflow: hidden;
-    animation: popupSlideIn 0.2s ease-out;
+    animation: savedSessionsSlideIn 0.2s ease-out;
 }
 
-@keyframes popupSlideIn {
+@keyframes savedSessionsSlideIn {
     from {
         opacity: 0;
         transform: translateX(-50%) translateY(-10px);

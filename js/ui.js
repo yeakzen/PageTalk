@@ -1189,7 +1189,7 @@ export function showTabSelectionPopupUI(tabs, onConfirmCallback, elements, curre
             <line x1="16" y1="8" x2="8" y2="16"/>
         </svg>`;
     const updateSelectAllBtnVisual = () => {
-        const itemsEls = Array.from(list.querySelectorAll('.tab-selection-item:not(.no-results)'));
+        const itemsEls = Array.from(list.querySelectorAll('.tab-selection-item:not(.no-results)')).filter(li => li.style.display !== 'none');
         const allChecked = itemsEls.length > 0 && itemsEls.every(li => li.classList.contains('checked'));
         if (allChecked) {
             selectAllBtn.title = currentTranslations['clearAll'] || 'Clear all';
@@ -1201,7 +1201,7 @@ export function showTabSelectionPopupUI(tabs, onConfirmCallback, elements, curre
     };
     updateSelectAllBtnVisual();
     selectAllBtn.addEventListener('click', () => {
-        const itemsEls = Array.from(list.querySelectorAll('.tab-selection-item:not(.no-results)'));
+        const itemsEls = Array.from(list.querySelectorAll('.tab-selection-item:not(.no-results)')).filter(li => li.style.display !== 'none');
         const allChecked = itemsEls.length > 0 && itemsEls.every(li => li.classList.contains('checked'));
         if (allChecked) itemsEls.forEach(li => li.classList.remove('checked'));
         else itemsEls.forEach(li => li.classList.add('checked'));
@@ -1252,11 +1252,45 @@ export function showTabSelectionPopupUI(tabs, onConfirmCallback, elements, curre
     const rightActions = document.createElement('div');
     rightActions.className = 'right-actions';
 
+    // 中间搜索框
+    const searchInput = document.createElement('input');
+    searchInput.type = 'text';
+    searchInput.className = 'tab-search-input';
+    searchInput.placeholder = currentTranslations['searchTabs'] || '搜索标签页...';
+
+    // 搜索过滤逻辑
+    searchInput.addEventListener('input', () => {
+        const keyword = searchInput.value.trim().toLowerCase();
+        const allItems = Array.from(list.querySelectorAll('.tab-selection-item:not(.no-results)'));
+
+        allItems.forEach(item => {
+            const titleEl = item.querySelector('.tab-item-title');
+            const title = titleEl ? titleEl.textContent.toLowerCase() : '';
+            if (!keyword || title.includes(keyword)) {
+                item.style.display = '';
+            } else {
+                item.style.display = 'none';
+            }
+        });
+
+        updateSelectAllBtnVisual();
+    });
+
+    // 阻止搜索框的键盘事件冒泡到弹窗的键盘导航
+    searchInput.addEventListener('keydown', (e) => {
+        if (e.key === 'ArrowDown' || e.key === 'ArrowUp' || e.key === ' ') {
+            // 允许这些键冒泡给弹窗导航处理
+        } else {
+            e.stopPropagation();
+        }
+    });
+
     leftActions.appendChild(selectAllBtn);
     rightActions.appendChild(cancelBtn);
     rightActions.appendChild(confirmBtn);
 
     actions.appendChild(leftActions);
+    actions.appendChild(searchInput);
     actions.appendChild(rightActions);
 
     popup.appendChild(list);
@@ -1332,7 +1366,7 @@ function handlePopupKeyDown(event) {
     const popup = document.getElementById('tab-selection-popup');
     if (!popup) return;
 
-    const items = popup.querySelectorAll('.tab-selection-item:not(.no-results)');
+    const items = Array.from(popup.querySelectorAll('.tab-selection-item:not(.no-results)')).filter(li => li.style.display !== 'none');
     if (items.length === 0) return;
 
     let currentIndex = -1;
