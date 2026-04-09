@@ -2931,9 +2931,10 @@ body.dark-mode .tab-selection-actions .tab-action.cancel {
 .saved-sessions-popup {
     position: absolute;
     top: 48px;
-    right: 8px;
-    width: 320px;
-    max-height: 400px;
+    left: 50%;
+    transform: translateX(-50%);
+    width: 70%;
+    max-height: calc(100% - 120px);
     background: var(--card-background);
     border: 1px solid var(--border-color);
     border-radius: 12px;
@@ -2948,12 +2949,12 @@ body.dark-mode .tab-selection-actions .tab-action.cancel {
 @keyframes popupSlideIn {
     from {
         opacity: 0;
-        transform: translateY(-10px);
+        transform: translateX(-50%) translateY(-10px);
     }
 
     to {
         opacity: 1;
-        transform: translateY(0);
+        transform: translateX(-50%) translateY(0);
     }
 }
 
@@ -2999,7 +3000,7 @@ body.dark-mode .tab-selection-actions .tab-action.cancel {
 
 .saved-session-item {
     display: flex;
-    align-items: center;
+    flex-direction: column;
     padding: 10px 12px;
     margin-bottom: 4px;
     border-radius: 8px;
@@ -3011,11 +3012,17 @@ body.dark-mode .tab-selection-actions .tab-action.cancel {
 
 .saved-session-item:hover {
     background: var(--hover-background);
-    border-color: var(--border-color);
+    border-color: var(--primary-color);
 }
 
 .saved-session-item:last-child {
     margin-bottom: 0;
+}
+
+.saved-session-top-row {
+    display: flex;
+    align-items: center;
+    width: 100%;
 }
 
 .saved-session-info {
@@ -3043,6 +3050,7 @@ body.dark-mode .tab-selection-actions .tab-action.cancel {
     display: flex;
     gap: 4px;
     opacity: 0;
+    flex-shrink: 0;
     transition: opacity 0.15s ease;
 }
 
@@ -3070,6 +3078,35 @@ body.dark-mode .tab-selection-actions .tab-action.cancel {
 
 .session-action-btn.delete-btn:hover {
     color: var(--error-color);
+}
+
+/* 用户提问列表 */
+.saved-session-questions {
+    margin-top: 6px;
+    padding-left: 2px;
+    border-top: 1px solid var(--border-color);
+    padding-top: 6px;
+}
+
+.saved-session-question {
+    font-size: 11px;
+    color: var(--text-secondary);
+    line-height: 1.5;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    padding: 1px 0;
+    position: relative;
+    padding-left: 10px;
+}
+
+.saved-session-question::before {
+    content: '›';
+    position: absolute;
+    left: 0;
+    color: var(--primary-color);
+    font-weight: 600;
+    font-size: 12px;
 }
 
 .saved-sessions-empty {

@@ -2636,19 +2636,49 @@ function renderSavedSessionsList(sessions) {
         const savedDate = new Date(session.savedAt);
         const dateStr = savedDate.toLocaleDateString() + ' ' + savedDate.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
 
+        // 提取用户提问的首句
+        const userQuestions = [];
+        if (session.chatHistory && Array.isArray(session.chatHistory)) {
+            session.chatHistory.forEach(msg => {
+                if (msg.role === 'user' && msg.parts && Array.isArray(msg.parts)) {
+                    for (const part of msg.parts) {
+                        if (part.text && part.text.trim()) {
+                            // 取第一行作为摘要
+                            const firstLine = part.text.trim().split('\n')[0].substring(0, 80);
+                            userQuestions.push(firstLine);
+                            break;
+                        }
+                    }
+                }
+            });
+        }
+
+        // 构建用户提问 HTML
+        let questionsHTML = '';
+        if (userQuestions.length > 0) {
+            questionsHTML = `<div class="saved-session-questions">`;
+            userQuestions.forEach(q => {
+                questionsHTML += `<div class="saved-session-question" title="${escapeHtml(q)}">${escapeHtml(q)}</div>`;
+            });
+            questionsHTML += `</div>`;
+        }
+
         item.innerHTML = `
-            <div class="saved-session-info">
-                <div class="saved-session-title" title="${escapeHtml(session.title)}">${escapeHtml(session.title)}</div>
-                <div class="saved-session-date">${dateStr}</div>
+            <div class="saved-session-top-row">
+                <div class="saved-session-info">
+                    <div class="saved-session-title" title="${escapeHtml(session.title)}">${escapeHtml(session.title)}</div>
+                    <div class="saved-session-date">${dateStr}</div>
+                </div>
+                <div class="saved-session-actions">
+                    <button class="session-action-btn delete-btn" data-session-id="${session.id}" title="${_('delete')}">
+                        <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" fill="currentColor" viewBox="0 0 16 16">
+                            <path d="M5.5 5.5A.5.5 0 0 1 6 6v6a.5.5 0 0 1-1 0V6a.5.5 0 0 1 .5-.5zm2.5 0a.5.5 0 0 1 .5.5v6a.5.5 0 0 1-1 0V6a.5.5 0 0 1 .5-.5zm3 .5a.5.5 0 0 0-1 0v6a.5.5 0 0 0 1 0V6z"/>
+                            <path fill-rule="evenodd" d="M14.5 3a1 1 0 0 1-1 1H13v9a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V4h-.5a1 1 0 0 1-1-1V2a1 1 0 0 1 1-1H6a1 1 0 0 1 1-1h3.5a1 1 0 0 1 1 1v1zM4.118 4 4 4.059V13a1 1 0 0 0 1 1h6a1 1 0 0 0 1-1V4.059L11.882 4H4.118zM2.5 3V2h11v1h-11z"/>
+                        </svg>
+                    </button>
+                </div>
             </div>
-            <div class="saved-session-actions">
-                <button class="session-action-btn delete-btn" data-session-id="${session.id}" title="${_('delete')}">
-                    <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" fill="currentColor" viewBox="0 0 16 16">
-                        <path d="M5.5 5.5A.5.5 0 0 1 6 6v6a.5.5 0 0 1-1 0V6a.5.5 0 0 1 .5-.5zm2.5 0a.5.5 0 0 1 .5.5v6a.5.5 0 0 1-1 0V6a.5.5 0 0 1 .5-.5zm3 .5a.5.5 0 0 0-1 0v6a.5.5 0 0 0 1 0V6z"/>
-                        <path fill-rule="evenodd" d="M14.5 3a1 1 0 0 1-1 1H13v9a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V4h-.5a1 1 0 0 1-1-1V2a1 1 0 0 1 1-1H6a1 1 0 0 1 1-1h3.5a1 1 0 0 1 1 1v1zM4.118 4 4 4.059V13a1 1 0 0 0 1 1h6a1 1 0 0 0 1-1V4.059L11.882 4H4.118zM2.5 3V2h11v1h-11z"/>
-                    </svg>
-                </button>
-            </div>
+            ${questionsHTML}
         `;
 
         // 点击恢复对话
