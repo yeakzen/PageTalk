@@ -121,6 +121,11 @@ if (typeof window.translations === 'undefined') {
       'attachmentMenuTitle': '添加附件',
       'uploadImageMenuItem': '上传图片',
       'uploadYoutubeMenuItem': '上传 YouTube URL',
+      // 消息导航按钮
+      'navToTop': '滚动到顶部',
+      'navPrevUser': '上一条提问',
+      'navNextUser': '下一条提问',
+      'navToBottom': '滚动到底部',
 
       // --- JS Dynamic Messages ---
       'apiKeyMissingError': '请先在"模型"选项卡中设置API密钥',
@@ -651,6 +656,11 @@ Format：
       'attachmentMenuTitle': 'Add Attachment',
       'uploadImageMenuItem': 'Upload Image',
       'uploadYoutubeMenuItem': 'Upload YouTube URL',
+      // Chat Navigation Buttons
+      'navToTop': 'Scroll to Top',
+      'navPrevUser': 'Previous Question',
+      'navNextUser': 'Next Question',
+      'navToBottom': 'Scroll to Bottom',
 
       // --- JS Dynamic Messages ---
       'apiKeyMissingError': 'Please set your API key in the "Model" tab first',

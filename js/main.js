@@ -218,6 +218,11 @@ const elements = {
     // Footer Status Bar
     contextStatus: document.getElementById('context-status'),
     connectionIndicator: document.getElementById('connection-indicator'),
+    // Chat Navigation Buttons
+    navToTop: document.getElementById('nav-to-top'),
+    navPrevUser: document.getElementById('nav-prev-user'),
+    navNextUser: document.getElementById('nav-next-user'),
+    navToBottom: document.getElementById('nav-to-bottom'),
 };
 
 // --- Translation ---
@@ -659,6 +664,20 @@ function setupEventListeners() {
     // Scroll Tracking
     if (elements.chatMessages) {
         elements.chatMessages.addEventListener('scroll', handleChatScroll);
+    }
+
+    // Chat Navigation Buttons
+    if (elements.navToTop) {
+        elements.navToTop.addEventListener('click', () => navScrollToTop());
+    }
+    if (elements.navPrevUser) {
+        elements.navPrevUser.addEventListener('click', () => navToPrevUserMessage());
+    }
+    if (elements.navNextUser) {
+        elements.navNextUser.addEventListener('click', () => navToNextUserMessage());
+    }
+    if (elements.navToBottom) {
+        elements.navToBottom.addEventListener('click', () => navScrollToBottom());
     }
 
     // --- 多供应商模式下，API Key 保存逻辑由 setupProviderEventListeners 处理 ---
@@ -1226,6 +1245,159 @@ function handleChatScroll() {
         }
     }
     isUserNearBottom = atBottom; // Keep this for non-streaming contexts or as a general flag
+}
+
+// --- Chat Navigation Functions ---
+
+/**
+ * 滚动到聊天区域顶部
+ */
+function navScrollToTop() {
+    if (!elements.chatMessages) return;
+    elements.chatMessages.scrollTo({
+        top: 0,
+        behavior: 'smooth'
+    });
+}
+
+/**
+ * 滚动到聊天区域底部
+ */
+function navScrollToBottom() {
+    if (!elements.chatMessages) return;
+    elements.chatMessages.scrollTo({
+        top: elements.chatMessages.scrollHeight,
+        behavior: 'smooth'
+    });
+}
+
+/**
+ * 获取所有用户消息元素列表
+ * @returns {HTMLElement[]} 用户消息元素数组
+ */
+function getUserMessageElements() {
+    if (!elements.chatMessages) return [];
+    return Array.from(elements.chatMessages.querySelectorAll('.message.user-message:not(.empty-bubble)'));
+}
+
+/**
+ * 找到当前视口中最接近中心的用户消息索引
+ * @param {HTMLElement[]} userMessages - 用户消息元素数组
+ * @returns {number} 当前可见的用户消息索引，-1 表示没有找到
+ */
+function getCurrentVisibleUserMessageIndex(userMessages) {
+    if (!elements.chatMessages || userMessages.length === 0) return -1;
+
+    const container = elements.chatMessages;
+    const containerTop = container.scrollTop;
+    const containerMiddle = containerTop + container.clientHeight / 2;
+
+    let closestIndex = -1;
+    let closestDistance = Infinity;
+
+    for (let i = 0; i < userMessages.length; i++) {
+        const msg = userMessages[i];
+        const msgTop = msg.offsetTop;
+        const msgMiddle = msgTop + msg.offsetHeight / 2;
+        const distance = Math.abs(msgMiddle - containerMiddle);
+
+        if (distance < closestDistance) {
+            closestDistance = distance;
+            closestIndex = i;
+        }
+    }
+
+    return closestIndex;
+}
+
+/**
+ * 导航到上一条用户提问消息
+ */
+function navToPrevUserMessage() {
+    const userMessages = getUserMessageElements();
+    if (userMessages.length === 0) return;
+
+    const currentIndex = getCurrentVisibleUserMessageIndex(userMessages);
+    if (currentIndex <= 0) {
+        // 已经在第一条或没有找到，滚动到顶部
+        navScrollToTop();
+        return;
+    }
+
+    // 检查当前消息是否已经在视口中且完全可见
+    const container = elements.chatMessages;
+    const currentMsg = userMessages[currentIndex];
+    const msgTop = currentMsg.offsetTop;
+    const containerTop = container.scrollTop;
+
+    // 如果当前消息的顶部在视口内（且有一定容差），直接跳到上一条
+    let targetIndex;
+    if (msgTop >= containerTop && msgTop <= containerTop + container.clientHeight * 0.3) {
+        // 当前消息在视口顶部附近，跳到上一条
+        targetIndex = currentIndex - 1;
+    } else {
+        // 当前消息不在视口顶部，先跳到当前消息
+        targetIndex = currentIndex - 1;
+    }
+
+    targetIndex = Math.max(0, targetIndex);
+    scrollToUserMessage(userMessages[targetIndex]);
+}
+
+/**
+ * 导航到下一条用户提问消息
+ */
+function navToNextUserMessage() {
+    const userMessages = getUserMessageElements();
+    if (userMessages.length === 0) return;
+
+    const currentIndex = getCurrentVisibleUserMessageIndex(userMessages);
+    if (currentIndex >= userMessages.length - 1) {
+        // 已经在最后一条，滚动到底部
+        navScrollToBottom();
+        return;
+    }
+
+    const targetIndex = Math.min(userMessages.length - 1, currentIndex + 1);
+    scrollToUserMessage(userMessages[targetIndex]);
+}
+
+/**
+ * 滚动到指定的用户消息，使其出现在视口顶部附近
+ * @param {HTMLElement} msgElement - 要滚动到的消息元素
+ */
+function scrollToUserMessage(msgElement) {
+    if (!elements.chatMessages || !msgElement) return;
+
+    // 查找是否有关联的 sent-tabs-container 或 sent-images-container
+    const messageId = msgElement.dataset.messageId;
+    let scrollTarget = msgElement;
+
+    if (messageId) {
+        // 查找与此消息关联的 sent-tabs-container（在消息之前）
+        const sentTabsContainer = elements.chatMessages.querySelector(
+            `.sent-tabs-container[data-message-id-ref="${messageId}"]`
+        );
+        const sentImagesContainer = elements.chatMessages.querySelector(
+            `.sent-images-container[data-message-id-ref="${messageId}"]`
+        );
+
+        // 使用最上面的关联元素作为滚动目标
+        if (sentTabsContainer) {
+            scrollTarget = sentTabsContainer;
+        } else if (sentImagesContainer) {
+            scrollTarget = sentImagesContainer;
+        }
+    }
+
+    const container = elements.chatMessages;
+    // 计算目标位置，让消息出现在视口中偏上 1/5 处
+    const targetTop = scrollTarget.offsetTop - container.clientHeight * 0.15;
+
+    container.scrollTo({
+        top: Math.max(0, targetTop),
+        behavior: 'smooth'
+    });
 }
 
 // Wrapper function to trigger sendUserMessage with all dependencies
