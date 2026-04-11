@@ -291,9 +291,12 @@ async function sendMultiModelMessage(
     restoreSendButtonAndInputCallback
 ) {
     // 获取模型信息
-    const modelInfos = selectedModels
+    let modelInfos = selectedModels
         .map(modelId => getModelInfo(modelId, elements))
         .filter(info => info !== null);
+
+    // 按历史多模型响应的顺序重新排列，保持展示顺序一致
+    modelInfos = reorderModelInfosByHistory(modelInfos, state.chatHistory);
 
     if (modelInfos.length === 0) {
         console.error('[MultiModel] No valid model info found');
@@ -615,9 +618,12 @@ async function regenerateMultiModelMessage(
     restoreSendButtonAndInputCallback
 ) {
     // 获取模型信息
-    const modelInfos = selectedModels
+    let modelInfos = selectedModels
         .map(modelId => getModelInfo(modelId, elements))
         .filter(info => info !== null);
+
+    // 按历史多模型响应的顺序重新排列，保持展示顺序一致
+    modelInfos = reorderModelInfosByHistory(modelInfos, historyForApi);
 
     if (modelInfos.length === 0) {
         console.error('[MultiModel Regen] No valid model info found');
@@ -1507,40 +1513,29 @@ function longestCommonPrefixLength(a, b) {
 }
 
 /**
- * 为当前模型在历史多模型响应中寻找最佳匹配。
- * @param {string} targetModelId - 当前目标模型ID
+ * 构建当前选中模型与历史多模型响应的完整匹配映射。
+ * 匹配规则（按优先级）：精确匹配 → LCP匹配 → 末位匹配。
+ * @param {Array<string>} allSelectedModelIds - 当前所有选中的模型ID列表
  * @param {Object} multiModelResponses - 历史中存储的多模型响应 { modelId: responseText }
- * @param {Array<string>|null} allSelectedModelIds - 当前所有选中的模型ID列表
- * @returns {string|null} 匹配到的历史模型ID，或 null 表示无法匹配
+ * @returns {Object} 匹配映射 { selectedModelId: historicalModelId }
  */
-function resolveModelMatch(targetModelId, multiModelResponses, allSelectedModelIds) {
+function buildFullModelMatchMapping(allSelectedModelIds, multiModelResponses) {
     const historicalModelIds = Object.keys(multiModelResponses);
-
-    // === 步骤1：精确匹配 ===
-    if (multiModelResponses[targetModelId] !== undefined) {
-        return targetModelId;
-    }
-
-    // 如果没有提供全部选中模型列表，仅尝试前缀匹配后直接回退
-    const selectedModels = allSelectedModelIds || [targetModelId];
-
-    // === 构建全局匹配映射（精确 + 前缀 + 末位） ===
     const matched = {};           // selectedModelId -> historicalModelId
     const matchedHistorical = new Set(); // 已被匹配的历史模型ID
 
-    // 步骤1（全局）：为所有选中模型做精确匹配
-    for (const selectedId of selectedModels) {
+    // === 步骤1：精确匹配 ===
+    for (const selectedId of allSelectedModelIds) {
         if (multiModelResponses[selectedId] !== undefined) {
             matched[selectedId] = selectedId;
             matchedHistorical.add(selectedId);
         }
     }
 
-    // === 步骤2：最长公共前缀（LCP）匹配（对未精确匹配的模型） ===
-    const unmatchedSelected = selectedModels.filter(id => !matched[id]);
+    // === 步骤2：最长公共前缀（LCP）匹配 ===
+    const unmatchedSelected = allSelectedModelIds.filter(id => !matched[id]);
     const unmatchedHistorical = historicalModelIds.filter(id => !matchedHistorical.has(id));
 
-    // 构建所有候选配对及其 LCP 长度，按 LCP 长度降序排列（贪心策略，优先匹配最相似的）
     const candidates = [];
     for (const selectedId of unmatchedSelected) {
         for (const histId of unmatchedHistorical) {
@@ -1552,18 +1547,16 @@ function resolveModelMatch(targetModelId, multiModelResponses, allSelectedModelI
     }
     candidates.sort((a, b) => b.lcpLen - a.lcpLen);
 
-    // 贪心分配：按 LCP 长度从高到低，每个模型和历史回复只匹配一次
     for (const { selectedId, histId, lcpLen } of candidates) {
         if (!matched[selectedId] && !matchedHistorical.has(histId)) {
             matched[selectedId] = histId;
             matchedHistorical.add(histId);
-            console.log(`[buildModelSpecificHistory] LCP matched (prefix length ${lcpLen}): "${selectedId}" ↔ "${histId}"`);
+            console.log(`[ModelMatch] LCP matched (prefix length ${lcpLen}): "${selectedId}" ↔ "${histId}"`);
         }
     }
 
     // === 步骤3：末位匹配 ===
-    // 经过精确和前缀匹配后，如果恰好剩1个未匹配的选中模型和1个未匹配的历史回复，直接配对
-    const remainingUnmatchedSelected = selectedModels.filter(id => !matched[id]);
+    const remainingUnmatchedSelected = allSelectedModelIds.filter(id => !matched[id]);
     const remainingUnmatchedHistorical = historicalModelIds.filter(id => !matchedHistorical.has(id));
 
     if (remainingUnmatchedSelected.length === 1 && remainingUnmatchedHistorical.length === 1) {
@@ -1571,21 +1564,111 @@ function resolveModelMatch(targetModelId, multiModelResponses, allSelectedModelI
         const lastHistoricalId = remainingUnmatchedHistorical[0];
         matched[lastSelectedId] = lastHistoricalId;
         matchedHistorical.add(lastHistoricalId);
-        console.log(`[buildModelSpecificHistory] Last-one-standing matched: "${lastSelectedId}" ↔ "${lastHistoricalId}"`);
+        console.log(`[ModelMatch] Last-one-standing matched: "${lastSelectedId}" ↔ "${lastHistoricalId}"`);
     }
 
-    // === 返回目标模型的匹配结果 ===
+    return matched;
+}
+
+/**
+ * 为当前模型在历史多模型响应中寻找最佳匹配。
+ * @param {string} targetModelId - 当前目标模型ID
+ * @param {Object} multiModelResponses - 历史中存储的多模型响应 { modelId: responseText }
+ * @param {Array<string>|null} allSelectedModelIds - 当前所有选中的模型ID列表
+ * @returns {string|null} 匹配到的历史模型ID，或 null 表示无法匹配
+ */
+function resolveModelMatch(targetModelId, multiModelResponses, allSelectedModelIds) {
+    // 快速路径：精确匹配
+    if (multiModelResponses[targetModelId] !== undefined) {
+        return targetModelId;
+    }
+
+    const selectedModels = allSelectedModelIds || [targetModelId];
+    const matched = buildFullModelMatchMapping(selectedModels, multiModelResponses);
+
     if (matched[targetModelId]) {
         return matched[targetModelId];
     }
 
     // 无法匹配
+    const historicalModelIds = Object.keys(multiModelResponses);
     console.warn(
-        `[buildModelSpecificHistory] Cannot match model "${targetModelId}" to any historical model response. ` +
+        `[ModelMatch] Cannot match model "${targetModelId}" to any historical model response. ` +
         `Historical models: [${historicalModelIds.join(', ')}], Selected models: [${selectedModels.join(', ')}]. ` +
         `Using default parts.`
     );
     return null;
+}
+
+/**
+ * 根据历史多模型响应的顺序，重新排列当前的模型信息数组。
+ * 使得新发送的多模型响应展示顺序与历史记录的模型顺序一致。
+ * @param {Array<Object>} modelInfos - 当前选中的模型信息数组 [{ modelId, displayName, ... }]
+ * @param {Array} chatHistory - 聊天历史记录
+ * @returns {Array<Object>} 重新排列后的模型信息数组
+ */
+function reorderModelInfosByHistory(modelInfos, chatHistory) {
+    if (!chatHistory || chatHistory.length === 0 || modelInfos.length <= 1) {
+        return modelInfos;
+    }
+
+    // 找到历史中最后一条多模型响应
+    let lastMultiModelMsg = null;
+    for (let i = chatHistory.length - 1; i >= 0; i--) {
+        const msg = chatHistory[i];
+        if (msg.role === 'model' && msg.multiModelResponses &&
+            Object.keys(msg.multiModelResponses).length > 1) {
+            lastMultiModelMsg = msg;
+            break;
+        }
+    }
+
+    if (!lastMultiModelMsg) {
+        return modelInfos;
+    }
+
+    // 获取历史模型的展示顺序
+    const historicalOrder = lastMultiModelMsg.modelOrder || Object.keys(lastMultiModelMsg.multiModelResponses);
+    const allSelectedModelIds = modelInfos.map(info => info.modelId);
+
+    // 构建全局匹配映射
+    const mapping = buildFullModelMatchMapping(allSelectedModelIds, lastMultiModelMsg.multiModelResponses);
+
+    // 构建反向映射：historicalModelId -> selectedModelId
+    const reverseMapping = {};
+    for (const [selectedId, historicalId] of Object.entries(mapping)) {
+        reverseMapping[historicalId] = selectedId;
+    }
+
+    // 按历史顺序排列已匹配的模型，未匹配的追加在末尾
+    const ordered = [];
+    const used = new Set();
+
+    for (const histId of historicalOrder) {
+        const selectedId = reverseMapping[histId];
+        if (selectedId) {
+            const info = modelInfos.find(m => m.modelId === selectedId);
+            if (info) {
+                ordered.push(info);
+                used.add(selectedId);
+            }
+        }
+    }
+
+    // 追加未匹配到历史顺序的模型
+    for (const info of modelInfos) {
+        if (!used.has(info.modelId)) {
+            ordered.push(info);
+        }
+    }
+
+    if (ordered.length !== modelInfos.length) {
+        console.warn('[reorderModelInfosByHistory] Reordered count mismatch, falling back to original order');
+        return modelInfos;
+    }
+
+    console.log(`[reorderModelInfosByHistory] Reordered models: [${ordered.map(m => m.modelId).join(', ')}]`);
+    return ordered;
 }
 
 /**
