@@ -390,10 +390,11 @@ async function sendMultiModelMessage(
 
         try {
             // 创建临时状态，使用当前模型
+            const allSelectedModelIds = modelInfos.map(info => info.modelId);
             const tempState = {
                 ...state,
                 model: modelId,
-                chatHistory: buildModelSpecificHistory(state.chatHistory, modelId)
+                chatHistory: buildModelSpecificHistory(state.chatHistory, modelId, allSelectedModelIds)
             };
 
             // 获取对应列的消息内容区域
@@ -708,10 +709,11 @@ async function regenerateMultiModelMessage(
 
         try {
             // 创建临时状态，使用当前模型和提供的历史记录
+            const allSelectedModelIds = modelInfos.map(info => info.modelId);
             const tempState = {
                 ...state,
                 model: modelId,
-                chatHistory: buildModelSpecificHistory(historyForApi, modelId)
+                chatHistory: buildModelSpecificHistory(historyForApi, modelId, allSelectedModelIds)
             };
 
             // 获取对应列的消息内容区域
@@ -980,10 +982,13 @@ async function regenerateSingleModelInContainer(
 
     try {
         // 创建临时状态，使用指定的模型
+        const allSelectedModelIds = state.selectedModels && state.selectedModels.length > 0
+            ? state.selectedModels
+            : [modelId];
         const tempState = {
             ...state,
             model: modelId,
-            chatHistory: buildModelSpecificHistory(historyForApi, modelId)
+            chatHistory: buildModelSpecificHistory(historyForApi, modelId, allSelectedModelIds)
         };
 
         // 累积的响应内容
@@ -1460,20 +1465,127 @@ export async function regenerateMessage(messageId, state, elements, currentTrans
 /**
  * 为指定模型构建专属的历史记录。
  * 将多模型响应中的 parts 替换为该模型自己的响应内容。
+ * 匹配规则（按优先级）：
+ * 1. 精确匹配：历史中存在该模型的专属回复
+ * 2. 最长公共前缀（LCP）匹配：按公共前缀长度降序贪心匹配最相似的历史模型回复
+ * 3. 末位匹配：经过上述匹配后，如果恰好剩下1个未匹配的模型和1个未匹配的历史回复，直接配对
+ * 4. 回退：使用默认的 parts（通常是第一个成功模型的回复），并在控制台输出警告
  * @param {Array} chatHistory - 原始聊天历史
  * @param {string} modelId - 目标模型ID
+ * @param {Array<string>|null} allSelectedModelIds - 当前所有选中的模型ID列表（用于末位匹配）
  * @returns {Array} 该模型专属的历史记录副本
  */
-function buildModelSpecificHistory(chatHistory, modelId) {
+function buildModelSpecificHistory(chatHistory, modelId, allSelectedModelIds = null) {
     return chatHistory.map(msg => {
-        if (msg.role === 'model' && msg.multiModelResponses && msg.multiModelResponses[modelId]) {
-            return {
-                ...msg,
-                parts: [{ text: msg.multiModelResponses[modelId] }]
-            };
+        if (msg.role === 'model' && msg.multiModelResponses) {
+            const matchedHistoricalId = resolveModelMatch(modelId, msg.multiModelResponses, allSelectedModelIds);
+            if (matchedHistoricalId) {
+                return {
+                    ...msg,
+                    parts: [{ text: msg.multiModelResponses[matchedHistoricalId] }]
+                };
+            }
+            // 无法匹配，使用默认 parts
         }
         return msg;
     });
+}
+
+/**
+ * 计算两个字符串的最长公共前缀长度。
+ * @param {string} a - 字符串 a
+ * @param {string} b - 字符串 b
+ * @returns {number} 最长公共前缀的字符数
+ */
+function longestCommonPrefixLength(a, b) {
+    const minLen = Math.min(a.length, b.length);
+    let i = 0;
+    while (i < minLen && a[i] === b[i]) {
+        i++;
+    }
+    return i;
+}
+
+/**
+ * 为当前模型在历史多模型响应中寻找最佳匹配。
+ * @param {string} targetModelId - 当前目标模型ID
+ * @param {Object} multiModelResponses - 历史中存储的多模型响应 { modelId: responseText }
+ * @param {Array<string>|null} allSelectedModelIds - 当前所有选中的模型ID列表
+ * @returns {string|null} 匹配到的历史模型ID，或 null 表示无法匹配
+ */
+function resolveModelMatch(targetModelId, multiModelResponses, allSelectedModelIds) {
+    const historicalModelIds = Object.keys(multiModelResponses);
+
+    // === 步骤1：精确匹配 ===
+    if (multiModelResponses[targetModelId] !== undefined) {
+        return targetModelId;
+    }
+
+    // 如果没有提供全部选中模型列表，仅尝试前缀匹配后直接回退
+    const selectedModels = allSelectedModelIds || [targetModelId];
+
+    // === 构建全局匹配映射（精确 + 前缀 + 末位） ===
+    const matched = {};           // selectedModelId -> historicalModelId
+    const matchedHistorical = new Set(); // 已被匹配的历史模型ID
+
+    // 步骤1（全局）：为所有选中模型做精确匹配
+    for (const selectedId of selectedModels) {
+        if (multiModelResponses[selectedId] !== undefined) {
+            matched[selectedId] = selectedId;
+            matchedHistorical.add(selectedId);
+        }
+    }
+
+    // === 步骤2：最长公共前缀（LCP）匹配（对未精确匹配的模型） ===
+    const unmatchedSelected = selectedModels.filter(id => !matched[id]);
+    const unmatchedHistorical = historicalModelIds.filter(id => !matchedHistorical.has(id));
+
+    // 构建所有候选配对及其 LCP 长度，按 LCP 长度降序排列（贪心策略，优先匹配最相似的）
+    const candidates = [];
+    for (const selectedId of unmatchedSelected) {
+        for (const histId of unmatchedHistorical) {
+            const lcpLen = longestCommonPrefixLength(selectedId, histId);
+            if (lcpLen > 0) {
+                candidates.push({ selectedId, histId, lcpLen });
+            }
+        }
+    }
+    candidates.sort((a, b) => b.lcpLen - a.lcpLen);
+
+    // 贪心分配：按 LCP 长度从高到低，每个模型和历史回复只匹配一次
+    for (const { selectedId, histId, lcpLen } of candidates) {
+        if (!matched[selectedId] && !matchedHistorical.has(histId)) {
+            matched[selectedId] = histId;
+            matchedHistorical.add(histId);
+            console.log(`[buildModelSpecificHistory] LCP matched (prefix length ${lcpLen}): "${selectedId}" ↔ "${histId}"`);
+        }
+    }
+
+    // === 步骤3：末位匹配 ===
+    // 经过精确和前缀匹配后，如果恰好剩1个未匹配的选中模型和1个未匹配的历史回复，直接配对
+    const remainingUnmatchedSelected = selectedModels.filter(id => !matched[id]);
+    const remainingUnmatchedHistorical = historicalModelIds.filter(id => !matchedHistorical.has(id));
+
+    if (remainingUnmatchedSelected.length === 1 && remainingUnmatchedHistorical.length === 1) {
+        const lastSelectedId = remainingUnmatchedSelected[0];
+        const lastHistoricalId = remainingUnmatchedHistorical[0];
+        matched[lastSelectedId] = lastHistoricalId;
+        matchedHistorical.add(lastHistoricalId);
+        console.log(`[buildModelSpecificHistory] Last-one-standing matched: "${lastSelectedId}" ↔ "${lastHistoricalId}"`);
+    }
+
+    // === 返回目标模型的匹配结果 ===
+    if (matched[targetModelId]) {
+        return matched[targetModelId];
+    }
+
+    // 无法匹配
+    console.warn(
+        `[buildModelSpecificHistory] Cannot match model "${targetModelId}" to any historical model response. ` +
+        `Historical models: [${historicalModelIds.join(', ')}], Selected models: [${selectedModels.join(', ')}]. ` +
+        `Using default parts.`
+    );
+    return null;
 }
 
 /**
