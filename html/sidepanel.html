@@ -869,7 +869,11 @@
 
         <footer>
             <div class="status-bar">
-                <span id="context-status" data-i18n="contextStatusPrefix">上下文：</span>
+                <button id="context-status" class="context-status-btn" type="button" data-i18n-title="contextPreviewTitle"
+                    title="当前上下文" aria-haspopup="dialog" aria-controls="context-preview-modal">
+                    <span id="context-status-prefix" data-i18n="contextStatusPrefix">上下文：</span>
+                    <span id="context-status-text">无</span>
+                </button>
                 <span id="connection-indicator" class="disconnected"
                     data-i18n="connectionIndicatorDisconnected">未连接</span>
             </div>
@@ -980,6 +984,22 @@
                 <button id="cancel-delete" class="cancel-btn">取消</button>
                 <button id="confirm-delete" class="delete-btn"
                     style="background-color: var(--error-color); color: white;">删除</button>
+            </div>
+        </div>
+    </div>
+
+    <div id="context-preview-modal" class="dialog-overlay" style="display:none;">
+        <div class="dialog-content context-preview-dialog" role="dialog" aria-modal="true"
+            aria-labelledby="context-preview-title">
+            <div class="context-preview-header">
+                <h3 id="context-preview-title" data-i18n="contextPreviewTitle">当前上下文</h3>
+                <button id="context-preview-close-icon" class="context-preview-close" type="button"
+                    data-i18n-title="close" title="关闭" aria-label="关闭">×</button>
+            </div>
+            <div id="context-preview-meta" class="context-preview-meta"></div>
+            <div id="context-preview-content" class="context-preview-content"></div>
+            <div class="dialog-actions">
+                <button id="context-preview-copy" class="dialog-confirm" type="button" data-i18n="copyButton">复制</button>
             </div>
         </div>
     </div>

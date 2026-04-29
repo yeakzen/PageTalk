@@ -1988,6 +1988,62 @@ body.dark-mode #send-message.stop-streaming {
     font-weight: 600;
 }
 
+.context-preview-dialog {
+    max-width: min(720px, 92vw);
+    max-height: min(80vh, 720px);
+    display: flex;
+    flex-direction: column;
+    gap: var(--spacing-md);
+}
+
+.context-preview-header {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: var(--spacing-md);
+}
+
+.context-preview-close {
+    flex-shrink: 0;
+    border: none;
+    background: transparent;
+    color: var(--text-secondary);
+    font-size: 24px;
+    line-height: 1;
+    cursor: pointer;
+    padding: 0;
+}
+
+.context-preview-close:hover {
+    color: var(--primary-color);
+}
+
+.context-preview-meta {
+    font-size: 12px;
+    color: var(--text-secondary);
+    word-break: break-word;
+}
+
+.context-preview-content {
+    min-height: 180px;
+    max-height: min(52vh, 520px);
+    overflow: auto;
+    padding: var(--spacing-md);
+    border-radius: var(--radius-md);
+    border: 1px solid var(--border-color);
+    background: var(--input-background);
+    color: var(--text-color);
+    font-size: 12px;
+    line-height: 1.6;
+    white-space: pre-wrap;
+    word-break: break-word;
+}
+
+#context-preview-copy:disabled {
+    opacity: 0.6;
+    cursor: not-allowed;
+}
+
 .dialog-content p {
     margin-bottom: var(--spacing-md);
     font-size: 14px;

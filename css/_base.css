@@ -112,6 +112,29 @@ footer {
     color: var(--text-secondary);
 }
 
+.context-status-btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    padding: 0;
+    border: none;
+    background: transparent;
+    color: inherit;
+    font: inherit;
+    cursor: pointer;
+    transition: color 0.2s ease;
+}
+
+.context-status-btn:hover {
+    color: var(--primary-color);
+}
+
+.context-status-btn:focus-visible {
+    outline: 2px solid var(--primary-color);
+    outline-offset: 4px;
+    border-radius: var(--radius-sm);
+}
+
 /* 底部标签页 */
 .footer-tabs {
     display: flex;

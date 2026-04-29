@@ -8,6 +8,8 @@
  * - Anthropic (Claude)
  */
 
+import { getPageContextTextForPrompt } from './context-state.js';
+
 // --- 简单重试机制 ---
 class SimpleRetryHandler {
     constructor() {
@@ -147,11 +149,12 @@ function escapeXml(unsafe) {
  * @returns {string} 构建的XML系统提示
  */
 function buildSystemPrompt(stateRef, explicitContextTabs = null) {
+    const currentPageContext = getPageContextTextForPrompt(stateRef);
     // 获取更自然的页面标题
     let pageTitle = '当前页面';
 
-    if (stateRef.pageContext) {
-        const titleMatch = stateRef.pageContext.match(/^(.{1,100})/);
+    if (currentPageContext) {
+        const titleMatch = currentPageContext.match(/^(.{1,100})/);
         if (titleMatch) {
             const firstLine = titleMatch[1].trim();
             if (firstLine.length > 5 && firstLine.length < 80 && !firstLine.includes('function') && !firstLine.includes('class')) {
@@ -218,7 +221,7 @@ function buildSystemPrompt(stateRef, explicitContextTabs = null) {
 <provided_contexts>
   <current_page source_title="${escapeXml(pageTitle)}">
     <content>
-      ${stateRef.pageContext ? escapeXml(stateRef.pageContext) : 'No page content was loaded or provided.'}
+      ${currentPageContext ? escapeXml(currentPageContext) : 'No page content was loaded or provided.'}
     </content>
   </current_page>
 `;

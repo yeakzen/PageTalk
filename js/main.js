@@ -60,6 +60,7 @@ import {
     bindThinkingBlockEvents
 } from './ui.js';
 import { initCometCaret } from './comet-caret.js';
+import { getPageContextStatus, getPageContextTextForPrompt, getPageContextCharCount } from './context-state.js';
 
 // --- State Management ---
 const state = {
@@ -217,7 +218,13 @@ const elements = {
     apiKeyInput: null, // 多供应商模式下不再使用单一API Key输入框
     // Footer Status Bar
     contextStatus: document.getElementById('context-status'),
+    contextStatusText: document.getElementById('context-status-text'),
     connectionIndicator: document.getElementById('connection-indicator'),
+    contextPreviewModal: document.getElementById('context-preview-modal'),
+    contextPreviewMeta: document.getElementById('context-preview-meta'),
+    contextPreviewContent: document.getElementById('context-preview-content'),
+    contextPreviewCopy: document.getElementById('context-preview-copy'),
+    contextPreviewCloseIcon: document.getElementById('context-preview-close-icon'),
     // Chat Navigation Buttons
     navToTop: document.getElementById('nav-to-top'),
     navPrevUser: document.getElementById('nav-prev-user'),
@@ -347,7 +354,7 @@ async function init() {
     if (state.hasDeterminedConnection) {
         updateConnectionIndicator(state.isConnected, elements, currentTranslations);
     }
-    updateContextStatus('contextStatusNone', {}, elements, currentTranslations); // Initial context status
+    updateFooterContextStatusFromState();
 
     // Request page content after setup
     requestPageContent();
@@ -462,6 +469,9 @@ function setupEventListeners() {
     elements.userInput.addEventListener('keydown', handleUserInputKeydown);
     // 新增：监听用户输入框的 input 事件，用于检测 "@"
     elements.userInput.addEventListener('input', handleUserInputForTabSelection);
+    if (elements.contextStatus) {
+        elements.contextStatus.addEventListener('click', openContextPreviewModal);
+    }
     elements.clearContextBtn.addEventListener('click', async () => {
         await clearContextAction(state, elements, clearImagesUI, clearVideosUI, showToastUI, currentTranslations);
         // Also clear the UI for selected tabs
@@ -588,6 +598,26 @@ function setupEventListeners() {
     // Mermaid Modal
     elements.mermaidCloseModal.addEventListener('click', () => hideMermaidModal(elements));
     elements.mermaidModal.addEventListener('click', (e) => { if (e.target === elements.mermaidModal) hideMermaidModal(elements); });
+
+    if (elements.contextPreviewCloseIcon) {
+        elements.contextPreviewCloseIcon.addEventListener('click', closeContextPreviewModal);
+    }
+    if (elements.contextPreviewModal) {
+        elements.contextPreviewModal.addEventListener('click', (e) => {
+            if (e.target === elements.contextPreviewModal) {
+                closeContextPreviewModal();
+            }
+        });
+    }
+    if (elements.contextPreviewCopy) {
+        elements.contextPreviewCopy.addEventListener('click', () => {
+            const pageContext = getPageContextTextForPrompt(state);
+            if (!pageContext) return;
+
+            window.parent.postMessage({ action: 'copyText', text: pageContext }, '*');
+            showToastUI(_('copied', {}, currentTranslations), 'success');
+        });
+    }
 
     // Settings Actions
     // Removed discover models button event listener
@@ -1604,6 +1634,77 @@ function showToastUI(message, type, customClass = '') {
     showToast(message, type, customClass);
 }
 
+function updateFooterContextStatusFromState() {
+    const pageContextStatus = getPageContextStatus(state.pageContext);
+
+    if (pageContextStatus === 'extracting') {
+        updateContextStatus('contextStatusExtracting', {}, elements, currentTranslations);
+        return;
+    }
+
+    if (pageContextStatus === 'failed') {
+        updateContextStatus('contextStatusFailed', {}, elements, currentTranslations);
+        return;
+    }
+
+    if (pageContextStatus === 'ready') {
+        updateContextStatus('contextStatusChars', { charCount: getPageContextCharCount(state.pageContext) }, elements, currentTranslations);
+        return;
+    }
+
+    updateContextStatus('contextStatusNone', {}, elements, currentTranslations);
+}
+
+function isContextPreviewModalOpen() {
+    return !!(elements.contextPreviewModal && getComputedStyle(elements.contextPreviewModal).display !== 'none');
+}
+
+function renderContextPreviewModal() {
+    if (!elements.contextPreviewContent || !elements.contextPreviewMeta || !elements.contextPreviewCopy) return;
+
+    const pageContextStatus = getPageContextStatus(state.pageContext);
+    const pageContext = getPageContextTextForPrompt(state);
+    const metaParts = [];
+
+    if (state.pageTitle) {
+        metaParts.push(state.pageTitle);
+    }
+
+    if (pageContextStatus === 'ready') {
+        metaParts.push(_('contextStatusChars', { charCount: getPageContextCharCount(state.pageContext) }));
+    }
+
+    elements.contextPreviewMeta.textContent = metaParts.join(' · ');
+    elements.contextPreviewMeta.style.display = metaParts.length > 0 ? 'block' : 'none';
+
+    if (pageContextStatus === 'ready') {
+        elements.contextPreviewContent.textContent = pageContext;
+        elements.contextPreviewCopy.disabled = false;
+        return;
+    }
+
+    const statusKeyMap = {
+        extracting: 'contextStatusExtracting',
+        failed: 'contextStatusFailed',
+        none: 'contextStatusNone'
+    };
+
+    elements.contextPreviewContent.textContent = _(statusKeyMap[pageContextStatus] || 'contextStatusNone');
+    elements.contextPreviewCopy.disabled = true;
+}
+
+function openContextPreviewModal() {
+    if (!elements.contextPreviewModal) return;
+    renderContextPreviewModal();
+    elements.contextPreviewModal.style.display = 'flex';
+    elements.contextPreviewCloseIcon?.focus();
+}
+
+function closeContextPreviewModal() {
+    if (!elements.contextPreviewModal) return;
+    elements.contextPreviewModal.style.display = 'none';
+}
+
 
 // --- Communication with Content Script ---
 
@@ -1613,7 +1714,10 @@ function handleContentScriptMessages(event) {
         case 'pageContentExtracted':
             state.pageContext = message.content;
             state.pageTitle = message.pageTitle || ''; // 保存页面标题
-            updateContextStatus('contextStatusChars', { charCount: message.content.length }, elements, currentTranslations);
+            updateFooterContextStatusFromState();
+            if (isContextPreviewModalOpen()) {
+                renderContextPreviewModal();
+            }
             if (message.showSuccessMessage) {
                 const msgText = _('pageContentExtractedSuccess', {}, currentTranslations);
                 showChatStatusMessage(msgText, 'success', elements);
@@ -1679,7 +1783,12 @@ function handleContentScriptMessages(event) {
 }
 
 function requestPageContent() {
-    updateContextStatus('contextStatusExtracting', {}, elements, currentTranslations);
+    state.pageContext = null;
+    state.pageTitle = '';
+    updateFooterContextStatusFromState();
+    if (isContextPreviewModalOpen()) {
+        renderContextPreviewModal();
+    }
     window.parent.postMessage({ action: 'requestPageContent' }, '*');
 
     // 添加超时机制，如果10秒内没有收到响应，显示失败状态
@@ -1687,7 +1796,10 @@ function requestPageContent() {
         if (state.pageContext === null) { // 仍然是初始状态，说明没有收到响应
             console.warn('[main.js] Page content extraction timeout');
             state.pageContext = 'error';
-            updateContextStatus('contextStatusFailed', {}, elements, currentTranslations);
+            updateFooterContextStatusFromState();
+            if (isContextPreviewModalOpen()) {
+                renderContextPreviewModal();
+            }
         }
     }, 10000); // 10秒超时
 }
@@ -1955,16 +2067,10 @@ async function loadAndApplyTranslations(language) {
     } catch (error) {
         console.warn('[main.js] Error dispatching language change event:', error);
     }
-    // Update context status based on current state.pageContext
-    let contextKey = 'contextStatusNone';
-    let contextReplacements = {};
-    if (state.pageContext === null) contextKey = 'contextStatusExtracting';
-    else if (state.pageContext === 'error') contextKey = 'contextStatusFailed';
-    else if (state.pageContext) {
-        contextKey = 'contextStatusChars';
-        contextReplacements = { charCount: state.pageContext.length };
+    updateFooterContextStatusFromState();
+    if (isContextPreviewModalOpen()) {
+        renderContextPreviewModal();
     }
-    updateContextStatus(contextKey, contextReplacements, elements, currentTranslations);
 
     // Re-render welcome message if chat is empty
     if (elements.chatMessages && elements.chatMessages.children.length === 1 && elements.chatMessages.firstElementChild.classList.contains('welcome-message')) {
@@ -2093,7 +2199,13 @@ function handleGlobalEscapeForModals() {
             return true;
         }
 
-        // 6) Generic overlays created in settings (e.g., import/export confirms)
+        // 6) Context preview modal
+        if (isContextPreviewModalOpen()) {
+            closeContextPreviewModal();
+            return true;
+        }
+
+        // 7) Generic overlays created in settings (e.g., import/export confirms)
         // 仅处理“可见”的 overlay，避免隐藏的对话框常驻导致 ESC 失效
         const overlays = Array
             .from(document.querySelectorAll('body > .dialog-overlay'))
@@ -2116,13 +2228,13 @@ function handleGlobalEscapeForModals() {
             return true;
         }
 
-        // 7) Image preview modal
+        // 8) Image preview modal
         if (elements.imageModal && getComputedStyle(elements.imageModal).display !== 'none') {
             hideImageModal(elements);
             return true;
         }
 
-        // 8) Mermaid preview modal
+        // 9) Mermaid preview modal
         if (elements.mermaidModal && getComputedStyle(elements.mermaidModal).display !== 'none') {
             hideMermaidModal(elements);
             return true;

@@ -520,8 +520,13 @@ export function updateConnectionIndicator(isConnected, elements, currentTranslat
  */
 export function updateContextStatus(contextStatusKey, replacements = {}, elements, currentTranslations) {
     if (!elements.contextStatus) return;
-    const prefix = _('contextStatusPrefix', {}, currentTranslations);
     const statusText = _(contextStatusKey, replacements, currentTranslations);
+    if (elements.contextStatusText) {
+        elements.contextStatusText.textContent = statusText;
+        return;
+    }
+
+    const prefix = _('contextStatusPrefix', {}, currentTranslations);
     elements.contextStatus.textContent = `${prefix} ${statusText}`;
 }
 
@@ -680,8 +685,10 @@ export function updateUIElementsWithTranslations(currentTranslations) {
     setText('.footer-tab[data-tab="settings"][data-i18n="settingsTab"]', 'settingsTab');
 
     // Status bar
-    const contextPrefixEl = document.querySelector('#context-status[data-i18n="contextStatusPrefix"]');
+    const contextPrefixEl = document.querySelector('#context-status-prefix[data-i18n="contextStatusPrefix"]');
     if (contextPrefixEl) contextPrefixEl.textContent = _tr('contextStatusPrefix');
+    setAttr('#context-status', 'aria-label', 'contextPreviewTitle');
+    setAttr('#context-preview-close-icon', 'aria-label', 'close');
     setText('#connection-indicator.disconnected[data-i18n="connectionIndicatorDisconnected"]', 'connectionIndicatorDisconnected');
 
     // Language options text

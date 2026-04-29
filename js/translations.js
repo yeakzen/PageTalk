@@ -90,6 +90,8 @@ if (typeof window.translations === 'undefined') {
       'contextStatusExtracting': '正在提取...',
       'contextStatusFailed': '提取失败',
       'contextStatusChars': '{charCount} 字符', // Placeholder for character count
+      'contextPreviewTitle': '当前上下文',
+      'contextPreviewSubtitle': '以下内容与发送提问时使用的页面上下文一致。',
       'connectionIndicatorConnected': '已连接',
       'connectionIndicatorDisconnected': '未连接',
       'emptyAgentList': '暂无助手，点击添加按钮创建',
@@ -626,6 +628,8 @@ Format：
       'contextStatusExtracting': 'Extracting...',
       'contextStatusFailed': 'Extraction failed',
       'contextStatusChars': '{charCount} chars',
+      'contextPreviewTitle': 'Current Context',
+      'contextPreviewSubtitle': 'This matches the page context sent with your question.',
       'connectionIndicatorConnected': 'Connected',
       'connectionIndicatorDisconnected': 'Disconnected',
       'emptyAgentList': 'No agents yet, click the add button to create one',
