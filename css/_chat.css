@@ -1,15 +1,43 @@
 /* 包含 Pagetalk 聊天界面的所有样式，如消息气泡、输入区域、图片预览、思考动画等。 */
 
 /* 聊天界面样式 */
+#chat.tab-content.active {
+    padding: 10px 10px 12px;
+}
+
 .chat-container {
     display: flex;
     flex-direction: column;
-    height: 100%;
+    flex: 1;
     width: 100%;
+    min-height: 0;
     overflow: hidden;
-    /* 确保聊天容器本身不溢出 */
+    border-radius: 28px;
+    background: var(--glass-panel);
+    border: 1px solid var(--glass-border);
+    box-shadow: var(--glass-shadow), inset 0 1px 0 var(--glass-border-strong);
+    backdrop-filter: blur(var(--glass-blur)) saturate(180%);
+    -webkit-backdrop-filter: blur(var(--glass-blur)) saturate(180%);
+    position: relative;
+    isolation: isolate;
     padding-bottom: 0;
-    /* 移除原有的，由 chat-input 和 selected-tabs-bar 控制 */
+}
+
+.chat-container::before {
+    content: '';
+    position: absolute;
+    inset: 0;
+    border-radius: inherit;
+    background:
+        radial-gradient(circle at top left, rgba(255, 255, 255, 0.28), transparent 34%),
+        linear-gradient(180deg, var(--glass-highlight), rgba(255, 255, 255, 0.02) 36%, transparent 72%);
+    pointer-events: none;
+    z-index: 0;
+}
+
+.chat-container>* {
+    position: relative;
+    z-index: 1;
 }
 
 /* 聊天消息区域 */
@@ -23,12 +51,12 @@
     /* 进一步增大间距 */
     width: 100%;
     min-height: 0;
-    /* 确保可以缩小 */
+    background: linear-gradient(180deg, rgba(255, 255, 255, 0.03), transparent 18%, rgba(255, 255, 255, 0.03));
 }
 
 /* 欢迎消息 - 高级精致设计 */
 .welcome-message {
-    background-color: var(--card-background);
+    background: var(--glass-panel-strong);
     /* 精致的圆角设计 */
     border-radius: 20px;
     /* 更宽敞的内边距 */
@@ -43,7 +71,9 @@
         0 8px 16px rgba(0, 0, 0, 0.02);
     text-align: center;
     /* 精致的边框 */
-    border: 1px solid var(--border-color);
+    border: 1px solid var(--glass-border);
+    backdrop-filter: blur(18px) saturate(170%);
+    -webkit-backdrop-filter: blur(18px) saturate(170%);
     /* 入场动画 */
     animation: welcomeSlideIn 0.6s cubic-bezier(0.4, 0, 0.2, 1) forwards;
     opacity: 0;
@@ -67,7 +97,8 @@
 
 /* 深色模式下欢迎消息的微调 */
 body.dark-mode .welcome-message {
-    border-color: rgba(255, 255, 255, 0.08);
+    background: rgba(24, 27, 34, 0.42);
+    border-color: rgba(255, 255, 255, 0.12);
     box-shadow:
         0 1px 2px rgba(0, 0, 0, 0.12),
         0 2px 4px rgba(0, 0, 0, 0.1),
@@ -478,9 +509,9 @@ body.dark-mode .sent-tab-item:hover {
 /* 机器人消息气泡样式 - 高级精致设计 */
 .bot-message {
     align-self: flex-start;
-    background-color: var(--card-background);
+    background: var(--glass-panel-strong);
     /* 精致的边框处理 */
-    border: 1px solid var(--border-color);
+    border: 1px solid var(--glass-border);
     /* 精致的圆角设计 - 四等圆角 */
     border-radius: 18px;
     /* 更宽敞的内边距 */
@@ -494,7 +525,10 @@ body.dark-mode .sent-tab-item:hover {
     box-shadow:
         0 1px 2px rgba(0, 0, 0, 0.04),
         0 2px 4px rgba(0, 0, 0, 0.04),
-        0 4px 8px rgba(0, 0, 0, 0.02);
+        0 4px 8px rgba(0, 0, 0, 0.02),
+        inset 0 1px 0 rgba(255, 255, 255, 0.18);
+    backdrop-filter: blur(16px) saturate(170%);
+    -webkit-backdrop-filter: blur(16px) saturate(170%);
     /* 平滑的过渡效果 */
     transition:
         transform 0.25s cubic-bezier(0.4, 0, 0.2, 1),
@@ -515,6 +549,7 @@ body.dark-mode .sent-tab-item:hover {
 /* 深色模式下机器人消息的微调 */
 body.dark-mode .bot-message {
     border-color: rgba(255, 255, 255, 0.08);
+    background: rgba(31, 35, 43, 0.44);
     box-shadow:
         0 1px 2px rgba(0, 0, 0, 0.12),
         0 2px 4px rgba(0, 0, 0, 0.1),
@@ -893,7 +928,8 @@ body.dark-mode .bot-message:hover {
 .chat-input-wrapper {
     padding: var(--spacing-sm) var(--spacing-md);
     padding-bottom: calc(var(--spacing-md) + 4px);
-    background: transparent;
+    background: linear-gradient(180deg, transparent, rgba(255, 255, 255, 0.06));
+    border-top: 1px solid rgba(255, 255, 255, 0.12);
 }
 
 /* 输入框容器 */
@@ -901,17 +937,26 @@ body.dark-mode .bot-message:hover {
     display: flex;
     flex-direction: column;
     gap: var(--spacing-xs);
-    background-color: var(--card-background);
-    border: 1px solid var(--border-color);
+    background: var(--glass-panel-soft);
+    border: 1px solid var(--glass-border);
     border-radius: 20px;
     padding: var(--spacing-sm);
     box-sizing: border-box;
-    transition: border-color 0.2s ease, box-shadow 0.2s ease;
+    box-shadow:
+        0 12px 32px rgba(15, 23, 42, 0.08),
+        inset 0 1px 0 rgba(255, 255, 255, 0.26);
+    backdrop-filter: blur(18px) saturate(180%);
+    -webkit-backdrop-filter: blur(18px) saturate(180%);
+    transition: border-color 0.2s ease, box-shadow 0.2s ease, background-color 0.2s ease;
 }
 
 .chat-input:focus-within {
     border-color: var(--primary-color);
-    box-shadow: 0 0 0 2px rgba(49, 123, 245, 0.1);
+    background: var(--glass-panel-strong);
+    box-shadow:
+        0 0 0 2px rgba(49, 123, 245, 0.12),
+        0 12px 32px rgba(15, 23, 42, 0.1),
+        inset 0 1px 0 rgba(255, 255, 255, 0.32);
 }
 
 /* 输入框 */
@@ -927,6 +972,12 @@ body.dark-mode .bot-message:hover {
     line-height: 1.5;
     outline: none;
     overflow-y: auto;
+    transition: min-height 0.2s ease, max-height 0.2s ease;
+}
+
+.chat-input.expanded textarea {
+    min-height: 180px;
+    max-height: 420px;
 }
 
 .chat-input textarea::placeholder {
@@ -981,10 +1032,12 @@ body.dark-mode .bot-message:hover {
     position: absolute;
     bottom: calc(100% + 8px);
     left: 0;
-    background-color: var(--card-background);
-    border: 1px solid var(--border-color);
+    background: var(--glass-panel-strong);
+    border: 1px solid var(--glass-border);
     border-radius: 16px;
     box-shadow: 0 4px 16px rgba(0, 0, 0, 0.12);
+    backdrop-filter: blur(18px) saturate(180%);
+    -webkit-backdrop-filter: blur(18px) saturate(180%);
     min-width: 160px;
     z-index: 100;
     overflow: hidden;
@@ -1045,7 +1098,7 @@ body.dark-mode .bot-message:hover {
     gap: 4px;
     padding: 4px 10px;
     margin-left: var(--spacing-sm);
-    border: 1px solid transparent;
+    border: 1px solid rgba(255, 255, 255, 0.12);
     border-radius: 12px;
     color: var(--text-secondary);
     font-size: 12px;
@@ -1056,14 +1109,41 @@ body.dark-mode .bot-message:hover {
 }
 
 .inline-model-selector:hover {
-    background-color: rgba(49, 123, 245, 0.08);
+    background-color: var(--glass-panel-soft);
     color: var(--primary-color);
 }
 
 .inline-model-selector.active {
-    background-color: rgba(49, 123, 245, 0.1);
+    background-color: var(--glass-panel-strong);
     border-color: var(--primary-color);
     color: var(--primary-color);
+}
+
+.chat-input-expand-btn {
+    border: 1px solid rgba(255, 255, 255, 0.12);
+    background: transparent;
+}
+
+.chat-input-expand-btn:hover {
+    background-color: var(--glass-panel-soft);
+}
+
+.chat-input-expand-btn.active {
+    color: var(--primary-color);
+    background-color: var(--glass-panel-strong);
+    border-color: var(--primary-color);
+}
+
+.chat-input-expand-btn .collapse-icon {
+    display: none;
+}
+
+.chat-input-expand-btn.active .expand-icon {
+    display: none;
+}
+
+.chat-input-expand-btn.active .collapse-icon {
+    display: block !important;
 }
 
 #current-model-display {
@@ -1096,10 +1176,12 @@ body.dark-mode .bot-message:hover {
     position: absolute;
     bottom: calc(100% + 8px);
     left: 36px;
-    background-color: var(--card-background);
-    border: 1px solid var(--border-color);
+    background: rgba(255, 255, 255, 0.95);
+    border: 1px solid var(--glass-border);
     border-radius: 16px;
     box-shadow: 0 4px 20px rgba(0, 0, 0, 0.15);
+    backdrop-filter: blur(18px) saturate(180%);
+    -webkit-backdrop-filter: blur(18px) saturate(180%);
     max-height: 280px;
     min-width: 200px;
     max-width: 320px;
@@ -1479,13 +1561,15 @@ body.dark-mode #send-message.stop-streaming {
 .image-preview-container {
     margin: var(--spacing-xs) var(--spacing-md);
     border-radius: var(--radius-md);
-    background-color: var(--card-background);
+    background: var(--glass-panel-soft);
     box-shadow: 0 2px 8px rgba(0, 0, 0, 0.06);
     overflow: hidden;
     transition: all 0.3s ease;
-    border: 1px solid var(--border-color);
+    border: 1px solid var(--glass-border);
     max-width: 100%;
     box-sizing: border-box;
+    backdrop-filter: blur(16px) saturate(180%);
+    -webkit-backdrop-filter: blur(16px) saturate(180%);
 }
 
 /* 图片网格布局 */
@@ -1633,7 +1717,8 @@ body.dark-mode #send-message.stop-streaming {
     justify-content: space-between;
     align-items: center;
     padding: var(--spacing-sm) var(--spacing-md);
-    background-color: var(--panel-background);
+    background: linear-gradient(180deg, rgba(255, 255, 255, 0.18), rgba(255, 255, 255, 0.04));
+    border-bottom: 1px solid rgba(255, 255, 255, 0.14);
     gap: var(--spacing-sm);
     box-sizing: border-box;
 }
@@ -1657,14 +1742,16 @@ body.dark-mode #send-message.stop-streaming {
     max-width: 120px;
     padding: 4px 8px;
     border-radius: var(--radius-md);
-    border: 1px solid var(--border-color);
+    border: 1px solid var(--glass-border);
     font-size: 12px;
     font-family: inherit;
-    background-color: transparent;
+    background: var(--glass-panel-soft);
     cursor: pointer;
     outline: none;
     transition: all 0.2s ease;
     text-overflow: ellipsis;
+    backdrop-filter: blur(14px);
+    -webkit-backdrop-filter: blur(14px);
 }
 
 .chat-agent-selector select:hover {
@@ -1689,7 +1776,7 @@ body.dark-mode #send-message.stop-streaming {
     height: 32px;
     border-radius: var(--radius-md);
     border: none;
-    background-color: transparent;
+    background-color: rgba(255, 255, 255, 0.08);
     color: var(--text-secondary);
     cursor: pointer;
     display: flex;
@@ -1700,7 +1787,7 @@ body.dark-mode #send-message.stop-streaming {
 
 .chat-header .action-button:hover {
     color: var(--primary-color);
-    background-color: var(--button-hover-bg);
+    background-color: var(--glass-panel-soft);
 }
 
 
@@ -1728,9 +1815,11 @@ body.dark-mode #send-message.stop-streaming {
     opacity: 1;
     transform: translateY(-15px);
     /* 调整出现时的位置 */
-    background-color: rgba(52, 168, 83, 0.1);
+    background-color: rgba(52, 168, 83, 0.12);
     color: var(--success-color);
     border: 1px solid rgba(52, 168, 83, 0.3);
+    backdrop-filter: blur(14px);
+    -webkit-backdrop-filter: blur(14px);
 }
 
 .chat-status.error {
@@ -1738,9 +1827,11 @@ body.dark-mode #send-message.stop-streaming {
     opacity: 1;
     transform: translateY(-15px);
     /* 调整出现时的位置 */
-    background-color: rgba(234, 67, 53, 0.1);
+    background-color: rgba(234, 67, 53, 0.12);
     color: var(--error-color);
     border: 1px solid rgba(234, 67, 53, 0.3);
+    backdrop-filter: blur(14px);
+    -webkit-backdrop-filter: blur(14px);
 }
 
 /* 空状态消息 (if used in chat, e.g., for empty agent list, but that's in settings) */
@@ -1760,12 +1851,14 @@ body.dark-mode #send-message.stop-streaming {
 .video-preview-container {
     margin: var(--spacing-xs) var(--spacing-md);
     border-radius: var(--radius-md);
-    background-color: var(--card-background);
+    background: var(--glass-panel-soft);
     box-shadow: 0 2px 8px rgba(0, 0, 0, 0.06);
     overflow: hidden;
     transition: all 0.3s ease;
-    border: 1px solid var(--border-color);
+    border: 1px solid var(--glass-border);
     max-width: 100%;
+    backdrop-filter: blur(16px) saturate(180%);
+    -webkit-backdrop-filter: blur(16px) saturate(180%);
     box-sizing: border-box;
 }
 
@@ -1944,6 +2037,12 @@ body.dark-mode #send-message.stop-streaming {
     animation: fadeIn 0.3s ease-out;
 }
 
+#context-preview-modal {
+    background: rgba(223, 230, 240, 0.18);
+    backdrop-filter: blur(12px) saturate(150%);
+    -webkit-backdrop-filter: blur(12px) saturate(150%);
+}
+
 @keyframes fadeIn {
     from {
         opacity: 0;
@@ -1957,13 +2056,15 @@ body.dark-mode #send-message.stop-streaming {
 }
 
 .dialog-content {
-    background: var(--card-background);
-    border: 1px solid var(--border-color);
+    background: var(--glass-panel-strong);
+    border: 1px solid var(--glass-border);
     border-radius: var(--radius-lg);
     padding: var(--spacing-lg);
     width: 90%;
     max-width: 400px;
     box-shadow: 0 12px 32px rgba(0, 0, 0, 0.15);
+    backdrop-filter: blur(22px) saturate(180%);
+    -webkit-backdrop-filter: blur(22px) saturate(180%);
     animation: slideInUp 0.3s cubic-bezier(0.4, 0, 0.2, 1);
     transform: scale(1);
     z-index: 10001;
@@ -1994,6 +2095,11 @@ body.dark-mode #send-message.stop-streaming {
     display: flex;
     flex-direction: column;
     gap: var(--spacing-md);
+    background:
+        linear-gradient(180deg, rgba(255, 255, 255, 0.62), rgba(255, 255, 255, 0.32));
+    box-shadow:
+        0 18px 48px rgba(15, 23, 42, 0.14),
+        inset 0 1px 0 rgba(255, 255, 255, 0.4);
 }
 
 .context-preview-header {
@@ -2001,6 +2107,8 @@ body.dark-mode #send-message.stop-streaming {
     align-items: flex-start;
     justify-content: space-between;
     gap: var(--spacing-md);
+    padding-bottom: var(--spacing-sm);
+    border-bottom: 1px solid rgba(255, 255, 255, 0.16);
 }
 
 .context-preview-close {
@@ -2022,6 +2130,7 @@ body.dark-mode #send-message.stop-streaming {
     font-size: 12px;
     color: var(--text-secondary);
     word-break: break-word;
+    padding: 0 var(--spacing-xs);
 }
 
 .context-preview-content {
@@ -2030,18 +2139,32 @@ body.dark-mode #send-message.stop-streaming {
     overflow: auto;
     padding: var(--spacing-md);
     border-radius: var(--radius-md);
-    border: 1px solid var(--border-color);
-    background: var(--input-background);
+    border: 1px solid var(--glass-border);
+    background: rgba(255, 255, 255, 0.28);
     color: var(--text-color);
     font-size: 12px;
     line-height: 1.6;
     white-space: pre-wrap;
     word-break: break-word;
+    box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.24);
+    backdrop-filter: blur(14px) saturate(170%);
+    -webkit-backdrop-filter: blur(14px) saturate(170%);
 }
 
 #context-preview-copy:disabled {
     opacity: 0.6;
     cursor: not-allowed;
+}
+
+#context-preview-copy {
+    background: linear-gradient(135deg, var(--primary-color), var(--secondary-color));
+    color: white;
+    box-shadow: 0 10px 24px rgba(49, 123, 245, 0.2);
+}
+
+#context-preview-copy:hover:not(:disabled) {
+    transform: translateY(-1px);
+    box-shadow: 0 14px 28px rgba(49, 123, 245, 0.26);
 }
 
 .dialog-content p {
@@ -2054,9 +2177,9 @@ body.dark-mode #send-message.stop-streaming {
 .dialog-content input {
     width: 100%;
     padding: 12px 16px;
-    border: 1px solid var(--border-color);
+    border: 1px solid var(--glass-border);
     border-radius: var(--radius-md);
-    background: var(--input-background);
+    background: var(--glass-panel-soft);
     color: var(--text-color);
     font-size: 14px;
     margin-bottom: var(--spacing-lg);
@@ -2069,7 +2192,7 @@ body.dark-mode #send-message.stop-streaming {
     outline: none;
     border-color: var(--primary-color);
     box-shadow: 0 0 0 2px rgba(49, 123, 245, 0.1);
-    background-color: var(--card-background);
+    background-color: var(--glass-panel-strong);
     transform: translateY(-1px);
 }
 
@@ -2945,9 +3068,9 @@ body.dark-mode .tab-selection-actions .tab-action.cancel {
     font-size: 12px;
     font-weight: 600;
     color: var(--text-secondary);
-    background: var(--card-background);
+    background: var(--glass-panel-soft);
     border-radius: 14px 14px 0 0;
-    border: 1px solid var(--border-color);
+    border: 1px solid var(--glass-border);
     border-bottom: none;
     width: 100%;
     box-sizing: border-box;
@@ -3021,10 +3144,12 @@ body.dark-mode .tab-selection-actions .tab-action.cancel {
     transform: translateX(-50%);
     width: 70%;
     max-height: calc(100% - 120px);
-    background: var(--card-background);
-    border: 1px solid var(--border-color);
+    background: var(--glass-panel-strong);
+    border: 1px solid var(--glass-border);
     border-radius: 12px;
     box-shadow: 0 4px 20px rgba(0, 0, 0, 0.15);
+    backdrop-filter: blur(22px) saturate(180%);
+    -webkit-backdrop-filter: blur(22px) saturate(180%);
     z-index: 1000;
     display: flex;
     flex-direction: column;
@@ -3049,8 +3174,8 @@ body.dark-mode .tab-selection-actions .tab-action.cancel {
     align-items: center;
     justify-content: space-between;
     padding: 12px 16px;
-    border-bottom: 1px solid var(--border-color);
-    background: var(--card-background);
+    border-bottom: 1px solid rgba(255, 255, 255, 0.12);
+    background: var(--glass-panel-soft);
 }
 
 .saved-sessions-header h3 {

@@ -159,6 +159,7 @@ const elements = {
     attachmentMenuBtn: document.getElementById('attachment-menu-btn'),
     attachmentMenu: document.getElementById('attachment-menu'),
     inlineModelSelector: document.getElementById('inline-model-selector'),
+    expandChatInputBtn: document.getElementById('expand-chat-input'),
     currentModelDisplay: document.getElementById('current-model-display'),
     modelSelectorMenu: document.getElementById('model-selector-menu'),
     uploadImage: document.getElementById('upload-image'),
@@ -548,6 +549,13 @@ function setupEventListeners() {
         });
     }
 
+    if (elements.expandChatInputBtn) {
+        elements.expandChatInputBtn.addEventListener('click', (e) => {
+            e.stopPropagation();
+            toggleExpandedChatInput();
+        });
+    }
+
     // 点击外部关闭菜单
     document.addEventListener('click', (e) => {
         // 关闭加号菜单
@@ -715,6 +723,23 @@ function setupEventListeners() {
 
     // 设置多供应商事件监听器
     setupProviderEventListeners(state, elements, showToastUI, () => updateConnectionIndicator(state.isConnected, elements, currentTranslations));
+}
+
+function toggleExpandedChatInput() {
+    const chatInputContainer = elements.userInput?.closest('.chat-input');
+    if (!chatInputContainer || !elements.expandChatInputBtn) return;
+
+    const isExpanded = chatInputContainer.classList.toggle('expanded');
+    elements.expandChatInputBtn.classList.toggle('active', isExpanded);
+    elements.expandChatInputBtn.setAttribute('aria-pressed', String(isExpanded));
+
+    const titleKey = isExpanded ? 'collapseInputTitle' : 'expandInputTitle';
+    const translatedTitle = _(titleKey);
+    elements.expandChatInputBtn.setAttribute('title', translatedTitle);
+    elements.expandChatInputBtn.setAttribute('aria-label', translatedTitle);
+
+    resizeTextarea(elements);
+    elements.userInput?.focus();
 }
 
 

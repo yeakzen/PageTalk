@@ -24,7 +24,7 @@ ol ul {
 }
 
 body {
-    background-color: var(--background-color);
+    background: transparent;
     color: var(--text-color);
     height: 100vh;
     width: 100%;
@@ -96,7 +96,7 @@ main {
 
 /* 页脚样式 - 添加顶部导航 */
 footer {
-    background-color: var(--panel-background);
+    /* background-color: var(--panel-background); */
     padding: var(--spacing-xs) var(--spacing-md);
     font-size: 11px;
     display: flex;

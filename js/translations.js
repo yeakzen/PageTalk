@@ -123,6 +123,8 @@ if (typeof window.translations === 'undefined') {
       'attachmentMenuTitle': '添加附件',
       'uploadImageMenuItem': '上传图片',
       'uploadYoutubeMenuItem': '上传 YouTube URL',
+      'expandInputTitle': '扩大输入框',
+      'collapseInputTitle': '恢复输入框',
       // 消息导航按钮
       'navToTop': '滚动到顶部',
       'navPrevUser': '上一条提问',
@@ -661,6 +663,8 @@ Format：
       'attachmentMenuTitle': 'Add Attachment',
       'uploadImageMenuItem': 'Upload Image',
       'uploadYoutubeMenuItem': 'Upload YouTube URL',
+      'expandInputTitle': 'Expand Input',
+      'collapseInputTitle': 'Restore Input',
       // Chat Navigation Buttons
       'navToTop': 'Scroll to Top',
       'navPrevUser': 'Previous Question',

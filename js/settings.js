@@ -1820,6 +1820,18 @@ function getCurrentVisibleProviderId() {
 }
 
 /**
+ * 获取设置页默认应展示的供应商ID
+ * 优先展示用户添加的第一个自定义 OpenAI Compatible 供应商
+ */
+function getDefaultProviderSettingsId() {
+    const customProviders = window.ProviderManager?.getCustomProviders?.() || [];
+    if (customProviders.length > 0) {
+        return customProviders[0].id;
+    }
+    return 'google';
+}
+
+/**
  * 填充供应商下拉框
  */
 function populateProviderSelect(selectEl, options, selectedValue) {
@@ -1863,7 +1875,7 @@ function updateProviderSelectInVisibleCard() {
  */
 async function initProviderSelection(elements) {
     // 首次显示默认供应商
-    await showProviderSettings('google');
+    await showProviderSettings(getDefaultProviderSettingsId());
     // 填充并绑定当前可见卡片中的选择器
     updateProviderSelectInVisibleCard();
 }
@@ -2869,7 +2881,13 @@ async function refreshProviderSelection() {
     await createAllProviderSettings();
 
     // 更新当前可见卡片中的选择器
-    updateProviderSelectInVisibleCard();
+    let currentVisibleProviderId = getCurrentVisibleProviderId();
+    if (!currentVisibleProviderId) {
+        currentVisibleProviderId = getDefaultProviderSettingsId();
+        await showProviderSettings(currentVisibleProviderId);
+    } else {
+        updateProviderSelectInVisibleCard();
+    }
 }
 
 /**
@@ -3089,7 +3107,7 @@ async function removeCustomProvider(providerId) {
             // 如果当前显示的是被删除的提供商，切换到默认提供商
             const currentVisible = getCurrentVisibleProviderId();
             if (currentVisible === providerId || !currentVisible) {
-                await showProviderSettings('google');
+                await showProviderSettings(getDefaultProviderSettingsId());
                 updateProviderSelectInVisibleCard();
             }
 

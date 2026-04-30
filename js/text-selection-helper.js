@@ -44,6 +44,34 @@ let abortControllers = new Map(); // 存储每个窗口的中断控制器 {windo
 // 聊天历史记录管理
 let chatHistories = new Map(); // 存储每个聊天窗口的历史记录 {windowId: Array<{role: string, content: string}>}
 
+function getMagicSendButtonIconHtml(size = 20) {
+    return `<img src="${chrome.runtime.getURL('magic.png')}" alt="PageTalk" width="${size}" height="${size}">`;
+}
+
+function getSendButtonTitleKey(sendBtn) {
+    return sendBtn && sendBtn.classList.contains('stop-streaming') ? 'stopStreamingTitle' : 'sendMessageTitle';
+}
+
+function updateSendButtonAccessibility(sendBtn) {
+    if (!sendBtn) return;
+
+    const _tr = getTranslationFunction();
+    const title = _tr(getSendButtonTitleKey(sendBtn));
+    sendBtn.title = title;
+    sendBtn.setAttribute('aria-label', title);
+}
+
+function playSendButtonSendingAnimation(sendBtn) {
+    if (!sendBtn) return;
+
+    sendBtn.classList.add('sending');
+    setTimeout(() => {
+        if (sendBtn && sendBtn.isConnected) {
+            sendBtn.classList.remove('sending');
+        }
+    }, 600);
+}
+
 /**
  * 获取聊天历史记录
  */
@@ -1806,6 +1834,7 @@ function handleWindowResize() {
  */
 async function createFunctionWindowContent(windowElement, optionId) {
     let content = '';
+    const _tr = getTranslationFunction();
 
     // 检查是否是自定义选项
     const settings = await getTextSelectionHelperSettings();
@@ -1911,7 +1940,6 @@ async function createFunctionWindowContent(windowElement, optionId) {
                 result.agents.forEach(agent => {
                     const selected = agent.id === result.currentAgentId ? 'selected' : '';
                     // 对助手名称进行翻译处理
-                    const _tr = getTranslationFunction();
                     const translatedName = _tr(agent.name);
                     agentOptionsHTML += `<option value="${agent.id}" ${selected}>${translatedName}</option>`;
                 });
@@ -1950,16 +1978,11 @@ async function createFunctionWindowContent(windowElement, optionId) {
             <div class="pagetalk-chat-messages"></div>
             <div class="pagetalk-chat-input">
                 <textarea placeholder="输入@选择多个页面..." rows="2"></textarea>
-                <button class="pagetalk-send-btn">
-                    <svg width="16" height="16" fill="currentColor" viewBox="0 0 16 16">
-                        <path d="M15.854.146a.5.5 0 0 1 .11.54l-5.819 14.547a.75.75 0 0 1-1.329.124l-3.178-4.995L.643 7.184a.75.75 0 0 1 .124-1.33L15.314.037a.5.5 0 0 1 .54.11v-.001ZM6.636 10.07l2.761 4.338L14.13 2.576 6.636 10.07Zm6.787-8.201L1.591 6.602l4.339 2.76 7.494-7.493Z"/>
-                    </svg>
-                </button>
+                <button class="pagetalk-send-btn" data-i18n-title="sendMessageTitle" title="${_tr('sendMessageTitle')}" aria-label="${_tr('sendMessageTitle')}">${getMagicSendButtonIconHtml()}</button>
             </div>
         `;
     } else {
         // 解读、翻译和自定义选项功能窗口
-        const _tr = getTranslationFunction();
         let title;
 
         if (customOption) {
@@ -2389,9 +2412,6 @@ function makeFunctionWindowDraggable(windowElement) {
 async function sendChatMessage(windowElement) {
     const textarea = windowElement.querySelector('textarea');
     const sendBtn = windowElement.querySelector('.pagetalk-send-btn');
-    const message = textarea.value.trim();
-
-    if (!message) return;
 
     // 获取窗口ID
     const windowId = windowElement.dataset.windowId || Date.now().toString();
@@ -2405,7 +2425,12 @@ async function sendChatMessage(windowElement) {
         return;
     }
 
+    const message = textarea.value.trim();
+    if (!message) return;
+
     console.log('[TextSelectionHelper] Sending chat message:', message);
+
+    playSendButtonSendingAnimation(sendBtn);
 
     // 清空输入框
     textarea.value = '';
@@ -3510,25 +3535,10 @@ function getCurrentWindowAgent(windowElement) {
 function updateSendButtonToStopState(sendBtn, windowId) {
     if (!sendBtn) return;
 
-    sendBtn.classList.add('pagetalk-stop-streaming');
-    sendBtn.title = '停止生成';
-    sendBtn.innerHTML = `
-        <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" viewBox="0 0 16 16">
-            <path d="M5 3.5h6A1.5 1.5 0 0 1 12.5 5v6a1.5 1.5 0 0 1-1.5 1.5H5A1.5 1.5 0 0 1 3.5 11V5A1.5 1.5 0 0 1 5 3.5z"/>
-        </svg>
-    `;
-
-    // 移除原有的点击事件监听器
-    const newSendBtn = sendBtn.cloneNode(true);
-    sendBtn.parentNode.replaceChild(newSendBtn, sendBtn);
-
-    // 添加中断事件监听器
-    newSendBtn.addEventListener('click', (e) => {
-        e.preventDefault();
-        e.stopPropagation();
-        // 点击暂停按钮时，保留消息（keepMessages=true）
-        abortStreaming(windowId, true);
-    });
+    sendBtn.classList.remove('sending', 'loading');
+    sendBtn.classList.add('stop-streaming', 'pagetalk-stop-streaming');
+    sendBtn.innerHTML = getMagicSendButtonIconHtml();
+    updateSendButtonAccessibility(sendBtn);
 }
 
 /**
@@ -3538,24 +3548,10 @@ function restoreSendButtonToNormalState(windowElement) {
     const sendBtn = windowElement.querySelector('.pagetalk-send-btn');
     if (!sendBtn) return;
 
-    sendBtn.classList.remove('pagetalk-stop-streaming');
-    sendBtn.title = '发送';
-    sendBtn.innerHTML = `
-        <svg width="16" height="16" fill="currentColor" viewBox="0 0 16 16">
-            <path d="M15.854.146a.5.5 0 0 1 .11.54l-5.819 14.547a.75.75 0 0 1-1.329.124l-3.178-4.995L.643 7.184a.75.75 0 0 1 .124-1.33L15.314.037a.5.5 0 0 1 .54.11v-.001ZM6.636 10.07l2.761 4.338L14.13 2.576 6.636 10.07Zm6.787-8.201L1.591 6.602l4.339 2.76 7.494-7.493Z"/>
-        </svg>
-    `;
-
-    // 移除原有的点击事件监听器
-    const newSendBtn = sendBtn.cloneNode(true);
-    sendBtn.parentNode.replaceChild(newSendBtn, sendBtn);
-
-    // 重新添加发送消息事件监听器
-    newSendBtn.addEventListener('click', (e) => {
-        e.preventDefault();
-        e.stopPropagation();
-        sendChatMessage(windowElement);
-    });
+    sendBtn.classList.remove('stop-streaming', 'pagetalk-stop-streaming', 'sending', 'loading');
+    sendBtn.disabled = false;
+    sendBtn.innerHTML = getMagicSendButtonIconHtml();
+    updateSendButtonAccessibility(sendBtn);
 }
 
 /**
@@ -4036,7 +4032,7 @@ function updateFunctionWindowLanguage(windowElement, newLanguage) {
     // 更新发送按钮标题
     const sendButton = windowElement.querySelector('.pagetalk-send-btn');
     if (sendButton) {
-        sendButton.title = _tr('sendMessageTitle');
+        updateSendButtonAccessibility(sendButton);
     }
 
     // 更新模型选择器标签

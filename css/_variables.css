@@ -29,6 +29,15 @@
     --button-secondary-hover: #e0e0e0; /* 次要按钮悬停 */
     --scrollbar-thumb: rgba(0, 0, 0, 0.15); /* 滚动条滑块 */
     --scrollbar-thumb-hover: rgba(0, 0, 0, 0.25); /* 滚动条滑块悬停 */
+    --glass-shell: rgba(244, 247, 251, 0.22);
+    --glass-panel: linear-gradient(180deg, rgba(255, 255, 255, 0.52), rgba(255, 255, 255, 0.24));
+    --glass-panel-strong: rgba(255, 255, 255, 0.42);
+    --glass-panel-soft: rgba(255, 255, 255, 0.2);
+    --glass-border: rgba(255, 255, 255, 0.38);
+    --glass-border-strong: rgba(255, 255, 255, 0.68);
+    --glass-highlight: rgba(255, 255, 255, 0.24);
+    --glass-shadow: 0 22px 44px rgba(15, 23, 42, 0.14);
+    --glass-blur: 24px;
 
     /* 间距变量 - 缩小整体缩放 */
     --spacing-xs: 3px;
@@ -74,4 +83,13 @@ body.dark-mode {
     --button-secondary-hover: #495057; /* 次要按钮悬停 */
     --scrollbar-thumb: rgba(255, 255, 255, 0.2); /* 滚动条滑块 */
     --scrollbar-thumb-hover: rgba(255, 255, 255, 0.3); /* 滚动条滑块悬停 */
+    --glass-shell: rgba(11, 13, 18, 0.28);
+    --glass-panel: linear-gradient(180deg, rgba(33, 37, 45, 0.62), rgba(17, 19, 26, 0.38));
+    --glass-panel-strong: rgba(31, 35, 43, 0.48);
+    --glass-panel-soft: rgba(18, 21, 28, 0.24);
+    --glass-border: rgba(255, 255, 255, 0.12);
+    --glass-border-strong: rgba(255, 255, 255, 0.22);
+    --glass-highlight: rgba(255, 255, 255, 0.08);
+    --glass-shadow: 0 28px 56px rgba(0, 0, 0, 0.34);
+    --glass-blur: 28px;
 }

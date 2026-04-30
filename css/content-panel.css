@@ -7,23 +7,33 @@
   /* width 由 JS 控制并从 localStorage 读取 */
   z-index: 2147483647 !important;
   display: none;
-  /* 新的: 使用多重阴影增加层次感和柔和的边缘 */
+  overflow: hidden;
+  border-left: 1px solid rgba(255, 255, 255, 0.24);
+  border-top: 1px solid rgba(255, 255, 255, 0.14);
+  border-bottom: 1px solid rgba(255, 255, 255, 0.14);
+  border-radius: 28px 0 0 28px;
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.16), rgba(255, 255, 255, 0.06));
+  backdrop-filter: blur(22px) saturate(180%);
+  -webkit-backdrop-filter: blur(22px) saturate(180%);
   box-shadow:
-    0 0 0 1px rgba(0, 0, 0, 0.04),
-    /* 极细的轮廓阴影 */
-    -4px 0 12px rgba(0, 0, 0, 0.08);
-  /* 更柔和的左侧投射阴影 */
-  /* 默认浅色背景 */
-  background-color: #F8F9FB;
+    0 12px 40px rgba(15, 23, 42, 0.14),
+    -12px 0 36px rgba(15, 23, 42, 0.1),
+    inset 0 1px 0 rgba(255, 255, 255, 0.3);
 }
 
 /* 深色模式时的容器背景色 - 防止闪烁 */
 @media (prefers-color-scheme: dark) {
   #pagetalk-panel-container {
-    background-color: #1A1C20;
+    border-left-color: rgba(255, 255, 255, 0.14);
+    border-top-color: rgba(255, 255, 255, 0.08);
+    border-bottom-color: rgba(255, 255, 255, 0.08);
+    background:
+      linear-gradient(180deg, rgba(20, 22, 28, 0.32), rgba(10, 11, 16, 0.18));
     box-shadow:
-      0 0 0 1px rgba(0, 0, 0, 0.2),
-      -4px 0 12px rgba(0, 0, 0, 0.3);
+      0 18px 48px rgba(0, 0, 0, 0.34),
+      -14px 0 40px rgba(0, 0, 0, 0.24),
+      inset 0 1px 0 rgba(255, 255, 255, 0.1);
   }
 }
 
@@ -46,6 +56,7 @@
   width: 100% !important;
   height: 100% !important;
   border: none;
+  background: transparent !important;
 }
 
 /* 当面板打开时，给页面添加右侧边距 */

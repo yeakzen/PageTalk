@@ -651,6 +651,7 @@ export function updateUIElementsWithTranslations(currentTranslations) {
     setAttr('#modal-image', 'alt', 'imagePreviewAltTranslated');
     setTitle('#upload-image', 'uploadImageTitle');
     setPlaceholder('#user-input', 'userInputPlaceholder');
+    setTitle('#expand-chat-input', document.querySelector('#expand-chat-input')?.classList.contains('active') ? 'collapseInputTitle' : 'expandInputTitle');
     const sendMessageBtn = document.querySelector('#send-message');
     if (sendMessageBtn) {
         const key = sendMessageBtn.classList.contains('stop-streaming') ? 'stopStreamingTitle' : 'sendMessageTitle';

@@ -10,21 +10,51 @@
     padding: 0;
 }
 
+.pagetalk-selection-helper,
+#settings-text-selection-helper {
+    --pts-primary: var(--primary-color, rgba(77, 10, 82, 1));
+    --pts-primary-hover: var(--primary-hover, rgba(60, 8, 64, 1));
+    --pts-secondary: var(--secondary-color, rgba(145, 58, 152, 1));
+    --pts-text: var(--text-color, #343a40e5);
+    --pts-text-secondary: var(--text-secondary, #868E96);
+    --pts-border: rgba(255, 255, 255, 0.34);
+    --pts-border-strong: rgba(255, 255, 255, 0.56);
+    --pts-panel: linear-gradient(180deg, rgba(255, 255, 255, 0.68), rgba(255, 255, 255, 0.34));
+    --pts-panel-soft: rgba(255, 255, 255, 0.24);
+    --pts-panel-strong: rgba(255, 255, 255, 0.52);
+    --pts-shell: rgba(255, 255, 255, 0.88);
+    --pts-input: rgba(255, 255, 255, 0.72);
+    --pts-hover: rgba(77, 10, 82, 0.1);
+    --pts-shadow: 0 18px 40px rgba(15, 23, 42, 0.14);
+    --pts-shadow-soft: 0 8px 24px rgba(15, 23, 42, 0.1);
+    --pts-send-ring-color: rgba(77, 10, 82, 0.18);
+    --pts-send-bg: rgba(255, 255, 255, 0.62);
+    --pts-send-bg-hover: rgba(255, 255, 255, 0.76);
+    --pts-send-bg-active: rgba(255, 255, 255, 0.56);
+    --pts-send-border: rgba(255, 255, 255, 0.44);
+    --pts-send-border-hover: rgba(255, 255, 255, 0.62);
+    --pts-send-highlight: linear-gradient(135deg, rgba(255, 255, 255, 0.3), rgba(255, 255, 255, 0));
+    --pts-send-shadow: 0 10px 24px rgba(15, 23, 42, 0.14);
+    --pts-send-shadow-hover: 0 14px 30px rgba(15, 23, 42, 0.18);
+    --pts-send-shadow-active: 0 8px 18px rgba(15, 23, 42, 0.12);
+}
+
 /* Mini Icon 样式 (改为 absolute 定位) */
 .pagetalk-mini-icon {
     position: absolute; /* 改动：从 fixed 改为 absolute */
     z-index: 2147483646;
     width: 32px;
     height: 32px;
-    background: rgba(255, 255, 255, 0.9);
-    backdrop-filter: blur(10px);
+    background: var(--pts-panel-strong);
+    backdrop-filter: blur(16px) saturate(180%);
+    -webkit-backdrop-filter: blur(16px) saturate(180%);
     border-radius: 16px;
     display: flex;
     align-items: center;
     justify-content: center;
     cursor: pointer;
-    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
-    border: 1px solid rgba(255, 255, 255, 0.2);
+    box-shadow: var(--pts-shadow-soft), inset 0 1px 0 var(--pts-border-strong);
+    border: 1px solid var(--pts-border);
     transition: all 0.2s ease;
     user-select: none;
 }
@@ -44,15 +74,16 @@
 .pagetalk-options-bar {
     position: absolute; /* 改动：从 fixed 改为 absolute */
     z-index: 2147483647;
-    background: rgba(255, 255, 255, 0.9);
-    backdrop-filter: blur(10px);
+    background: var(--pts-panel);
+    backdrop-filter: blur(18px) saturate(180%);
+    -webkit-backdrop-filter: blur(18px) saturate(180%);
     border-radius: 16px;
     padding: 8px;
     display: flex;
     align-items: center;
     gap: 8px;
-    box-shadow: 0 4px 16px rgba(0, 0, 0, 0.15);
-    border: 1px solid rgba(255, 255, 255, 0.2);
+    box-shadow: var(--pts-shadow), inset 0 1px 0 var(--pts-border-strong);
+    border: 1px solid var(--pts-border);
     transition: all 0.3s ease;
     user-select: none;
     width: auto;
@@ -96,18 +127,18 @@
     width: 24px;
     height: 24px;
     border-radius: 12px;
-    background: rgba(76, 110, 245, 0.1);
-    border: 1px solid rgba(76, 110, 245, 0.2);
+    background: rgba(77, 10, 82, 0.1);
+    border: 1px solid rgba(77, 10, 82, 0.18);
     cursor: pointer;
     transition: all 0.2s ease;
     font-size: 16px;
     font-weight: bold;
-    color: #4c6ef5;
+    color: var(--pts-primary);
 }
 
 .pagetalk-add-option-btn:hover {
-    background: rgba(76, 110, 245, 0.2);
-    border-color: rgba(76, 110, 245, 0.4);
+    background: rgba(77, 10, 82, 0.16);
+    border-color: rgba(77, 10, 82, 0.32);
     transform: translateY(-1px);
 }
 
@@ -136,13 +167,13 @@
     white-space: nowrap;
     font-size: 13px;
     font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-    color: #333;
+    color: var(--pts-text);
     flex: 0 0 auto;
     min-width: 0;
 }
 
 .pagetalk-option:hover {
-    background: rgba(0, 0, 0, 0.05);
+    background: var(--pts-hover);
     transform: translateY(-1px);
 }
 
@@ -152,7 +183,7 @@
     justify-content: center;
     width: 16px;
     height: 16px;
-    color: #666;
+    color: var(--pts-text-secondary);
 }
 
 .pagetalk-option-text {
@@ -163,11 +194,12 @@
 .pagetalk-function-window {
     position: fixed;
     z-index: 2147483647;
-    background: rgba(255, 255, 255, 0.95);
-    backdrop-filter: blur(15px);
-    border-radius: 16px;
-    box-shadow: 0 8px 32px rgba(0, 0, 0, 0.15);
-    border: 1px solid rgba(255, 255, 255, 0.2);
+    background: var(--pts-panel);
+    backdrop-filter: blur(24px) saturate(180%);
+    -webkit-backdrop-filter: blur(24px) saturate(180%);
+    border-radius: 20px;
+    box-shadow: 0 22px 54px rgba(15, 23, 42, 0.2);
+    border: 1px solid var(--pts-border);
     display: flex;
     flex-direction: column;
     font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
@@ -189,10 +221,12 @@
  */
 .pagetalk-function-window {
     /* Light Mode Variables (Default) */
-    --primary-color: #4674ff;
-    --text-color: #343a40e5;
-    --text-secondary: #868E96;
-    --border-color: #E9ECEF;
+    --primary-color: var(--pts-primary);
+    --text-color: var(--pts-text);
+    --text-secondary: var(--pts-text-secondary);
+    --border-color: rgba(255, 255, 255, 0.3);
+    --card-background: var(--pts-panel-strong);
+    --input-background: var(--pts-input);
     --code-background: #F1F3F5;
     --code-text-color: #343A40;
     --code-border: #DEE2E6;
@@ -471,15 +505,15 @@ html body .pagetalk-function-window.dark-mode .markdown-rendered ol li {
     align-items: center;
     justify-content: space-between;
     padding: 12px 16px;
-    border-bottom: 1px solid rgba(0, 0, 0, 0.1);
-    background: rgba(255, 255, 255, 0.5);
+    border-bottom: 1px solid rgba(255, 255, 255, 0.16);
+    background: linear-gradient(180deg, rgba(255, 255, 255, 0.2), rgba(255, 255, 255, 0.06));
     cursor: move;
 }
 
 .pagetalk-window-title {
     font-size: 16px;
     font-weight: 600;
-    color: #333;
+    color: var(--pts-text);
 }
 
 .pagetalk-window-controls {
@@ -490,21 +524,21 @@ html body .pagetalk-function-window.dark-mode .markdown-rendered ol li {
 
 .pagetalk-window-controls select {
     padding: 4px 8px;
-    border: 1px solid rgba(0, 0, 0, 0.2);
+    border: 1px solid var(--pts-border);
     border-radius: 6px;
-    background: rgba(255, 255, 255, 0.8);
+    background: var(--pts-input);
     font-size: 12px;
     font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
     font-weight: normal; /* 确保不是加粗 */
     cursor: pointer;
     outline: none;
-    transition: border-color 0.2s ease;
+    transition: border-color 0.2s ease, background-color 0.2s ease, box-shadow 0.2s ease;
 }
 
 /* 模型选择器分组样式 - 统一样式 */
 .pagetalk-window-controls select optgroup {
     font-weight: bold;
-    color: #333;
+    color: var(--pts-text);
     background-color: transparent;
     padding: 2px 4px;
     margin: 1px 0;
@@ -516,12 +550,12 @@ html body .pagetalk-function-window.dark-mode .markdown-rendered ol li {
     padding: 3px 8px;
     font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
     font-size: 12px;
-    color: #333;
-    background-color: rgba(255, 255, 255, 0.9);
+    color: var(--pts-text);
+    background-color: var(--pts-shell);
 }
 
 .pagetalk-window-controls select option:hover {
-    background-color: rgba(0, 0, 0, 0.05);
+    background-color: var(--pts-hover);
 }
 
 .pagetalk-window-controls button {
@@ -532,16 +566,16 @@ html body .pagetalk-function-window.dark-mode .markdown-rendered ol li {
     height: 28px;
     border: none;
     border-radius: 6px;
-    background: rgba(0, 0, 0, 0.05);
+    background: var(--pts-panel-soft);
     cursor: pointer;
     transition: all 0.2s ease;
-    color: #666;
+    color: var(--pts-text-secondary);
     padding: 0; /* 新增：移除可能导致偏移的内边距 */
 }
 
 .pagetalk-window-controls button:hover {
-    background: rgba(0, 0, 0, 0.1);
-    color: #333;
+    background: var(--pts-hover);
+    color: var(--pts-primary);
 }
 
 .pagetalk-window-close { /* 确保通用关闭按钮也居中 */
@@ -561,14 +595,14 @@ html body .pagetalk-function-window.dark-mode .markdown-rendered ol li {
 /* 引用区域 */
 .pagetalk-quote-area {
     padding: 12px 16px;
-    background: rgba(0, 0, 0, 0.02);
-    border-bottom: 1px solid rgba(0, 0, 0, 0.1);
+    background: rgba(255, 255, 255, 0.08);
+    border-bottom: 1px solid rgba(255, 255, 255, 0.12);
     position: relative;
 }
 
 .pagetalk-quote-text {
     font-style: italic;
-    color: #666;
+    color: var(--pts-text-secondary);
     font-size: 14px;
     line-height: 1.4;
     position: relative;
@@ -640,25 +674,26 @@ html body .pagetalk-function-window.dark-mode .pagetalk-quote-text.collapsed::af
     position: absolute;
     bottom: 6px;
     right: 10px;
-    background: rgba(0, 122, 255, 0.12);
-    border: 1px solid rgba(0, 122, 255, 0.4);
+    background: rgba(77, 10, 82, 0.12);
+    border: 1px solid rgba(77, 10, 82, 0.26);
     border-radius: 14px;
     padding: 3px 10px;
     font-size: 11px;
     font-weight: 500;
-    color: #007AFF;
+    color: var(--pts-primary);
     cursor: pointer;
     transition: all 0.2s ease;
     user-select: none;
     z-index: 15; /* 提高层级，确保在渐变遮罩之上 */
-    box-shadow: 0 1px 3px rgba(0, 122, 255, 0.1);
-    backdrop-filter: blur(4px); /* 添加毛玻璃效果 */
+    box-shadow: 0 1px 3px rgba(77, 10, 82, 0.1);
+    backdrop-filter: blur(8px);
+    -webkit-backdrop-filter: blur(8px);
 }
 
 .pagetalk-quote-toggle:hover {
-    background: rgba(0, 122, 255, 0.18);
-    border-color: rgba(0, 122, 255, 0.6);
-    box-shadow: 0 2px 6px rgba(0, 122, 255, 0.15);
+    background: rgba(77, 10, 82, 0.18);
+    border-color: rgba(77, 10, 82, 0.36);
+    box-shadow: 0 2px 6px rgba(77, 10, 82, 0.15);
     transform: translateY(-0.5px);
 }
 
@@ -676,14 +711,14 @@ html body .pagetalk-function-window.dark-mode .pagetalk-quote-text.collapsed::af
     align-items: center;
     justify-content: center;
     height: 100%;
-    color: #666;
+    color: var(--pts-text-secondary);
     font-size: 14px;
 }
 
 .pagetalk-response-content {
     flex: 1;
     line-height: 1.5;
-    color: #333;
+    color: var(--pts-text);
     font-size: 14px;
     /* 移除 white-space: pre-wrap; 以支持正确的markdown渲染 */
     word-wrap: break-word;
@@ -694,7 +729,7 @@ html body .pagetalk-function-window.dark-mode .pagetalk-quote-text.collapsed::af
     gap: 8px;
     margin-top: 12px;
     padding-top: 12px;
-    border-top: 1px solid rgba(0, 0, 0, 0.1);
+    border-top: 1px solid rgba(255, 255, 255, 0.12);
 }
 
 .pagetalk-response-actions button {
@@ -702,18 +737,18 @@ html body .pagetalk-function-window.dark-mode .pagetalk-quote-text.collapsed::af
     align-items: center;
     gap: 4px;
     padding: 6px 12px;
-    border: 1px solid rgba(0, 0, 0, 0.2);
+    border: 1px solid var(--pts-border);
     border-radius: 6px;
-    background: rgba(255, 255, 255, 0.8);
+    background: var(--pts-input);
     cursor: pointer;
     transition: all 0.2s ease;
     font-size: 12px;
-    color: #666;
+    color: var(--pts-text-secondary);
 }
 
 .pagetalk-response-actions button:hover {
-    background: rgba(0, 0, 0, 0.05);
-    color: #333;
+    background: var(--pts-hover);
+    color: var(--pts-primary);
 }
 
 /* 错误样式 */
@@ -783,21 +818,24 @@ html body .pagetalk-function-window.dark-mode .pagetalk-quote-text.collapsed::af
 }
 
 .pagetalk-chat-message-user .pagetalk-message-content {
-    background: #007AFF;
+    background: linear-gradient(135deg, var(--pts-primary), var(--pts-secondary));
     color: white;
     border-bottom-right-radius: 4px;
     padding: 8px 12px; /* 用户消息保持原有padding */
 }
 
 .pagetalk-chat-message-assistant .pagetalk-message-content {
-    background: var(--card-background);
-    color: var(--text-color);
+    background: var(--pts-panel-strong);
+    color: var(--pts-text);
     border-bottom-left-radius: 4px;
-    border: 1px solid var(--border-color);
+    border: 1px solid var(--pts-border);
     padding: 12px; /* 标准内边距 */
     padding-bottom: 30px; /* 底部增加padding为按钮留出空间 */
     max-width: 95%;
     min-width: 120px; /* 设置最小宽度确保按钮有足够空间 */
+    box-shadow: inset 0 1px 0 var(--pts-border-strong);
+    backdrop-filter: blur(14px) saturate(170%);
+    -webkit-backdrop-filter: blur(14px) saturate(170%);
 }
 
 /* 旧的思考动画样式已移除，现在使用独立的思考动画 */
@@ -886,8 +924,8 @@ html body .pagetalk-function-window.dark-mode .pagetalk-quote-text.collapsed::af
     align-items: flex-end;
     gap: 8px;
     padding: 12px 16px;
-    border-top: 1px solid rgba(0, 0, 0, 0.1);
-    background: rgba(255, 255, 255, 0.5);
+    border-top: 1px solid rgba(255, 255, 255, 0.12);
+    background: linear-gradient(180deg, transparent, rgba(255, 255, 255, 0.08));
 }
 
 .pagetalk-chat-input textarea {
@@ -896,57 +934,206 @@ html body .pagetalk-function-window.dark-mode .pagetalk-quote-text.collapsed::af
     min-height: 36px;
     max-height: 36px; /* 限制最大高度 */
     padding: 8px 12px;
-    border: 1px solid rgba(0, 0, 0, 0.2);
+    border: 1px solid var(--pts-border);
     border-radius: 18px; /* 增加圆角，配合发送按钮 */
-    background: rgba(255, 255, 255, 0.8);
+    background: var(--pts-input);
     font-size: 14px;
     font-family: inherit;
     resize: none;
     outline: none;
     line-height: 1.2; /* 调整行高 */
+    color: var(--pts-text);
+    backdrop-filter: blur(12px) saturate(170%);
+    -webkit-backdrop-filter: blur(12px) saturate(170%);
 }
 
 .pagetalk-chat-input textarea:focus {
-    border-color: #007AFF;
-    box-shadow: 0 0 0 2px rgba(0, 122, 255, 0.2);
+    border-color: var(--pts-primary);
+    box-shadow: 0 0 0 2px rgba(77, 10, 82, 0.14);
 }
 
 .pagetalk-send-btn {
+    --send-btn-size: 36px;
+    --send-accent: var(--pts-primary);
     display: flex;
     align-items: center;
     justify-content: center;
-    width: 36px;
-    height: 36px;
-    border: none;
-    border-radius: 50%; /* 改为圆形 */
-    background: #007AFF;
-    color: white;
+    width: var(--send-btn-size);
+    height: var(--send-btn-size);
+    border: 1px solid var(--pts-send-border);
+    border-radius: 50%;
+    background-color: var(--pts-send-bg);
+    background-image: var(--pts-send-highlight);
+    color: var(--send-accent);
     cursor: pointer;
-    transition: all 0.2s ease;
-    flex-shrink: 0; /* 防止按钮被压缩 */
+    transition: transform 0.12s ease, box-shadow 0.12s ease, background-color 0.12s ease, border-color 0.12s ease, color 0.12s ease;
+    flex-shrink: 0;
+    position: relative;
+    overflow: hidden;
+    backdrop-filter: blur(10px) saturate(160%);
+    -webkit-backdrop-filter: blur(10px) saturate(160%);
+    box-shadow: var(--pts-send-shadow);
+}
+
+.pagetalk-send-btn::before {
+    content: '';
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    width: 0;
+    height: 0;
+    background-color: rgba(255, 255, 255, 0.2);
+    border-radius: 50%;
+    transform: translate(-50%, -50%);
+    transition: width 0.3s ease, height 0.3s ease;
+}
+
+.pagetalk-send-btn:hover::before {
+    width: 100%;
+    height: 100%;
 }
 
 .pagetalk-send-btn:hover {
-    background: #0056CC;
-    transform: translateY(-1px);
+    transform: scale(1.08);
+    background-color: var(--pts-send-bg-hover);
+    border-color: var(--pts-send-border-hover);
+    box-shadow: var(--pts-send-shadow-hover);
+}
+
+.pagetalk-send-btn:hover:not(.stop-streaming) {
+    --send-accent: var(--pts-primary-hover);
+}
+
+.pagetalk-send-btn:active {
+    transform: scale(0.95);
+    background-color: var(--pts-send-bg-active);
+    box-shadow: var(--pts-send-shadow-active);
+}
+
+.pagetalk-send-btn:focus-visible {
+    outline: none;
+    box-shadow: 0 0 0 3px var(--pts-send-ring-color), var(--pts-send-shadow-hover);
+}
+
+.pagetalk-send-btn img {
+    width: 20px;
+    height: 20px;
+    object-fit: contain;
+    display: block;
+    position: relative;
+    z-index: 1;
+    transition: transform 0.12s ease;
+}
+
+.pagetalk-send-btn:hover img {
+    transform: translateX(1px);
 }
 
 .pagetalk-send-btn:disabled {
-    background: #ccc;
+    background-color: rgba(148, 163, 184, 0.24);
+    background-image: none;
+    border-color: rgba(148, 163, 184, 0.24);
+    box-shadow: none;
+    backdrop-filter: none;
+    -webkit-backdrop-filter: none;
+    color: rgba(100, 116, 139, 0.8);
     cursor: not-allowed;
     transform: none;
 }
 
 /* 流式输出暂停按钮样式 */
+.pagetalk-send-btn.stop-streaming,
 .pagetalk-send-btn.pagetalk-stop-streaming {
-    background: #007AFF; /* 保持蓝色背景 */
-    transform: none; /* 重置悬停变换 */
+    --send-accent: var(--danger-color, #fa5252);
+    --pts-send-ring-color: rgba(250, 82, 82, 0.24);
+    --pts-send-bg: rgba(250, 82, 82, 0.14);
+    --pts-send-bg-hover: rgba(250, 82, 82, 0.18);
+    --pts-send-bg-active: rgba(250, 82, 82, 0.12);
+    --pts-send-border: rgba(250, 82, 82, 0.3);
+    --pts-send-border-hover: rgba(250, 82, 82, 0.42);
 }
 
+.pagetalk-send-btn.stop-streaming:hover,
 .pagetalk-send-btn.pagetalk-stop-streaming:hover {
-    background: #DC3545; /* 悬停时变成红色 */
-    color: white;
-    transform: scale(1.05);
+    --send-accent: var(--danger-hover, #e03131);
+}
+
+.pagetalk-send-btn.stop-streaming:focus-visible,
+.pagetalk-send-btn.pagetalk-stop-streaming:focus-visible {
+    box-shadow: 0 0 0 3px var(--pts-send-ring-color), var(--pts-send-shadow-hover);
+}
+
+.pagetalk-send-btn.stop-streaming img,
+.pagetalk-send-btn.pagetalk-stop-streaming img {
+    animation: breathing 1.5s ease-in-out infinite;
+}
+
+.pagetalk-send-btn.stop-streaming:hover img,
+.pagetalk-send-btn.pagetalk-stop-streaming:hover img {
+    animation-play-state: paused;
+}
+
+.pagetalk-send-btn.sending {
+    animation: sendPulse 0.55s ease-out;
+}
+
+@keyframes sendPulse {
+    0% {
+        box-shadow: 0 0 0 0 var(--pts-send-ring-color), var(--pts-send-shadow);
+    }
+
+    70% {
+        box-shadow: 0 0 0 10px rgba(0, 0, 0, 0), var(--pts-send-shadow);
+    }
+
+    100% {
+        box-shadow: 0 0 0 0 rgba(0, 0, 0, 0), var(--pts-send-shadow);
+    }
+}
+
+@keyframes breathing {
+    0% {
+        transform: scale(1);
+        opacity: 1;
+    }
+
+    50% {
+        transform: scale(0.85);
+        opacity: 0.7;
+    }
+
+    100% {
+        transform: scale(1);
+        opacity: 1;
+    }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .pagetalk-send-btn {
+        transition: none;
+    }
+
+    .pagetalk-send-btn img {
+        transition: none;
+    }
+
+    .pagetalk-send-btn:hover,
+    .pagetalk-send-btn:active {
+        transform: none;
+    }
+
+    .pagetalk-send-btn:hover img {
+        transform: none;
+    }
+
+    .pagetalk-send-btn.sending {
+        animation: none;
+    }
+
+    .pagetalk-send-btn.stop-streaming img,
+    .pagetalk-send-btn.pagetalk-stop-streaming img {
+        animation: none;
+    }
 }
 
 /* 独立思考动画样式 - 完全复制主面板的样式 */
@@ -1203,8 +1390,8 @@ html body .pagetalk-function-window.dark-mode .pagetalk-quote-text.collapsed::af
     display: flex !important;
     flex-direction: column !important;
     border-radius: var(--radius-lg) !important; /* 使用大圆角，与 .agent-item 保持一致 */
-    background-color: var(--card-background) !important;
-    border: 1px solid var(--border-color) !important;
+    background: var(--glass-panel, linear-gradient(180deg, rgba(255, 255, 255, 0.52), rgba(255, 255, 255, 0.24))) !important;
+    border: 1px solid rgba(255, 255, 255, 0.18) !important;
     transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1) !important;
     width: 100% !important; /* 移除阴影预留空间，让卡片占满宽度 */
     margin: 0 0 var(--spacing-sm) 0 !important; /* 完全覆盖通用样式的左右边距 */
@@ -1212,6 +1399,9 @@ html body .pagetalk-function-window.dark-mode .pagetalk-quote-text.collapsed::af
     transform: scale(1);
     opacity: 1;
     overflow: hidden;
+    box-shadow: 0 12px 28px rgba(15, 23, 42, 0.08), inset 0 1px 0 rgba(255, 255, 255, 0.22);
+    backdrop-filter: blur(16px) saturate(170%);
+    -webkit-backdrop-filter: blur(16px) saturate(170%);
 }
 
 #settings-text-selection-helper .setting-card:hover {
@@ -1239,9 +1429,12 @@ html body .pagetalk-function-window.dark-mode .pagetalk-quote-text.collapsed::af
 /* 设置面板样式 - 划词助手功能窗口内的设置界面 */
 .pagetalk-function-window .setting-card {
     margin-bottom: 16px;
-    border: 1px solid rgba(0, 0, 0, 0.1);
+    border: 1px solid var(--pts-border);
     border-radius: 8px;
     overflow: hidden;
+    background: var(--pts-panel-soft);
+    backdrop-filter: blur(12px) saturate(170%);
+    -webkit-backdrop-filter: blur(12px) saturate(170%);
 }
 
 .pagetalk-function-window .setting-card-header {
@@ -1252,7 +1445,7 @@ html body .pagetalk-function-window.dark-mode .pagetalk-quote-text.collapsed::af
     cursor: pointer;
     transition: background-color 0.2s ease;
     background-color: transparent; /* 初始背景透明，与 .agent-item-header 保持一致 */
-    border-bottom: 1px solid rgba(0, 0, 0, 0.1);
+    border-bottom: 1px solid rgba(255, 255, 255, 0.1);
 }
 
 .pagetalk-function-window .setting-card-header:hover {
@@ -2540,16 +2733,18 @@ body.dark-mode .pagetalk-function-window,
 body .pagetalk-function-window.dark-mode,
 html body .pagetalk-function-window.dark-mode {
     /* 深色模式变量覆盖 */
-    --primary-color: #748FFC;
+    --primary-color: rgba(227, 124, 235, 1);
+    --primary-hover: rgba(233, 150, 239, 1);
+    --secondary-color: rgba(227, 124, 235, 1);
     --text-color: #e9ecefdb;
     --text-secondary: #ADB5BD;
-    --border-color: #343A40;
-    --card-background: #2C2E33;
-    --input-background: #2C2E33;
+    --border-color: rgba(255, 255, 255, 0.12);
+    --card-background: rgba(31, 35, 43, 0.48);
+    --input-background: rgba(18, 21, 28, 0.3);
     --code-background: #343A40;
     --code-text-color: #e9ecefdb;
     --code-border: #495057;
-    --table-header-bg: #748FFC;
+    --table-header-bg: rgba(227, 124, 235, 0.16);
     --table-even-row-bg: rgba(255, 255, 255, 0.04);
     --button-hover-bg: rgba(227, 124, 235, 0.15);
     --blockquote-bg: rgba(227, 124, 235, 0.1);
@@ -2577,15 +2772,15 @@ html body .pagetalk-function-window.dark-mode {
 
 /* 划词助手深色模式样式 */
 .pagetalk-mini-icon.pagetalk-dark-mode {
-    background: rgba(44, 46, 51, 0.9) !important;
-    border: 1px solid rgba(52, 58, 64, 0.3) !important;
-    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3) !important;
+    background: linear-gradient(180deg, rgba(40, 45, 56, 0.78), rgba(21, 24, 32, 0.56)) !important;
+    border: 1px solid rgba(255, 255, 255, 0.12) !important;
+    box-shadow: 0 10px 28px rgba(0, 0, 0, 0.28), inset 0 1px 0 rgba(255, 255, 255, 0.12) !important;
 }
 
 .pagetalk-options-bar.pagetalk-dark-mode {
-    background: rgba(44, 46, 51, 0.9) !important;
-    border: 1px solid rgba(52, 58, 64, 0.3) !important;
-    box-shadow: 0 4px 16px rgba(0, 0, 0, 0.3) !important;
+    background: linear-gradient(180deg, rgba(40, 45, 56, 0.82), rgba(21, 24, 32, 0.58)) !important;
+    border: 1px solid rgba(255, 255, 255, 0.12) !important;
+    box-shadow: 0 16px 40px rgba(0, 0, 0, 0.32), inset 0 1px 0 rgba(255, 255, 255, 0.12) !important;
 }
 
 /* 深色模式选项内容 */
@@ -2618,17 +2813,18 @@ html body .pagetalk-function-window.dark-mode {
 body.dark-mode .pagetalk-function-window,
 body .pagetalk-function-window.dark-mode,
 html body .pagetalk-function-window.dark-mode {
-    background: var(--card-background) !important;
-    backdrop-filter: blur(15px);
+    background: linear-gradient(180deg, rgba(40, 45, 56, 0.74), rgba(21, 24, 32, 0.52)) !important;
+    backdrop-filter: blur(24px) saturate(180%);
+    -webkit-backdrop-filter: blur(24px) saturate(180%);
     border-color: var(--border-color) !important;
-    box-shadow: 0 8px 32px rgba(0, 0, 0, 0.4) !important;
+    box-shadow: 0 22px 54px rgba(0, 0, 0, 0.38), inset 0 1px 0 rgba(255, 255, 255, 0.12) !important;
 }
 
 /* 深色模式窗口组件统一样式 */
 body.dark-mode .pagetalk-window-header,
 body .pagetalk-function-window.dark-mode .pagetalk-window-header {
-    background: var(--card-background) !important;
-    border-bottom-color: var(--border-color) !important;
+    background: linear-gradient(180deg, rgba(255, 255, 255, 0.06), rgba(255, 255, 255, 0.02)) !important;
+    border-bottom-color: rgba(255, 255, 255, 0.1) !important;
 }
 
 body.dark-mode .pagetalk-window-title,
@@ -2638,8 +2834,8 @@ body .pagetalk-function-window.dark-mode .pagetalk-window-title {
 
 body.dark-mode .pagetalk-quote-area,
 body .pagetalk-function-window.dark-mode .pagetalk-quote-area {
-    background: rgba(52, 58, 64, 0.3) !important;
-    border-bottom-color: var(--border-color) !important;
+    background: rgba(255, 255, 255, 0.04) !important;
+    border-bottom-color: rgba(255, 255, 255, 0.08) !important;
 }
 
 body.dark-mode .pagetalk-quote-text,
@@ -2655,8 +2851,8 @@ body .pagetalk-function-window.dark-mode .pagetalk-response-content {
 /* 深色模式聊天输入区域 - 统一选择器 */
 body.dark-mode .pagetalk-chat-input,
 body .pagetalk-function-window.dark-mode .pagetalk-chat-input {
-    background: var(--card-background) !important;
-    border-top-color: var(--border-color) !important;
+    background: linear-gradient(180deg, transparent, rgba(255, 255, 255, 0.04)) !important;
+    border-top-color: rgba(255, 255, 255, 0.08) !important;
 }
 
 body.dark-mode .pagetalk-chat-input textarea,
@@ -2741,7 +2937,7 @@ body.dark-mode .pagetalk-chat-message-user .pagetalk-message-content,
 
 body.dark-mode .pagetalk-chat-message-assistant .pagetalk-message-content,
 .pagetalk-function-window.dark-mode .pagetalk-chat-message-assistant .pagetalk-message-content {
-    background: var(--card-background) !important;
+    background: rgba(31, 35, 43, 0.44) !important;
     color: var(--text-color) !important;
     border-color: var(--border-color) !important;
 }
@@ -2749,7 +2945,7 @@ body.dark-mode .pagetalk-chat-message-assistant .pagetalk-message-content,
 /* 深色模式消息操作按钮 */
 body.dark-mode .pagetalk-message-actions button,
 .pagetalk-function-window.dark-mode .pagetalk-message-actions button {
-    background-color: var(--card-background) !important;
+    background-color: rgba(31, 35, 43, 0.72) !important;
     color: var(--text-secondary) !important;
 }
 
@@ -2833,8 +3029,9 @@ body.dark-mode .pagetalk-response-actions button:hover,
 
 /* 划词助手设置界面深色模式 */
 body.dark-mode #settings-text-selection-helper .setting-card {
-    background-color: var(--card-background);
-    border-color: var(--border-color);
+    background: linear-gradient(180deg, rgba(40, 45, 56, 0.74), rgba(21, 24, 32, 0.52));
+    border-color: rgba(255, 255, 255, 0.1);
+    box-shadow: 0 16px 36px rgba(0, 0, 0, 0.2), inset 0 1px 0 rgba(255, 255, 255, 0.08);
 }
 
 body.dark-mode #settings-text-selection-helper .setting-card:hover {
@@ -2859,7 +3056,7 @@ body.dark-mode #settings-text-selection-helper .setting-card-toggle:hover {
 }
 
 body.dark-mode #settings-text-selection-helper .setting-card-content {
-    background-color: var(--background-color); /* 使用主背景色，与深色模式保持一致 */
+    background-color: rgba(255, 255, 255, 0.03);
 }
 
 body.dark-mode #settings-text-selection-helper .setting-group label {
@@ -3071,15 +3268,15 @@ body.dark-mode #settings-text-selection-helper .add-custom-option-btn:hover {
 
 /* 深色模式下的自定义选项对话框样式 */
 body.dark-mode .custom-option-dialog {
-    background: var(--card-background);
+    background: linear-gradient(180deg, rgba(40, 45, 56, 0.8), rgba(21, 24, 32, 0.58));
     color: var(--text-color);
-    border-color: var(--border-color);
-    box-shadow: 0 8px 32px rgba(0, 0, 0, 0.6);
+    border-color: rgba(255, 255, 255, 0.1);
+    box-shadow: 0 18px 44px rgba(0, 0, 0, 0.4);
 }
 
 body.dark-mode .custom-option-dialog-header {
-    background: var(--background-color);
-    border-bottom-color: var(--border-color);
+    background: rgba(255, 255, 255, 0.04);
+    border-bottom-color: rgba(255, 255, 255, 0.08);
 }
 
 body.dark-mode .custom-option-dialog-header h3 {
@@ -3092,7 +3289,7 @@ body.dark-mode .custom-option-dialog-close:hover {
 }
 
 body.dark-mode .custom-option-dialog-content {
-    background: var(--card-background);
+    background: transparent;
     color: var(--text-color);
 }
 
@@ -3117,8 +3314,8 @@ body.dark-mode .custom-option-dialog-content textarea:focus {
 }
 
 body.dark-mode .custom-option-dialog-footer {
-    background: var(--background-color);
-    border-top-color: var(--border-color);
+    background: rgba(255, 255, 255, 0.04);
+    border-top-color: rgba(255, 255, 255, 0.08);
 }
 
 body.dark-mode .save-status.unsaved {

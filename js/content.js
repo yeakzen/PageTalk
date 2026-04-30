@@ -109,6 +109,8 @@ if (window.contentScriptInitialized) {
     iframe.id = 'pagetalk-panel-iframe';
     iframe.src = chrome.runtime.getURL('html/sidepanel.html');
     iframe.style.overflow = 'hidden';
+    iframe.style.background = 'transparent';
+    iframe.setAttribute('allowtransparency', 'true');
 
     panelContainer.appendChild(resizer);
     panelContainer.appendChild(iframe);
