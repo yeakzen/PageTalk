@@ -1161,16 +1161,8 @@ async function showOptionsBar(triggerElement) {
         const optionsBar = document.createElement('div');
         optionsBar.className = 'pagetalk-selection-helper pagetalk-options-bar';
 
-        // 应用深色模式到options bar
-        applyDarkMode(optionsBar);
-    
-        // 构建选项栏内容 - icon在左侧，选项在右侧
-        let optionsHTML = `
-            <div class="pagetalk-options-bar-icon">
-                <img src="${chrome.runtime.getURL('magic.png')}" alt="PageTalk" width="16" height="16">
-            </div>
-            <div class="pagetalk-options-grid">
-        `;
+        // 构建选项栏内容
+        let optionsHTML = ``;
 
         // 将选项按每行6个进行分组
         const optionsPerRow = 6;
@@ -1188,14 +1180,22 @@ async function showOptionsBar(triggerElement) {
             optionsHTML += '</div>';
         }
 
-        optionsHTML += '</div>';
-
         optionsBar.innerHTML = optionsHTML;
 
-        // 设置样式 - 使用CSS类，只设置位置相关的样式
+        // 设置样式 - 与旧版保持一致
         optionsBar.style.cssText = `
             position: absolute;
             z-index: 2147483647;
+            background: transparent;
+            backdrop-filter: blur(2px);
+            border-radius: 16px;
+            padding: 0px;
+            display: flex;
+            align-items: center;
+            gap: 4px;
+            box-shadow: 0 4px 16px rgba(0, 0, 0, 0.15);
+            border: none;
+            transition: all 0.3s ease;
             opacity: 0;
             transform: translateY(10px);
         `;
@@ -2228,12 +2228,7 @@ async function sendInterpretOrTranslateRequest(windowElement, optionId) {
 
                 responseContent.innerHTML = renderedContent;
 
-                // 渲染动态内容 (KaTeX 和 Mermaid)
-                renderDynamicContent(responseContent, !isComplete);
-
-                // 添加代码块复制按钮（模仿主面板逻辑）
-                const codeBlocks = responseContent.querySelectorAll('pre');
-                codeBlocks.forEach(addCopyButtonToCodeBlock);
+                postProcessRenderedContent(responseContent, !isComplete);
 
                 // 条件滚动：只有当用户没有向上滚动时才自动滚动
                 const responseArea = windowElement.querySelector('.pagetalk-response-area');
@@ -2616,17 +2611,12 @@ async function sendChatMessage(windowElement) {
                 // 更新内容，但保留按钮容器
                 messageContent.innerHTML = renderedContent;
 
-                // 渲染动态内容 (KaTeX 和 Mermaid)
-                renderDynamicContent(messageContent, !isComplete);
+                postProcessRenderedContent(messageContent, !isComplete);
 
                 // 重新添加按钮容器
                 if (actionsContainer) {
                     messageContent.appendChild(actionsContainer);
                 }
-
-                // 添加代码块复制按钮（模仿主面板逻辑）
-                const codeBlocks = messageContent.querySelectorAll('pre');
-                codeBlocks.forEach(addCopyButtonToCodeBlock);
 
                 // 条件调整窗口尺寸：在流式输出过程中始终调整
                 if (!userHasManuallyResized) {
@@ -3123,17 +3113,12 @@ async function regenerateChatMessage(windowElement, userMessage) {
                 // 更新内容，但保留按钮容器
                 messageContent.innerHTML = renderedContent;
 
-                // 渲染动态内容 (KaTeX 和 Mermaid)
-                renderDynamicContent(messageContent, !isComplete);
+                postProcessRenderedContent(messageContent, !isComplete);
 
                 // 重新添加按钮容器
                 if (actionsContainer) {
                     messageContent.appendChild(actionsContainer);
                 }
-
-                // 添加代码块复制按钮（模仿主面板逻辑）
-                const codeBlocks = messageContent.querySelectorAll('pre');
-                codeBlocks.forEach(addCopyButtonToCodeBlock);
 
                 // 条件调整窗口尺寸：在流式输出过程中始终调整
                 if (!userHasManuallyResized) {
@@ -4140,6 +4125,38 @@ function renderDynamicContent(element, isStreaming = false) {
             }
         });
     }
+}
+
+function bindThinkingBlocksInSelectionHelper(container) {
+    if (!container) return;
+
+    if (typeof window.bindThinkingBlockEvents === 'function') {
+        window.bindThinkingBlockEvents(container);
+        return;
+    }
+
+    const headers = container.querySelectorAll('.thinking-header');
+    headers.forEach(header => {
+        if (header.dataset.bound === 'true') return;
+        header.dataset.bound = 'true';
+        header.addEventListener('click', () => {
+            const block = header.closest('.thinking-block');
+            if (block) {
+                block.classList.toggle('collapsed');
+                block.classList.toggle('expanded');
+            }
+        });
+    });
+}
+
+function postProcessRenderedContent(element, isStreaming = false) {
+    if (!element) return;
+
+    renderDynamicContent(element, isStreaming);
+    bindThinkingBlocksInSelectionHelper(element);
+
+    const codeBlocks = element.querySelectorAll('pre');
+    codeBlocks.forEach(addCopyButtonToCodeBlock);
 }
 
 /**
