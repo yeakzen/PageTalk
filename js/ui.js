@@ -13,6 +13,69 @@ import { tr as _ } from './utils/i18n.js';
 
 // 使用 utils/i18n.js 提供的 tr 作为翻译函数
 
+const BOT_MESSAGE_HEADING_COLOR_PALETTE = Object.freeze([
+    { light: '#B45309', dark: '#F59E0B' },
+    { light: '#0F766E', dark: '#2DD4BF' },
+    { light: '#1D4ED8', dark: '#60A5FA' },
+    { light: '#BE123C', dark: '#FB7185' },
+    { light: '#4D7C0F', dark: '#A3E635' }
+]);
+
+export function resetBotMessageHeadingColors() {
+    // 按槽位固定配色，不再维护全局递增状态。
+}
+
+export function applyBotMessageHeadingColor(messageElement, colorSlot = null) {
+    if (!messageElement || !messageElement.classList.contains('bot-message')) {
+        return 0;
+    }
+
+    const normalizedSlot = Number.isInteger(colorSlot)
+        ? ((colorSlot % BOT_MESSAGE_HEADING_COLOR_PALETTE.length) + BOT_MESSAGE_HEADING_COLOR_PALETTE.length) % BOT_MESSAGE_HEADING_COLOR_PALETTE.length
+        : 0;
+    const palette = BOT_MESSAGE_HEADING_COLOR_PALETTE[normalizedSlot];
+
+    messageElement.dataset.headingColorSlot = String(normalizedSlot);
+    messageElement.style.setProperty('--bot-heading-color-light', palette.light);
+    messageElement.style.setProperty('--bot-heading-color-dark', palette.dark);
+
+    return normalizedSlot;
+}
+
+export function updateBotMessageTopHeading(messageElement) {
+    if (!messageElement || !messageElement.classList.contains('bot-message')) return;
+
+    const existingHighlightedHeadings = messageElement.querySelectorAll('.bot-message-top-heading');
+    existingHighlightedHeadings.forEach((heading) => {
+        heading.classList.remove('bot-message-top-heading');
+    });
+
+    delete messageElement.dataset.topHeadingLevel;
+
+    for (let level = 1; level <= 6; level++) {
+        const headings = messageElement.querySelectorAll(`.markdown-rendered h${level}`);
+        if (headings.length > 0) {
+            messageElement.dataset.topHeadingLevel = String(level);
+            headings.forEach((heading) => {
+                heading.classList.add('bot-message-top-heading');
+            });
+            return;
+        }
+    }
+}
+
+export function postProcessBotMessageContent(messageElement, addCopyButtonToCodeBlock, elements, renderCacheKey = null) {
+    if (!messageElement) return;
+
+    updateBotMessageTopHeading(messageElement);
+
+    const codeBlocks = messageElement.querySelectorAll('.code-block');
+    codeBlocks.forEach(addCopyButtonToCodeBlock);
+
+    renderDynamicContent(messageElement, elements, renderCacheKey || messageElement.dataset.messageId);
+    bindThinkingBlockEvents(messageElement);
+}
+
 /**
  * 切换标签页
  * @param {string} tabId - 要显示的标签页ID
@@ -66,6 +129,11 @@ export function addMessageToChat(content, sender, options = {}, state, elements,
     
     const messageId = (options && options.id) ? options.id : generateUniqueId();
     messageDiv.dataset.messageId = messageId;
+
+    if (sender === 'bot') {
+        const existingColorSlot = Number.parseInt(options.headingColorSlot, 10);
+        applyBotMessageHeadingColor(messageDiv, Number.isInteger(existingColorSlot) ? existingColorSlot : null);
+    }
 
     // --- 新增：处理已发送的上下文标签页 (在用户消息之前显示) ---
     let sentTabsContainer = null;
@@ -257,15 +325,15 @@ export function addMessageToChat(content, sender, options = {}, state, elements,
     }
 
 
-    const codeBlocks = messageDiv.querySelectorAll('.code-block');
-    codeBlocks.forEach(addCopyButtonToCodeBlock); // Use callback
-
     addMessageActionButtons(messageDiv, content || ''); // Use callback
-
-    renderDynamicContent(messageDiv, elements, messageId); // Render KaTeX/Mermaid with messageId for caching
-
-    // 绑定思考块的点击事件
-    bindThinkingBlockEvents(messageDiv);
+    if (sender === 'bot') {
+        postProcessBotMessageContent(messageDiv, addCopyButtonToCodeBlock, elements, messageId);
+    } else {
+        const codeBlocks = messageDiv.querySelectorAll('.code-block');
+        codeBlocks.forEach(addCopyButtonToCodeBlock);
+        renderDynamicContent(messageDiv, elements, messageId);
+        bindThinkingBlockEvents(messageDiv);
+    }
 
     // Scroll only if forced or user is near bottom
     if (forceScroll || isUserNearBottom) {
@@ -303,12 +371,7 @@ export function updateStreamingMessage(messageElement, content, shouldScroll, el
     messageElement.classList.add('streaming'); // Add streaming class to prevent hover interactions
     messageElement.innerHTML = processedContent;
 
-    // Trigger async render (will use cache if available or render new content)
-    // We pass messageId so renderDynamicContent knows where to look/store in cache
-    renderDynamicContent(messageElement, elements, messageId);
-
-    // 绑定思考块的点击事件（流式更新时也需要）
-    bindThinkingBlockEvents(messageElement);
+    updateBotMessageTopHeading(messageElement);
 
     // 恢复 messageActions
     if (messageActions) {
@@ -414,16 +477,8 @@ export function finalizeBotMessage(messageElement, finalContent, addCopyButtonTo
     const processedHtml = preProcessMermaidHTML(renderedHtml, msgId);
     messageElement.innerHTML = processedHtml;
 
-    const codeBlocks = messageElement.querySelectorAll('.code-block');
-    codeBlocks.forEach(addCopyButtonToCodeBlock);
-
     addMessageActionButtons(messageElement, finalContent);
-
-    // Final render, ensure messageId is passed
-    renderDynamicContent(messageElement, elements, msgId);
-
-    // 绑定思考块的点击事件
-    bindThinkingBlockEvents(messageElement);
+    postProcessBotMessageContent(messageElement, addCopyButtonToCodeBlock, elements, msgId);
 
     // Scroll to bottom if user was following the stream
     // Use requestAnimationFrame to wait for layout to settle
@@ -723,6 +778,10 @@ export function updateUIElementsWithTranslations(currentTranslations) {
     // Language setting card
     setText('.setting-card-title[data-i18n="languageLabel"]', 'languageLabel');
     setText('.setting-card-description[data-i18n="languageDescription"]', 'languageDescription');
+
+    // Bot bold highlight setting card
+    setText('.setting-card-title[data-i18n="botBoldHighlightLabel"]', 'botBoldHighlightLabel');
+    setText('.setting-card-description[data-i18n="botBoldHighlightDescription"]', 'botBoldHighlightDescription');
 
     // Chat export setting card
     setText('.setting-card-title[data-i18n="exportChatLabel"]', 'exportChatLabel');
@@ -1532,7 +1591,7 @@ export function createMultiModelResponseContainer(modelInfos, elements, isUserNe
     container.className = 'multi-model-response-container';
     container.dataset.messageId = generateUniqueId();
 
-    modelInfos.forEach(modelInfo => {
+    modelInfos.forEach((modelInfo, modelIndex) => {
         const column = document.createElement('div');
         column.className = 'bot-message-column';
         column.dataset.modelId = modelInfo.modelId;
@@ -1563,6 +1622,7 @@ export function createMultiModelResponseContainer(modelInfos, elements, isUserNe
         const messageContent = document.createElement('div');
         messageContent.className = 'bot-message';
         messageContent.dataset.modelId = modelInfo.modelId;
+        applyBotMessageHeadingColor(messageContent, modelIndex);
         column.appendChild(messageContent);
 
         container.appendChild(column);
@@ -1628,11 +1688,7 @@ export function updateMultiModelStreamingMessage(container, modelId, content, sh
     const renderedContent = window.MarkdownRenderer.render(content);
     messageContent.innerHTML = renderedContent;
 
-    // 渲染动态内容 (KaTeX/Mermaid)
-    renderDynamicContent(messageContent, elements, messageContent.dataset.modelId);
-
-    // 绑定思考块的点击事件
-    bindThinkingBlockEvents(messageContent);
+    updateBotMessageTopHeading(messageContent);
 
     // 滚动
     if (shouldScroll && elements.chatMessages) {
@@ -1666,18 +1722,7 @@ export function finalizeMultiModelMessage(container, modelId, finalContent, addC
     const renderedContent = window.MarkdownRenderer.render(finalContent);
     messageContent.innerHTML = renderedContent;
 
-    // 渲染动态内容 (KaTeX/Mermaid)
-    renderDynamicContent(messageContent, elements, messageContent.dataset.modelId);
-
-    // 绑定思考块的点击事件
-    bindThinkingBlockEvents(messageContent);
-
-    // 添加代码块复制按钮
-    if (addCopyButtonToCodeBlock) {
-        messageContent.querySelectorAll('.code-block').forEach(block => {
-            addCopyButtonToCodeBlock(block);
-        });
-    }
+    postProcessBotMessageContent(messageContent, addCopyButtonToCodeBlock, elements, messageContent.dataset.modelId);
 
     // 滚动
     if (shouldScroll && elements.chatMessages) {

@@ -721,6 +721,28 @@ body.dark-mode .bot-message:hover {
     height: 0;
 }
 
+.bot-message {
+    --bot-heading-color: var(--bot-heading-color-light, var(--text-color));
+}
+
+body.dark-mode .bot-message {
+    --bot-heading-color: var(--bot-heading-color-dark, var(--text-color));
+}
+
+.bot-message .markdown-rendered .bot-message-top-heading {
+    color: var(--bot-heading-color) !important;
+}
+
+.bot-message .markdown-rendered strong,
+.bot-message .markdown-rendered b {
+    color: var(--bot-bold-highlight-text, inherit);
+    background: var(--bot-bold-highlight-bg, transparent);
+    border-radius: var(--bot-bold-highlight-radius, 0);
+    padding: var(--bot-bold-highlight-padding, 0);
+    box-decoration-break: clone;
+    -webkit-box-decoration-break: clone;
+}
+
 /* 消息操作按钮容器 */
 .message-actions {
     position: absolute;

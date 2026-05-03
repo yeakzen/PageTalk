@@ -5,6 +5,73 @@ import { generateUniqueId } from './utils.js'; // Might need utils later
 import * as QuickActionsManager from './quick-actions-manager.js';
 import { tr as _, getCurrentTranslations } from './utils/i18n.js';
 
+const DEFAULT_BOT_BOLD_HIGHLIGHT_COLOR = 'none';
+
+const BOT_BOLD_HIGHLIGHT_PRESETS = Object.freeze({
+    none: {
+        text: 'inherit',
+        background: 'transparent',
+        padding: '0',
+        radius: '0'
+    },
+    yellow: {
+        text: '#111827',
+        background: 'rgba(255, 230, 109, 0.88)',
+        padding: '0.05em 0.32em',
+        radius: '6px'
+    },
+    orange: {
+        text: '#111827',
+        background: 'rgba(253, 186, 116, 0.9)',
+        padding: '0.05em 0.32em',
+        radius: '6px'
+    },
+    green: {
+        text: '#111827',
+        background: 'rgba(187, 247, 208, 0.9)',
+        padding: '0.05em 0.32em',
+        radius: '6px'
+    },
+    blue: {
+        text: '#111827',
+        background: 'rgba(191, 219, 254, 0.9)',
+        padding: '0.05em 0.32em',
+        radius: '6px'
+    },
+    pink: {
+        text: '#111827',
+        background: 'rgba(251, 207, 232, 0.92)',
+        padding: '0.05em 0.32em',
+        radius: '6px'
+    },
+    purple: {
+        text: '#111827',
+        background: 'rgba(221, 214, 254, 0.92)',
+        padding: '0.05em 0.32em',
+        radius: '6px'
+    }
+});
+
+function normalizeBotBoldHighlightColor(colorValue) {
+    return Object.prototype.hasOwnProperty.call(BOT_BOLD_HIGHLIGHT_PRESETS, colorValue)
+        ? colorValue
+        : DEFAULT_BOT_BOLD_HIGHLIGHT_COLOR;
+}
+
+export function applyBotBoldHighlightColor(colorValue = DEFAULT_BOT_BOLD_HIGHLIGHT_COLOR) {
+    const normalizedColor = normalizeBotBoldHighlightColor(colorValue);
+    const preset = BOT_BOLD_HIGHLIGHT_PRESETS[normalizedColor];
+    const rootStyle = document.documentElement.style;
+
+    rootStyle.setProperty('--bot-bold-highlight-text', preset.text);
+    rootStyle.setProperty('--bot-bold-highlight-bg', preset.background);
+    rootStyle.setProperty('--bot-bold-highlight-padding', preset.padding);
+    rootStyle.setProperty('--bot-bold-highlight-radius', preset.radius);
+
+    document.documentElement.dataset.botBoldHighlightColor = normalizedColor;
+    return normalizedColor;
+}
+
 
 /**
  * 获取浏览器语言设置
@@ -57,7 +124,7 @@ export function loadSettings(state, elements, updateConnectionIndicatorCallback,
         console.log('[Settings] Updated manual add button for language:', newLanguage);
     });
 
-    chrome.storage.sync.get(['apiKey', 'model', 'selectedModels', 'language', 'proxyAddress', 'providerSettings'], async (syncResult) => {
+    chrome.storage.sync.get(['apiKey', 'model', 'selectedModels', 'language', 'proxyAddress', 'providerSettings', 'botBoldHighlightColor'], async (syncResult) => {
         // 初始化 ModelManager
         if (window.ModelManager?.instance) {
             try {
@@ -128,6 +195,12 @@ export function loadSettings(state, elements, updateConnectionIndicatorCallback,
             state.proxyAddress = '';
         }
         if (elements.proxyAddressInput) elements.proxyAddressInput.value = state.proxyAddress;
+
+        state.botBoldHighlightColor = normalizeBotBoldHighlightColor(syncResult.botBoldHighlightColor);
+        applyBotBoldHighlightColor(state.botBoldHighlightColor);
+        if (elements.botBoldHighlightColorSelect) {
+            elements.botBoldHighlightColorSelect.value = state.botBoldHighlightColor;
+        }
 
         // Theme (Load default unless content script already applied a webpage theme)
         if (!state.hasWebpageTheme) {
@@ -236,6 +309,23 @@ export function handleLanguageChange(state, elements, loadAndApplyTranslationsCa
             console.log(`Language saved: ${selectedLanguage}`);
             loadAndApplyTranslationsCallback(selectedLanguage); // Load and apply NEW translations
         }
+    });
+}
+
+export function handleBotBoldHighlightColorChange(state, elements, showToastCallback, currentTranslations) {
+    const selectedColor = normalizeBotBoldHighlightColor(elements.botBoldHighlightColorSelect?.value);
+
+    state.botBoldHighlightColor = selectedColor;
+    applyBotBoldHighlightColor(selectedColor);
+
+    chrome.storage.sync.set({ botBoldHighlightColor: selectedColor }, () => {
+        if (chrome.runtime.lastError) {
+            console.error('Error saving bot bold highlight color:', chrome.runtime.lastError);
+            showToastCallback(_('saveFailedToast', { error: chrome.runtime.lastError.message }, currentTranslations), 'error');
+            return;
+        }
+
+        showToastCallback(_('saveSuccessToast', {}, currentTranslations), 'success');
     });
 }
 

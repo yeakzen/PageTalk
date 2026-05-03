@@ -3,6 +3,7 @@
  */
 import { generateUniqueId } from './utils.js';
 import { tr as _ } from './utils/i18n.js';
+import { resetBotMessageHeadingColors, updateBotMessageTopHeading, postProcessBotMessageContent, applyBotMessageHeadingColor } from './ui.js';
 
 // 使用 utils/i18n.js 提供的 tr 作为翻译函数
 
@@ -322,7 +323,7 @@ async function sendMultiModelMessage(
     container.className = 'multi-model-response-container';
     container.dataset.messageId = generateUniqueId();
 
-    modelInfos.forEach(modelInfo => {
+    modelInfos.forEach((modelInfo, modelIndex) => {
         const column = document.createElement('div');
         column.className = 'bot-message-column';
         column.dataset.modelId = modelInfo.modelId;
@@ -353,6 +354,7 @@ async function sendMultiModelMessage(
         const messageContent = document.createElement('div');
         messageContent.className = 'bot-message';
         messageContent.dataset.modelId = modelInfo.modelId;
+        applyBotMessageHeadingColor(messageContent, modelIndex);
 
         column.appendChild(messageContent);
         container.appendChild(column);
@@ -411,6 +413,7 @@ async function sendMultiModelMessage(
             // 为 messageContent 添加 messageId（API 需要）
             const messageId = generateUniqueId();
             messageContent.dataset.messageId = messageId;
+            applyBotMessageHeadingColor(messageContent);
 
             // 累积的响应内容
             let accumulatedContent = '';
@@ -434,11 +437,7 @@ async function sendMultiModelMessage(
                     // 使用 MarkdownRenderer 渲染内容
                     const formattedContent = window.MarkdownRenderer.render(content);
                     messageContent.innerHTML = formattedContent;
-
-                    // 绑定思考块的点击事件
-                    if (window.bindThinkingBlockEvents) {
-                        window.bindThinkingBlockEvents(messageContent);
-                    }
+                    updateBotMessageTopHeading(messageContent);
 
                     // 滚动
                     if (!state.userScrolledUpDuringStream) {
@@ -458,21 +457,12 @@ async function sendMultiModelMessage(
                         messageContent.innerHTML = formattedContent;
                     }
 
-                    // 绑定思考块的点击事件
-                    if (window.bindThinkingBlockEvents) {
-                        window.bindThinkingBlockEvents(messageContent);
-                    }
-
-                    // 添加代码块复制按钮
-                    if (window.addCopyButtonToCodeBlockCallback) {
-                        messageContent.querySelectorAll('.code-block').forEach(block => {
-                            window.addCopyButtonToCodeBlockCallback(block);
-                        });
-                    }
-
                     // 添加消息操作按钮（复制、重新生成、删除）
                     if (window.addMessageActionButtons) {
                         window.addMessageActionButtons(messageContent, accumulatedContent);
+                    }
+                    if (window.addCopyButtonToCodeBlockCallback) {
+                        postProcessBotMessageContent(messageContent, window.addCopyButtonToCodeBlockCallback, elements, messageContent.dataset.messageId || messageContent.dataset.modelId);
                     }
 
                     completedCount++;
@@ -649,7 +639,7 @@ async function regenerateMultiModelMessage(
     container.className = 'multi-model-response-container';
     container.dataset.messageId = generateUniqueId();
 
-    modelInfos.forEach(modelInfo => {
+    modelInfos.forEach((modelInfo, modelIndex) => {
         const column = document.createElement('div');
         column.className = 'bot-message-column';
         column.dataset.modelId = modelInfo.modelId;
@@ -680,6 +670,7 @@ async function regenerateMultiModelMessage(
         const messageContent = document.createElement('div');
         messageContent.className = 'bot-message';
         messageContent.dataset.modelId = modelInfo.modelId;
+        applyBotMessageHeadingColor(messageContent, modelIndex);
 
         column.appendChild(messageContent);
         container.appendChild(column);
@@ -733,6 +724,7 @@ async function regenerateMultiModelMessage(
             // 为 messageContent 添加 messageId（API 需要）
             const messageId = generateUniqueId();
             messageContent.dataset.messageId = messageId;
+            applyBotMessageHeadingColor(messageContent);
 
             // 累积的响应内容
             let accumulatedContent = '';
@@ -756,11 +748,7 @@ async function regenerateMultiModelMessage(
                     // 使用 MarkdownRenderer 渲染内容
                     const formattedContent = window.MarkdownRenderer.render(content);
                     messageContent.innerHTML = formattedContent;
-
-                    // 绑定思考块的点击事件
-                    if (window.bindThinkingBlockEvents) {
-                        window.bindThinkingBlockEvents(messageContent);
-                    }
+                    updateBotMessageTopHeading(messageContent);
 
                     // 滚动
                     if (!state.userScrolledUpDuringStream) {
@@ -780,21 +768,12 @@ async function regenerateMultiModelMessage(
                         messageContent.innerHTML = formattedContent;
                     }
 
-                    // 绑定思考块的点击事件
-                    if (window.bindThinkingBlockEvents) {
-                        window.bindThinkingBlockEvents(messageContent);
-                    }
-
-                    // 添加代码块复制按钮
-                    if (window.addCopyButtonToCodeBlockCallback) {
-                        messageContent.querySelectorAll('.code-block').forEach(block => {
-                            window.addCopyButtonToCodeBlockCallback(block);
-                        });
-                    }
-
                     // 添加消息操作按钮（复制、重新生成、删除）
                     if (window.addMessageActionButtons) {
                         window.addMessageActionButtons(messageContent, accumulatedContent);
+                    }
+                    if (window.addCopyButtonToCodeBlockCallback) {
+                        postProcessBotMessageContent(messageContent, window.addCopyButtonToCodeBlockCallback, elements, messageContent.dataset.messageId || messageContent.dataset.modelId);
                     }
 
                     completedCount++;
@@ -1110,6 +1089,7 @@ export async function clearContext(state, elements, clearImagesCallback, clearVi
     state.chatHistory = [];
     state.locallyIgnoredTabs = {}; // 清空已忽略标签页的状态
     elements.chatMessages.innerHTML = ''; // Clear UI
+    resetBotMessageHeadingColors();
 
     // Re-add welcome message with dynamic quick actions
     const welcomeMessage = await createWelcomeMessage(currentTranslations);

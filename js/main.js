@@ -24,7 +24,7 @@ import {
     loadCurrentAgentSettingsIntoState,
     autoSaveAgentSettings as autoSaveAgentSettingsFromAgent // Alias the import
 } from './agent.js';
-import { loadSettings as loadAppSettings, handleLanguageChange, handleExportChat, handleCopyChat, initModelSelection, updateModelCardsDisplay, handleProxyAddressChange, handleProxyTest, setupProviderEventListeners, initQuickActionsSettings, renderQuickActionsList } from './settings.js';
+import { loadSettings as loadAppSettings, handleLanguageChange, handleBotBoldHighlightColorChange, handleExportChat, handleCopyChat, initModelSelection, updateModelCardsDisplay, handleProxyAddressChange, handleProxyTest, setupProviderEventListeners, initQuickActionsSettings, renderQuickActionsList } from './settings.js';
 import * as QuickActionsManager from './quick-actions-manager.js';
 import { initTextSelectionHelperSettings, isTextSelectionHelperEnabled } from './text-selection-helper-settings.js';
 import { sendUserMessage as sendUserMessageAction, clearContext as clearContextAction, deleteMessage as deleteMessageAction, regenerateMessage as regenerateMessageAction, abortStreaming as abortStreamingAction, handleRemoveSentTabContext as handleRemoveSentTabContextAction, createWelcomeMessage } from './chat.js';
@@ -47,6 +47,9 @@ import {
     showChatStatusMessage,
     addCopyButtonToCodeBlock,
     addMessageActionButtons,
+    applyBotMessageHeadingColor,
+    postProcessBotMessageContent,
+    resetBotMessageHeadingColors,
     showCopyCodeFeedback,
     showCopyMessageFeedback,
     showTabSelectionPopupUI,
@@ -85,6 +88,7 @@ const state = {
     hasWebpageTheme: false,
     language: 'en', // Changed default language to English
     proxyAddress: '', // 代理地址
+    botBoldHighlightColor: 'none',
     isStreaming: false,
     userScrolledUpDuringStream: false, // 新增：跟踪用户在流式传输期间是否已向上滚动
     // userHasSetPreference: false, // Removed
@@ -188,6 +192,7 @@ const elements = {
     closePanelBtnSettings: document.getElementById('close-panel-settings'),
     // Settings - General
     languageSelect: document.getElementById('language-select'),
+    botBoldHighlightColorSelect: document.getElementById('bot-bold-highlight-color'),
     proxyAddressInput: document.getElementById('proxy-address-input'),
     testProxyBtn: document.getElementById('test-proxy-btn'),
     themeToggleBtnSettings: document.getElementById('theme-toggle-btn'), // Draggable button
@@ -665,6 +670,9 @@ function setupEventListeners() {
     // 多供应商模式下，API Key 可见性切换由 setupProviderEventListeners 处理
     // elements.toggleApiKey.addEventListener('click', () => toggleApiKeyVisibility(elements));
     elements.languageSelect.addEventListener('change', () => handleLanguageChange(state, elements, loadAndApplyTranslations, showToastUI, currentTranslations));
+    if (elements.botBoldHighlightColorSelect) {
+        elements.botBoldHighlightColorSelect.addEventListener('change', () => handleBotBoldHighlightColorChange(state, elements, showToastUI, currentTranslations));
+    }
     elements.exportChatHistoryBtn.addEventListener('click', () => handleExportChat(state, elements, showToastUI, currentTranslations));
     elements.copyChatHistoryBtn.addEventListener('click', () => handleCopyChat(state, elements, showToastUI, currentTranslations));
 
@@ -2663,8 +2671,11 @@ function validateImportData(importData) {
  */
 async function importAllSettingsData(importData) {
     return new Promise((resolve, reject) => {
+        const syncSettingsToImport = { ...importData.settings.sync };
+        delete syncSettingsToImport.botBoldHighlightColor;
+
         // 导入sync数据
-        chrome.storage.sync.set(importData.settings.sync, () => {
+        chrome.storage.sync.set(syncSettingsToImport, () => {
             if (chrome.runtime.lastError) {
                 console.error('[main.js] Error saving to sync storage:', chrome.runtime.lastError);
                 reject(new Error('Failed to save sync settings'));
@@ -2916,6 +2927,8 @@ async function restoreChatSession(sessionId) {
  * 从保存的 session 数据重建聊天 UI
  */
 async function renderChatHistoryFromSession(session) {
+    resetBotMessageHeadingColors();
+
     for (const message of session.chatHistory) {
         if (message.role === 'user') {
             // 提取用户消息内容
@@ -2960,7 +2973,7 @@ function renderMultiModelResponseFromHistory(message) {
     const modelResponses = message.multiModelResponses;
 
     const orderedModelIds = message.modelOrder || Object.keys(modelResponses);
-    for (const modelId of orderedModelIds) {
+    for (const [modelIndex, modelId] of orderedModelIds.entries()) {
         const responseText = modelResponses[modelId];
         if (responseText === undefined) continue;
         const column = document.createElement('div');
@@ -2994,6 +3007,7 @@ function renderMultiModelResponseFromHistory(message) {
         messageContent.className = 'bot-message';
         messageContent.dataset.modelId = modelId;
         messageContent.dataset.messageId = generateUniqueId();
+        applyBotMessageHeadingColor(messageContent, modelIndex);
 
         // 渲染内容
         if (responseText) {
@@ -3001,17 +3015,12 @@ function renderMultiModelResponseFromHistory(message) {
             messageContent.innerHTML = formattedContent;
         }
 
-        // 添加代码块复制按钮
-        if (window.addCopyButtonToCodeBlockCallback) {
-            messageContent.querySelectorAll('.code-block').forEach(block => {
-                window.addCopyButtonToCodeBlockCallback(block);
-            });
-        }
-
         // 添加消息操作按钮
         if (window.addMessageActionButtons) {
             window.addMessageActionButtons(messageContent, responseText || '');
         }
+
+        postProcessBotMessageContent(messageContent, addCopyButtonToCodeBlockUI, elements, messageContent.dataset.messageId);
 
         column.appendChild(messageContent);
         container.appendChild(column);
