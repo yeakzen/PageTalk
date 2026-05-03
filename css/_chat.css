@@ -54,65 +54,103 @@
     background: linear-gradient(180deg, rgba(255, 255, 255, 0.03), transparent 18%, rgba(255, 255, 255, 0.03));
 }
 
-/* 欢迎消息 - 高级精致设计 */
+/* 欢迎消息 - 玻璃首屏卡片 */
 .welcome-message {
-    background: var(--glass-panel-strong);
-    /* 精致的圆角设计 */
-    border-radius: 20px;
-    /* 更宽敞的内边距 */
-    padding: clamp(16px, 3vw, 24px);
-    margin: var(--spacing-lg) auto;
-    width: clamp(220px, 85%, 50%);
-    /* 多层阴影营造深度感 */
-    box-shadow:
-        0 1px 2px rgba(0, 0, 0, 0.04),
-        0 2px 4px rgba(0, 0, 0, 0.04),
-        0 4px 8px rgba(0, 0, 0, 0.03),
-        0 8px 16px rgba(0, 0, 0, 0.02);
-    text-align: center;
-    /* 精致的边框 */
+    position: relative;
+    overflow: hidden;
+    display: flex;
+    align-items: center;
+    justify-content: flex-start;
+    width: fit-content;
+    max-width: min(100%, 760px);
+    margin: clamp(12px, 2vh, 18px) auto clamp(18px, 3.2vh, 28px);
+    padding: 18px 20px;
+    border-radius: 30px;
+    background:
+        linear-gradient(155deg, rgba(255, 255, 255, 0.4), rgba(255, 255, 255, 0.16) 38%, rgba(255, 255, 255, 0.1) 100%),
+        var(--glass-panel);
     border: 1px solid var(--glass-border);
-    backdrop-filter: blur(18px) saturate(170%);
-    -webkit-backdrop-filter: blur(18px) saturate(170%);
-    /* 入场动画 */
+    box-shadow:
+        0 16px 42px rgba(15, 23, 42, 0.12),
+        inset 0 1px 0 rgba(255, 255, 255, 0.48),
+        inset 0 -1px 0 rgba(255, 255, 255, 0.1);
+    backdrop-filter: blur(24px) saturate(180%);
+    -webkit-backdrop-filter: blur(24px) saturate(180%);
     animation: welcomeSlideIn 0.6s cubic-bezier(0.4, 0, 0.2, 1) forwards;
     opacity: 0;
-    transform: translateY(20px) scale(0.95);
-    /* 平滑过渡 */
+    transform: translateY(20px) scale(0.96);
     transition:
-        transform 0.25s cubic-bezier(0.4, 0, 0.2, 1),
-        box-shadow 0.25s cubic-bezier(0.4, 0, 0.2, 1),
-        border-color 0.25s ease;
+        transform 0.3s cubic-bezier(0.22, 1, 0.36, 1),
+        box-shadow 0.3s cubic-bezier(0.22, 1, 0.36, 1),
+        border-color 0.25s ease,
+        background 0.25s ease;
+}
+
+.welcome-message::before,
+.welcome-message::after {
+    content: '';
+    position: absolute;
+    pointer-events: none;
+}
+
+.welcome-message::before {
+    inset: 0;
+    background:
+        radial-gradient(circle at 14% 22%, rgba(255, 255, 255, 0.34), transparent 20%),
+        radial-gradient(circle at 88% 18%, rgba(70, 116, 255, 0.12), transparent 24%),
+        linear-gradient(180deg, rgba(255, 255, 255, 0.14), transparent 42%);
+    opacity: 0.9;
+}
+
+.welcome-message::after {
+    width: 220px;
+    height: 220px;
+    top: -118px;
+    right: -110px;
+    border-radius: 50%;
+    background: radial-gradient(circle, rgba(70, 116, 255, 0.18), rgba(70, 116, 255, 0) 72%);
+    filter: blur(16px);
+    opacity: 0.7;
 }
 
 .welcome-message:hover {
-    transform: translateY(-2px);
-    border-color: rgba(70, 116, 255, 0.2);
+    transform: translateY(-2px) scale(1.005);
+    border-color: rgba(70, 116, 255, 0.26);
     box-shadow:
-        0 2px 4px rgba(0, 0, 0, 0.05),
-        0 4px 8px rgba(0, 0, 0, 0.05),
-        0 8px 16px rgba(0, 0, 0, 0.04),
-        0 16px 32px rgba(0, 0, 0, 0.03);
+        0 22px 50px rgba(15, 23, 42, 0.15),
+        inset 0 1px 0 rgba(255, 255, 255, 0.56),
+        inset 0 -1px 0 rgba(255, 255, 255, 0.12);
 }
 
 /* 深色模式下欢迎消息的微调 */
 body.dark-mode .welcome-message {
-    background: rgba(24, 27, 34, 0.42);
+    background:
+        linear-gradient(160deg, rgba(255, 255, 255, 0.08), rgba(255, 255, 255, 0.03) 42%, rgba(255, 255, 255, 0.02) 100%),
+        var(--glass-panel);
     border-color: rgba(255, 255, 255, 0.12);
     box-shadow:
-        0 1px 2px rgba(0, 0, 0, 0.12),
-        0 2px 4px rgba(0, 0, 0, 0.1),
-        0 4px 8px rgba(0, 0, 0, 0.08),
-        0 0 0 1px rgba(255, 255, 255, 0.03) inset;
+        0 22px 52px rgba(0, 0, 0, 0.28),
+        inset 0 1px 0 rgba(255, 255, 255, 0.12),
+        inset 0 -1px 0 rgba(255, 255, 255, 0.04);
+}
+
+body.dark-mode .welcome-message::before {
+    background:
+        radial-gradient(circle at 16% 22%, rgba(255, 255, 255, 0.12), transparent 20%),
+        radial-gradient(circle at 88% 18%, rgba(227, 124, 235, 0.16), transparent 24%),
+        linear-gradient(180deg, rgba(255, 255, 255, 0.06), transparent 42%);
+}
+
+body.dark-mode .welcome-message::after {
+    background: radial-gradient(circle, rgba(227, 124, 235, 0.2), rgba(227, 124, 235, 0) 72%);
 }
 
 body.dark-mode .welcome-message:hover {
-    border-color: rgba(227, 124, 235, 0.25);
+    border-color: rgba(227, 124, 235, 0.24);
     box-shadow:
-        0 2px 4px rgba(0, 0, 0, 0.15),
-        0 4px 8px rgba(0, 0, 0, 0.12),
-        0 8px 16px rgba(0, 0, 0, 0.1),
-        0 0 0 1px rgba(227, 124, 235, 0.1);
+        0 24px 56px rgba(0, 0, 0, 0.32),
+        inset 0 1px 0 rgba(255, 255, 255, 0.14),
+        inset 0 -1px 0 rgba(255, 255, 255, 0.05);
 }
 
 @keyframes welcomeSlideIn {
@@ -127,42 +165,46 @@ body.dark-mode .welcome-message:hover {
     }
 }
 
-.welcome-message h2 {
-    color: var(--primary-color);
-    margin-bottom: var(--spacing-sm);
-    font-size: clamp(15px, 3.5vw, 18px);
-    font-weight: 600;
-    letter-spacing: -0.3px;
-}
-
-.welcome-message p {
-    margin-bottom: var(--spacing-sm);
-    font-size: clamp(12px, 3vw, 14px);
-    line-height: 1.6;
-    color: var(--text-secondary);
-}
-
 /* 快捷操作按钮样式 */
 .quick-actions {
-    display: flex;
-    justify-content: center;
+    position: relative;
+    z-index: 1;
+    display: inline-flex;
+    justify-content: flex-start;
     flex-wrap: wrap;
-    gap: clamp(var(--spacing-xs), 2vw, var(--spacing-md));
-    margin-top: var(--spacing-md);
+    gap: 12px;
+    width: auto;
 }
 
 .quick-action-btn {
-    background-color: rgba(49, 123, 245, 0.08);
-    border: none;
-    border-radius: var(--radius-full);
-    padding: var(--spacing-xs) clamp(var(--spacing-xs), 3vw, var(--spacing-md));
-    font-size: clamp(11px, 3vw, 13px);
-    color: var(--primary-color);
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-height: 46px;
+    padding: 0 24px;
+    border: 1px solid rgba(255, 255, 255, 0.54);
+    border-radius: 999px;
+    background:
+        linear-gradient(180deg, rgba(255, 255, 255, 0.82), rgba(255, 255, 255, 0.48)),
+        rgba(255, 255, 255, 0.26);
+    box-shadow:
+        0 10px 24px rgba(15, 23, 42, 0.08),
+        inset 0 1px 0 rgba(255, 255, 255, 0.82),
+        inset 0 -1px 0 rgba(255, 255, 255, 0.18);
+    backdrop-filter: blur(18px) saturate(180%);
+    -webkit-backdrop-filter: blur(18px) saturate(180%);
+    font-size: clamp(13px, 2.6vw, 16px);
+    color: #4c165d;
     cursor: pointer;
-    transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
-    font-weight: 500;
+    transition:
+        transform 0.18s ease,
+        box-shadow 0.18s ease,
+        border-color 0.18s ease,
+        background 0.18s ease,
+        color 0.18s ease;
+    font-weight: 700;
+    letter-spacing: -0.03em;
     white-space: nowrap;
-    transform: scale(1);
     position: relative;
     overflow: hidden;
 }
@@ -170,29 +212,100 @@ body.dark-mode .welcome-message:hover {
 .quick-action-btn::before {
     content: '';
     position: absolute;
-    top: 50%;
-    left: 50%;
-    width: 0;
-    height: 0;
-    background-color: rgba(49, 123, 245, 0.1);
-    border-radius: 50%;
-    transform: translate(-50%, -50%);
-    transition: width 0.3s ease, height 0.3s ease;
+    inset: 0;
+    background:
+        linear-gradient(120deg, transparent 18%, rgba(255, 255, 255, 0.48) 42%, transparent 66%),
+        linear-gradient(180deg, rgba(255, 255, 255, 0.24), transparent 42%);
+    opacity: 0;
+    transform: translateX(-20%);
+    transition: opacity 0.22s ease, transform 0.28s ease;
+}
+
+.quick-action-btn::after {
+    content: none;
 }
 
 .quick-action-btn:hover {
-    background-color: rgba(49, 123, 245, 0.15);
-    transform: scale(1.02);
-    box-shadow: 0 2px 8px rgba(49, 123, 245, 0.15);
+    color: #3f0f50;
+    border-color: rgba(120, 62, 148, 0.22);
+    background:
+        linear-gradient(180deg, rgba(255, 255, 255, 0.9), rgba(238, 231, 247, 0.72)),
+        rgba(255, 255, 255, 0.34);
+    transform: translateY(-2px) scale(1.015);
+    box-shadow:
+        0 14px 28px rgba(96, 58, 124, 0.14),
+        inset 0 1px 0 rgba(255, 255, 255, 0.92),
+        inset 0 -1px 0 rgba(255, 255, 255, 0.24);
 }
 
 .quick-action-btn:hover::before {
-    width: 100%;
-    height: 100%;
+    opacity: 1;
+    transform: translateX(0);
 }
 
 .quick-action-btn:active {
-    transform: scale(0.98);
+    transform: translateY(0) scale(0.985);
+    box-shadow:
+        0 8px 18px rgba(96, 58, 124, 0.1),
+        inset 0 1px 0 rgba(255, 255, 255, 0.74);
+}
+
+body.dark-mode .quick-action-btn {
+    border-color: rgba(255, 255, 255, 0.12);
+    background:
+        linear-gradient(180deg, rgba(255, 255, 255, 0.1), rgba(255, 255, 255, 0.04)),
+        rgba(24, 20, 34, 0.36);
+    color: #f1d9f7;
+    box-shadow:
+        0 10px 22px rgba(0, 0, 0, 0.22),
+        inset 0 1px 0 rgba(255, 255, 255, 0.14),
+        inset 0 -1px 0 rgba(255, 255, 255, 0.04);
+}
+
+body.dark-mode .quick-action-btn:hover {
+    color: #fff4ff;
+    border-color: rgba(227, 124, 235, 0.26);
+    background:
+        linear-gradient(180deg, rgba(255, 255, 255, 0.14), rgba(227, 124, 235, 0.12)),
+        rgba(30, 23, 42, 0.46);
+    box-shadow:
+        0 14px 30px rgba(0, 0, 0, 0.3),
+        0 0 0 1px rgba(227, 124, 235, 0.08) inset;
+}
+
+@media (max-width: 560px) {
+    .welcome-message {
+        width: calc(100% - 8px);
+        max-width: 100%;
+        border-radius: 24px;
+        padding: 14px;
+    }
+
+    .quick-actions {
+        gap: 8px;
+        width: 100%;
+    }
+
+    .quick-action-btn {
+        width: 100%;
+        justify-content: center;
+        min-height: 42px;
+        padding: 0 16px;
+    }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .welcome-message,
+    .quick-action-btn,
+    .quick-action-btn::before {
+        transition: none;
+    }
+
+    .welcome-message:hover,
+    .quick-action-btn:hover,
+    .quick-action-btn:active {
+        transform: none;
+    }
 }
 
 
@@ -273,54 +386,75 @@ body.dark-mode .welcome-message:hover {
 /* 用户消息气泡样式 - 高级精致设计 */
 .user-message {
     align-self: flex-end;
-    background-color: var(--primary-color);
-    color: white;
-    /* 精致的圆角设计 - 四等圆角 */
-    border-radius: 18px;
+    background:
+        linear-gradient(155deg, rgba(245, 236, 255, 0.82), rgba(229, 213, 247, 0.72) 46%, rgba(214, 191, 239, 0.78) 100%),
+        rgba(255, 255, 255, 0.14);
+    color: rgba(49, 33, 68, 0.96);
+    border-radius: 20px;
     display: inline-block;
     max-width: 85%;
     width: auto;
     overflow: visible;
-    /* 更宽敞的内边距，提升阅读体验 */
     padding: 12px 16px;
     text-align: left;
     position: relative;
-    /* 多层阴影营造深度感 */
+    border: 1px solid rgba(255, 255, 255, 0.42);
     box-shadow:
-        0 1px 2px rgba(0, 0, 0, 0.07),
-        0 2px 4px rgba(0, 0, 0, 0.07),
-        0 4px 8px rgba(0, 0, 0, 0.07),
-        0 0 0 1px rgba(255, 255, 255, 0.1) inset;
-    /* 平滑的过渡效果 */
+        0 10px 26px rgba(164, 136, 196, 0.18),
+        0 2px 10px rgba(122, 93, 156, 0.1),
+        inset 0 1px 0 rgba(255, 255, 255, 0.62),
+        inset 0 -1px 0 rgba(255, 255, 255, 0.14);
     transition:
         transform 0.25s cubic-bezier(0.4, 0, 0.2, 1),
-        box-shadow 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+        box-shadow 0.25s cubic-bezier(0.4, 0, 0.2, 1),
+        border-color 0.25s ease;
+    backdrop-filter: blur(18px) saturate(170%);
+    -webkit-backdrop-filter: blur(18px) saturate(170%);
+}
+
+.user-message::before {
+    content: '';
+    position: absolute;
+    inset: 0;
+    border-radius: inherit;
+    background:
+        linear-gradient(180deg, rgba(255, 255, 255, 0.32), transparent 42%),
+        radial-gradient(circle at top right, rgba(255, 255, 255, 0.24), transparent 28%);
+    pointer-events: none;
+    opacity: 0.95;
 }
 
 .user-message:hover {
     transform: translateY(-2px);
+    border-color: rgba(255, 255, 255, 0.54);
     box-shadow:
-        0 2px 4px rgba(0, 0, 0, 0.1),
-        0 4px 8px rgba(0, 0, 0, 0.1),
-        0 8px 16px rgba(0, 0, 0, 0.08),
-        0 0 0 1px rgba(255, 255, 255, 0.15) inset;
+        0 14px 30px rgba(164, 136, 196, 0.2),
+        0 4px 12px rgba(122, 93, 156, 0.12),
+        inset 0 1px 0 rgba(255, 255, 255, 0.74),
+        inset 0 -1px 0 rgba(255, 255, 255, 0.16);
 }
 
 /* 深色模式下用户消息的微调 */
 body.dark-mode .user-message {
+    background:
+        linear-gradient(155deg, rgba(231, 211, 248, 0.78), rgba(207, 180, 235, 0.72) 46%, rgba(182, 145, 220, 0.76) 100%),
+        rgba(255, 255, 255, 0.06);
+    color: rgba(36, 26, 52, 0.96);
+    border-color: rgba(255, 255, 255, 0.22);
     box-shadow:
-        0 1px 2px rgba(0, 0, 0, 0.15),
-        0 2px 4px rgba(0, 0, 0, 0.12),
-        0 4px 8px rgba(0, 0, 0, 0.1),
-        0 0 0 1px rgba(255, 255, 255, 0.08) inset;
+        0 12px 28px rgba(35, 20, 52, 0.22),
+        0 4px 12px rgba(16, 10, 26, 0.14),
+        inset 0 1px 0 rgba(255, 255, 255, 0.36),
+        inset 0 -1px 0 rgba(255, 255, 255, 0.08);
 }
 
 body.dark-mode .user-message:hover {
+    border-color: rgba(255, 255, 255, 0.3);
     box-shadow:
-        0 2px 4px rgba(0, 0, 0, 0.2),
-        0 4px 8px rgba(0, 0, 0, 0.15),
-        0 8px 16px rgba(0, 0, 0, 0.12),
-        0 0 0 1px rgba(255, 255, 255, 0.12) inset;
+        0 14px 32px rgba(35, 20, 52, 0.26),
+        0 5px 14px rgba(16, 10, 26, 0.16),
+        inset 0 1px 0 rgba(255, 255, 255, 0.44),
+        inset 0 -1px 0 rgba(255, 255, 255, 0.1);
 }
 
 /* 隐藏没有内容的用户消息气泡 */
@@ -503,7 +637,10 @@ body.dark-mode .sent-tab-item:hover {
 .user-message p {
     margin: 0;
     padding: 0;
-    line-height: 1.4;
+    line-height: 1.58;
+    color: inherit;
+    letter-spacing: 0.01em;
+    text-shadow: none;
 }
 
 /* 机器人消息气泡样式 - 高级精致设计 */
@@ -926,37 +1063,87 @@ body.dark-mode .bot-message:hover {
 
 /* 输入区域包装器 - 与 footer 分离，透明背景 */
 .chat-input-wrapper {
-    padding: var(--spacing-sm) var(--spacing-md);
-    padding-bottom: calc(var(--spacing-md) + 4px);
-    background: linear-gradient(180deg, transparent, rgba(255, 255, 255, 0.06));
-    border-top: 1px solid rgba(255, 255, 255, 0.12);
+    position: relative;
+    isolation: isolate;
+    padding: 12px 14px 16px;
+    background:
+        linear-gradient(180deg, rgba(255, 255, 255, 0), rgba(255, 255, 255, 0.08) 58%, rgba(255, 255, 255, 0.12) 100%);
+    border-top: 1px solid rgba(255, 255, 255, 0.14);
+}
+
+.chat-input-wrapper::before {
+    content: '';
+    position: absolute;
+    left: 16px;
+    right: 16px;
+    top: 0;
+    height: 1px;
+    background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.46), transparent);
+    pointer-events: none;
+}
+
+.chat-input-wrapper::after {
+    content: '';
+    position: absolute;
+    left: 50%;
+    bottom: 2px;
+    width: min(78%, 520px);
+    height: 52px;
+    transform: translateX(-50%);
+    background: radial-gradient(circle, rgba(255, 255, 255, 0.1), rgba(255, 255, 255, 0) 72%);
+    filter: blur(18px);
+    opacity: 0.46;
+    pointer-events: none;
 }
 
 /* 输入框容器 */
 .chat-input {
     display: flex;
     flex-direction: column;
-    gap: var(--spacing-xs);
-    background: var(--glass-panel-soft);
-    border: 1px solid var(--glass-border);
-    border-radius: 20px;
-    padding: var(--spacing-sm);
+    gap: 10px;
+    position: relative;
+    overflow: visible;
+    background:
+        linear-gradient(155deg, rgba(255, 255, 255, 0.72), rgba(246, 239, 252, 0.58) 42%, rgba(231, 217, 245, 0.66) 100%),
+        var(--glass-panel-soft);
+    border: 1px solid rgba(255, 255, 255, 0.42);
+    border-radius: 24px;
+    padding: 10px 10px 10px 12px;
     box-sizing: border-box;
     box-shadow:
-        0 12px 32px rgba(15, 23, 42, 0.08),
-        inset 0 1px 0 rgba(255, 255, 255, 0.26);
-    backdrop-filter: blur(18px) saturate(180%);
-    -webkit-backdrop-filter: blur(18px) saturate(180%);
-    transition: border-color 0.2s ease, box-shadow 0.2s ease, background-color 0.2s ease;
+        0 16px 34px rgba(91, 67, 122, 0.1),
+        0 6px 18px rgba(15, 23, 42, 0.06),
+        inset 0 1px 0 rgba(255, 255, 255, 0.74),
+        inset 0 -1px 0 rgba(255, 255, 255, 0.14);
+    backdrop-filter: blur(22px) saturate(185%);
+    -webkit-backdrop-filter: blur(22px) saturate(185%);
+    transition: transform 0.22s ease, border-color 0.22s ease, box-shadow 0.22s ease, background 0.22s ease;
+}
+
+.chat-input::before {
+    content: '';
+    position: absolute;
+    inset: 0;
+    border-radius: inherit;
+    background:
+        linear-gradient(180deg, rgba(255, 255, 255, 0.34), transparent 34%),
+        radial-gradient(circle at top right, rgba(255, 255, 255, 0.26), transparent 28%);
+    pointer-events: none;
+    opacity: 0.92;
 }
 
 .chat-input:focus-within {
-    border-color: var(--primary-color);
-    background: var(--glass-panel-strong);
+    transform: translateY(-1px);
+    border-color: rgba(132, 90, 179, 0.34);
+    background:
+        linear-gradient(155deg, rgba(255, 255, 255, 0.8), rgba(244, 235, 251, 0.68) 42%, rgba(229, 212, 244, 0.72) 100%),
+        var(--glass-panel-strong);
     box-shadow:
-        0 0 0 2px rgba(49, 123, 245, 0.12),
-        0 12px 32px rgba(15, 23, 42, 0.1),
-        inset 0 1px 0 rgba(255, 255, 255, 0.32);
+        0 0 0 2px rgba(167, 128, 210, 0.16),
+        0 22px 40px rgba(91, 67, 122, 0.12),
+        0 8px 20px rgba(15, 23, 42, 0.08),
+        inset 0 1px 0 rgba(255, 255, 255, 0.84),
+        inset 0 -1px 0 rgba(255, 255, 255, 0.18);
 }
 
 /* 输入框 */
@@ -964,12 +1151,14 @@ body.dark-mode .bot-message:hover {
     flex: 1;
     border: none;
     background: transparent;
-    padding: 4px 8px;
+    padding: 6px 10px 4px;
     resize: none;
     min-height: 24px;
     max-height: 150px;
     font-size: 14px;
-    line-height: 1.5;
+    line-height: 1.6;
+    color: rgba(54, 36, 78, 0.96);
+    letter-spacing: 0.01em;
     outline: none;
     overflow-y: auto;
     transition: min-height 0.2s ease, max-height 0.2s ease;
@@ -981,7 +1170,7 @@ body.dark-mode .bot-message:hover {
 }
 
 .chat-input textarea::placeholder {
-    color: #999;
+    color: rgba(117, 99, 136, 0.72);
 }
 
 .chat-input textarea::-webkit-scrollbar {
@@ -1001,29 +1190,45 @@ body.dark-mode .bot-message:hover {
 .chat-input-controls {
     display: flex;
     align-items: center;
-    gap: var(--spacing-xs);
+    gap: 8px;
     position: relative;
+    padding: 2px 2px 0;
+    z-index: 1;
 }
 
 /* 输入区域通用按钮 */
 .input-action-btn {
-    width: 28px;
-    height: 28px;
-    border-radius: 50%;
-    border: none;
-    background-color: transparent;
-    color: var(--text-secondary);
+    width: 32px;
+    height: 32px;
+    border-radius: 999px;
+    border: 1px solid rgba(255, 255, 255, 0.42);
+    background:
+        linear-gradient(180deg, rgba(255, 255, 255, 0.68), rgba(255, 255, 255, 0.28)),
+        rgba(255, 255, 255, 0.18);
+    color: rgba(89, 64, 118, 0.9);
     cursor: pointer;
     display: flex;
     align-items: center;
     justify-content: center;
-    transition: all 0.2s ease;
+    box-shadow:
+        0 6px 16px rgba(91, 67, 122, 0.08),
+        inset 0 1px 0 rgba(255, 255, 255, 0.76);
+    backdrop-filter: blur(14px) saturate(180%);
+    -webkit-backdrop-filter: blur(14px) saturate(180%);
+    transition: transform 0.18s ease, color 0.18s ease, border-color 0.18s ease, background 0.18s ease, box-shadow 0.18s ease;
     flex-shrink: 0;
 }
 
 .input-action-btn:hover {
-    color: var(--primary-color);
-    background-color: var(--button-hover-bg);
+    color: #5a2d84;
+    background:
+        linear-gradient(180deg, rgba(255, 255, 255, 0.84), rgba(243, 233, 251, 0.62)),
+        rgba(255, 255, 255, 0.26);
+    border-color: rgba(154, 118, 194, 0.28);
+    box-shadow:
+        0 10px 20px rgba(91, 67, 122, 0.12),
+        inset 0 1px 0 rgba(255, 255, 255, 0.9);
+    transform: translateY(-1px);
 }
 
 /* 加号菜单弹出层 */
@@ -1095,43 +1300,70 @@ body.dark-mode .bot-message:hover {
 .inline-model-selector {
     display: inline-flex;
     align-items: center;
-    gap: 4px;
-    padding: 4px 10px;
+    gap: 6px;
+    min-height: 34px;
+    padding: 0 12px;
     margin-left: var(--spacing-sm);
-    border: 1px solid rgba(255, 255, 255, 0.12);
-    border-radius: 12px;
-    color: var(--text-secondary);
+    border: 1px solid rgba(255, 255, 255, 0.42);
+    border-radius: 999px;
+    background:
+        linear-gradient(180deg, rgba(255, 255, 255, 0.56), rgba(255, 255, 255, 0.24)),
+        rgba(255, 255, 255, 0.16);
+    color: rgba(84, 61, 112, 0.88);
     font-size: 12px;
-    font-weight: 500;
+    font-weight: 600;
     cursor: pointer;
-    transition: all 0.2s ease;
+    box-shadow:
+        0 6px 16px rgba(91, 67, 122, 0.07),
+        inset 0 1px 0 rgba(255, 255, 255, 0.72);
+    backdrop-filter: blur(14px) saturate(180%);
+    -webkit-backdrop-filter: blur(14px) saturate(180%);
+    transition: transform 0.18s ease, color 0.18s ease, border-color 0.18s ease, background 0.18s ease, box-shadow 0.18s ease;
     white-space: nowrap;
 }
 
 .inline-model-selector:hover {
-    background-color: var(--glass-panel-soft);
-    color: var(--primary-color);
+    color: #53277d;
+    border-color: rgba(154, 118, 194, 0.28);
+    background:
+        linear-gradient(180deg, rgba(255, 255, 255, 0.82), rgba(241, 232, 249, 0.6)),
+        rgba(255, 255, 255, 0.24);
+    box-shadow:
+        0 10px 20px rgba(91, 67, 122, 0.11),
+        inset 0 1px 0 rgba(255, 255, 255, 0.88);
+    transform: translateY(-1px);
 }
 
 .inline-model-selector.active {
-    background-color: var(--glass-panel-strong);
-    border-color: var(--primary-color);
-    color: var(--primary-color);
+    background:
+        linear-gradient(180deg, rgba(255, 255, 255, 0.86), rgba(237, 226, 247, 0.7)),
+        rgba(255, 255, 255, 0.28);
+    border-color: rgba(137, 93, 182, 0.36);
+    color: #4f2377;
+    box-shadow:
+        0 12px 22px rgba(91, 67, 122, 0.12),
+        inset 0 1px 0 rgba(255, 255, 255, 0.92);
 }
 
 .chat-input-expand-btn {
-    border: 1px solid rgba(255, 255, 255, 0.12);
-    background: transparent;
+    margin-left: -2px;
 }
 
 .chat-input-expand-btn:hover {
-    background-color: var(--glass-panel-soft);
+    background:
+        linear-gradient(180deg, rgba(255, 255, 255, 0.84), rgba(243, 233, 251, 0.62)),
+        rgba(255, 255, 255, 0.26);
 }
 
 .chat-input-expand-btn.active {
-    color: var(--primary-color);
-    background-color: var(--glass-panel-strong);
-    border-color: var(--primary-color);
+    color: #4f2377;
+    background:
+        linear-gradient(180deg, rgba(255, 255, 255, 0.88), rgba(237, 226, 247, 0.72)),
+        rgba(255, 255, 255, 0.26);
+    border-color: rgba(137, 93, 182, 0.36);
+    box-shadow:
+        0 10px 20px rgba(91, 67, 122, 0.12),
+        inset 0 1px 0 rgba(255, 255, 255, 0.9);
 }
 
 .chat-input-expand-btn .collapse-icon {
@@ -3449,31 +3681,52 @@ body.dark-mode .tab-selection-actions .tab-action.cancel {
 .chat-nav-btn {
     width: 20px;
     height: 24px;
-    border-radius: var(--radius-sm);
-    border: 1px solid var(--border-color);
-    background-color: rgba(255, 255, 255, 0.85);
-    backdrop-filter: blur(12px);
-    -webkit-backdrop-filter: blur(12px);
+    border-radius: 999px;
+    border: 1px solid rgba(255, 255, 255, 0.12);
+    background:
+        linear-gradient(180deg, rgba(255, 255, 255, 0.22), rgba(255, 255, 255, 0.08)),
+        transparent;
+    backdrop-filter: blur(12px) saturate(170%);
+    -webkit-backdrop-filter: blur(12px) saturate(170%);
     display: flex;
     align-items: center;
     justify-content: center;
     cursor: pointer;
     color: var(--text-secondary);
-    transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+    transition: color 0.18s ease, background-color 0.18s ease, border-color 0.18s ease, transform 0.18s ease, box-shadow 0.18s ease;
     padding: 0;
     box-shadow:
-        0 1px 3px rgba(0, 0, 0, 0.06),
-        0 1px 2px rgba(0, 0, 0, 0.04);
+        inset 0 1px 0 rgba(255, 255, 255, 0.12);
+    overflow: hidden;
+    position: relative;
+}
+
+.chat-nav-btn::before {
+    content: '';
+    position: absolute;
+    inset: 0;
+    border-radius: inherit;
+    background: linear-gradient(120deg, transparent 18%, rgba(255, 255, 255, 0.22) 45%, transparent 72%);
+    opacity: 0;
+    transform: translateX(-20%);
+    transition: opacity 0.18s ease, transform 0.22s ease;
 }
 
 .chat-nav-btn:hover {
     color: var(--primary-color);
-    background-color: rgba(255, 255, 255, 0.95);
-    border-color: var(--primary-color);
+    background:
+        linear-gradient(180deg, rgba(255, 255, 255, 0.34), rgba(255, 255, 255, 0.14)),
+        rgba(70, 116, 255, 0.05);
+    border-color: rgba(70, 116, 255, 0.16);
     transform: scale(1.08);
     box-shadow:
-        0 2px 8px rgba(0, 0, 0, 0.1),
-        0 1px 3px rgba(0, 0, 0, 0.06);
+        0 6px 14px rgba(70, 116, 255, 0.08),
+        inset 0 1px 0 rgba(255, 255, 255, 0.2);
+}
+
+.chat-nav-btn:hover::before {
+    opacity: 1;
+    transform: translateX(0);
 }
 
 .chat-nav-btn:active {
@@ -3487,19 +3740,21 @@ body.dark-mode .tab-selection-actions .tab-action.cancel {
 
 /* 深色模式下导航按钮样式 */
 body.dark-mode .chat-nav-btn {
-    background-color: rgba(44, 46, 51, 0.85);
-    border-color: var(--border-color);
+    background:
+        linear-gradient(180deg, rgba(255, 255, 255, 0.08), rgba(255, 255, 255, 0.03)),
+        transparent;
+    border-color: rgba(255, 255, 255, 0.08);
     color: var(--text-secondary);
-    box-shadow:
-        0 1px 3px rgba(0, 0, 0, 0.2),
-        0 1px 2px rgba(0, 0, 0, 0.15);
+    box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.08);
 }
 
 body.dark-mode .chat-nav-btn:hover {
-    background-color: rgba(44, 46, 51, 0.95);
-    border-color: var(--primary-color);
-    color: var(--primary-color);
+    color: #f3c1f6;
+    background:
+        linear-gradient(180deg, rgba(255, 255, 255, 0.12), rgba(227, 124, 235, 0.08)),
+        rgba(255, 255, 255, 0.02);
+    border-color: rgba(227, 124, 235, 0.16);
     box-shadow:
-        0 2px 8px rgba(0, 0, 0, 0.3),
-        0 1px 3px rgba(0, 0, 0, 0.2);
+        0 6px 14px rgba(0, 0, 0, 0.18),
+        inset 0 1px 0 rgba(255, 255, 255, 0.12);
 }

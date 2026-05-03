@@ -1795,7 +1795,6 @@ export async function createWelcomeMessage(currentTranslations) {
     }).join('');
 
     welcomeMessage.innerHTML = `
-        <h2>${_('welcomeHeading', {}, currentTranslations)}</h2>
         ${quickActionsHtml ? `<div class="quick-actions">${quickActionsHtml}</div>` : ''}
     `;
 

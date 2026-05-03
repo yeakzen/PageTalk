@@ -29,11 +29,11 @@ body.dark-mode .chat-agent-selector select:focus {
 }
 
 body.dark-mode .chat-input textarea {
-    color: var(--text-color);
+    color: rgba(247, 238, 251, 0.94);
 }
 
 body.dark-mode .chat-input textarea::placeholder {
-    color: var(--text-secondary);
+    color: rgba(214, 194, 227, 0.62);
 }
 
 /* 代码块 */
@@ -81,18 +81,20 @@ body.dark-mode .markdown-rendered code:not(pre code) {
 }
 
 body.dark-mode .user-message code {
-    background-color: rgba(201, 209, 217, 0.3);
-    color: var(--text-color);
-    border-color: transparent;
+    background-color: rgba(255, 255, 255, 0.3);
+    color: rgba(47, 32, 66, 0.96);
+    border-color: rgba(255, 255, 255, 0.24);
 }
 
 body.dark-mode .user-message a {
-    color: #D1E3FF;
+    color: rgba(76, 51, 124, 0.96);
     text-decoration: underline;
+    text-decoration-color: rgba(96, 66, 146, 0.42);
+    text-underline-offset: 2px;
 }
 
 body.dark-mode .user-message a:hover {
-    color: #FFFFFF;
+    color: rgba(58, 36, 102, 0.98);
     opacity: 1;
     text-decoration: none;
 }
@@ -138,8 +140,16 @@ body.dark-mode .markdown-rendered tr:nth-child(even) {
 
 /* 消息气泡 */
 body.dark-mode .user-message {
-    background-color: var(--primary-color);
-    color: #FFFFFF;
+    background:
+        linear-gradient(155deg, rgba(231, 211, 248, 0.78), rgba(207, 180, 235, 0.72) 46%, rgba(182, 145, 220, 0.76) 100%),
+        rgba(255, 255, 255, 0.06);
+    color: rgba(36, 26, 52, 0.96);
+    border-color: rgba(255, 255, 255, 0.22);
+    box-shadow:
+        0 12px 28px rgba(35, 20, 52, 0.22),
+        0 4px 12px rgba(16, 10, 26, 0.14),
+        inset 0 1px 0 rgba(255, 255, 255, 0.36),
+        inset 0 -1px 0 rgba(255, 255, 255, 0.08);
 }
 
 body.dark-mode .bot-message {
@@ -364,20 +374,33 @@ body.dark-mode #connection-indicator.disconnected {
 /* 页脚标签 */
 body.dark-mode .footer-tab {
     color: var(--text-secondary);
-    background-color: transparent;
-    border-color: transparent;
+    background:
+        linear-gradient(180deg, rgba(255, 255, 255, 0.08), rgba(255, 255, 255, 0.03)),
+        transparent;
+    border-color: rgba(255, 255, 255, 0.08);
+    box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.08);
 }
 
 body.dark-mode .footer-tab:hover {
-    color: var(--primary-color);
-    background-color: var(--button-hover-bg);
+    color: #f3c1f6;
+    background:
+        linear-gradient(180deg, rgba(255, 255, 255, 0.12), rgba(227, 124, 235, 0.08)),
+        rgba(255, 255, 255, 0.02);
+    border-color: rgba(227, 124, 235, 0.16);
+    box-shadow:
+        0 6px 14px rgba(0, 0, 0, 0.18),
+        inset 0 1px 0 rgba(255, 255, 255, 0.12);
 }
 
 body.dark-mode .footer-tab.active {
-    color: var(--primary-color);
-    background-color: rgba(233, 150, 239, 0.2);
-    /* Darker active background */
-    border-color: rgba(233, 150, 239, 0.3);
+    color: #fff4ff;
+    background:
+        linear-gradient(180deg, rgba(255, 255, 255, 0.14), rgba(227, 124, 235, 0.12)),
+        rgba(30, 23, 42, 0.32);
+    border-color: rgba(227, 124, 235, 0.24);
+    box-shadow:
+        0 8px 18px rgba(0, 0, 0, 0.2),
+        inset 0 1px 0 rgba(255, 255, 255, 0.14);
 }
 
 /* 设置导航按钮 */
@@ -679,43 +702,65 @@ body.dark-mode .inline-model-selector {
 }
 
 body.dark-mode .inline-model-selector:hover {
-    background-color: rgba(233, 150, 239, 0.12);
-    color: var(--primary-color);
+    background:
+        linear-gradient(180deg, rgba(255, 255, 255, 0.14), rgba(227, 124, 235, 0.08)),
+        rgba(255, 255, 255, 0.02);
+    color: #f1c8f5;
 }
 
 body.dark-mode .inline-model-selector.active {
-    background-color: rgba(233, 150, 239, 0.15);
-    border-color: var(--primary-color);
-    color: var(--primary-color);
+    background:
+        linear-gradient(180deg, rgba(255, 255, 255, 0.16), rgba(227, 124, 235, 0.12)),
+        rgba(255, 255, 255, 0.03);
+    border-color: rgba(227, 124, 235, 0.3);
+    color: #f7d9fa;
 }
 
 body.dark-mode .chat-input-expand-btn {
-    border-color: rgba(255, 255, 255, 0.1);
+    border-color: rgba(255, 255, 255, 0.16);
 }
 
 body.dark-mode .chat-input-expand-btn:hover {
-    background-color: rgba(233, 150, 239, 0.12);
+    background:
+        linear-gradient(180deg, rgba(255, 255, 255, 0.14), rgba(227, 124, 235, 0.08)),
+        rgba(255, 255, 255, 0.02);
 }
 
 body.dark-mode .chat-input-expand-btn.active {
-    background-color: rgba(233, 150, 239, 0.16);
-    border-color: var(--primary-color);
-    color: var(--primary-color);
+    background:
+        linear-gradient(180deg, rgba(255, 255, 255, 0.16), rgba(227, 124, 235, 0.12)),
+        rgba(255, 255, 255, 0.03);
+    border-color: rgba(227, 124, 235, 0.3);
+    color: #f1c8f5;
 }
 
 /* 深色模式下移除旧的输入框样式遗留 */
 body.dark-mode .chat-input-wrapper {
-    background: transparent;
+    background:
+        linear-gradient(180deg, rgba(0, 0, 0, 0), rgba(255, 255, 255, 0.02) 58%, rgba(255, 255, 255, 0.05) 100%);
+    border-top-color: rgba(255, 255, 255, 0.08);
 }
 
 body.dark-mode .chat-input {
-    background-color: var(--card-background);
-    border-color: var(--border-color);
+    background:
+        linear-gradient(155deg, rgba(255, 255, 255, 0.1), rgba(224, 177, 255, 0.08) 42%, rgba(181, 129, 223, 0.12) 100%),
+        rgba(24, 20, 34, 0.42);
+    border-color: rgba(255, 255, 255, 0.14);
+    box-shadow:
+        0 18px 38px rgba(0, 0, 0, 0.28),
+        0 6px 18px rgba(0, 0, 0, 0.18),
+        inset 0 1px 0 rgba(255, 255, 255, 0.12),
+        inset 0 -1px 0 rgba(255, 255, 255, 0.04);
 }
 
 body.dark-mode .chat-input:focus-within {
-    border-color: var(--primary-color);
-    box-shadow: 0 0 0 2px rgba(233, 150, 239, 0.15);
+    border-color: rgba(227, 124, 235, 0.28);
+    box-shadow:
+        0 0 0 2px rgba(233, 150, 239, 0.14),
+        0 24px 44px rgba(0, 0, 0, 0.34),
+        0 8px 20px rgba(0, 0, 0, 0.22),
+        inset 0 1px 0 rgba(255, 255, 255, 0.14),
+        inset 0 -1px 0 rgba(255, 255, 255, 0.05);
 }
 
 /* 思考内容折叠块深色模式 */
