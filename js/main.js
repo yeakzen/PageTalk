@@ -142,6 +142,7 @@ const elements = {
     tabContents: document.querySelectorAll('.tab-content'),
     // Chat Interface
     chatMessages: document.getElementById('chat-messages'),
+    chatInputWrapper: document.querySelector('.chat-input-wrapper'),
     userInput: document.getElementById('user-input'),
     sendMessage: document.getElementById('send-message'),
     summarizeButton: document.getElementById('summarize-page'), // Note: This might be dynamically added now
@@ -252,6 +253,33 @@ function _(key, replacements = {}) {
 let isUserNearBottom = true; // This remains the live state
 const SCROLL_THRESHOLD = 30; // Increased threshold slightly
 
+function hasVisibleBotResponses() {
+    if (!elements.chatMessages) return false;
+    return Boolean(elements.chatMessages.querySelector('.bot-message:not(.thinking)'));
+}
+
+function syncChatInputVisibility() {
+    if (!elements.chatInputWrapper) return;
+    elements.chatInputWrapper.classList.toggle('collapsed-with-responses', hasVisibleBotResponses());
+}
+
+function setupChatInputVisibilityObserver() {
+    if (!elements.chatMessages) return;
+
+    const observer = new MutationObserver(() => {
+        syncChatInputVisibility();
+    });
+
+    observer.observe(elements.chatMessages, {
+        childList: true,
+        subtree: true,
+        attributes: true,
+        attributeFilter: ['class']
+    });
+
+    syncChatInputVisibility();
+}
+
 
 // --- Initialization ---
 async function init() {
@@ -328,12 +356,14 @@ async function init() {
             // 确保快捷操作管理器已经初始化后再创建欢迎消息
             const welcomeMessage = await createWelcomeMessage(currentTranslations);
             elements.chatMessages.appendChild(welcomeMessage);
+            syncChatInputVisibility();
             console.log('[main.js] Initial welcome message created with quick actions');
         }
     }, 100); // 给翻译加载一些时间
     setupEventListeners(); // Setup all event listeners
     setupImagePaste(elements, (file) => handleImageFile(file, state, updateImagesPreviewUI)); // Setup paste
     setupAutoresizeTextarea(elements); // Setup textarea resize
+    setupChatInputVisibilityObserver();
 
     // Initialize comet caret animation for chat input
     let cometCaretInstance = null;
@@ -1525,6 +1555,7 @@ function abortStreamingUI() {
 // Wrapper function to restore send button UI
 function restoreSendButtonAndInputUI() {
     restoreSendButtonAndInput(state, elements, currentTranslations);
+    syncChatInputVisibility();
 }
 
 // Wrapper function for toggleTheme used by draggable button
@@ -1622,6 +1653,7 @@ function regenerateMessageUI(messageId) {
 // Wrapper function for deleteMessage
 function deleteMessageUI(messageId) {
     deleteMessageAction(messageId, state);
+    syncChatInputVisibility();
 }
 
 // Wrapper function for clearImages
@@ -2119,6 +2151,8 @@ async function loadAndApplyTranslations(language) {
         });
         document.querySelectorAll('.code-copy-button').forEach(btn => btn.title = _('copyCode'));
     }
+
+    syncChatInputVisibility();
 
 
     // Sync Day.js locale
@@ -2865,6 +2899,7 @@ async function restoreChatSession(sessionId) {
 
         // 重建聊天 UI
         await renderChatHistoryFromSession(session);
+        syncChatInputVisibility();
 
         // 隐藏弹出层
         hideSavedSessionsPopup();

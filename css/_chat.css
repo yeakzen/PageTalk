@@ -1069,6 +1069,7 @@ body.dark-mode .bot-message:hover {
     background:
         linear-gradient(180deg, rgba(255, 255, 255, 0), rgba(255, 255, 255, 0.08) 58%, rgba(255, 255, 255, 0.12) 100%);
     border-top: 1px solid rgba(255, 255, 255, 0.14);
+    transition: padding 0.22s ease, background 0.22s ease, border-color 0.22s ease;
 }
 
 .chat-input-wrapper::before {
@@ -1102,6 +1103,7 @@ body.dark-mode .bot-message:hover {
     flex-direction: column;
     gap: 10px;
     position: relative;
+    max-height: 320px;
     overflow: visible;
     background:
         linear-gradient(155deg, rgba(255, 255, 255, 0.72), rgba(246, 239, 252, 0.58) 42%, rgba(231, 217, 245, 0.66) 100%),
@@ -1117,7 +1119,8 @@ body.dark-mode .bot-message:hover {
         inset 0 -1px 0 rgba(255, 255, 255, 0.14);
     backdrop-filter: blur(22px) saturate(185%);
     -webkit-backdrop-filter: blur(22px) saturate(185%);
-    transition: transform 0.22s ease, border-color 0.22s ease, box-shadow 0.22s ease, background 0.22s ease;
+    transform-origin: bottom center;
+    transition: transform 0.22s ease, border-color 0.22s ease, box-shadow 0.22s ease, background 0.22s ease, opacity 0.22s ease, max-height 0.22s ease, padding 0.22s ease;
 }
 
 .chat-input::before {
@@ -1144,6 +1147,57 @@ body.dark-mode .bot-message:hover {
         0 8px 20px rgba(15, 23, 42, 0.08),
         inset 0 1px 0 rgba(255, 255, 255, 0.84),
         inset 0 -1px 0 rgba(255, 255, 255, 0.18);
+}
+
+.chat-input-wrapper.collapsed-with-responses {
+    padding-top: 6px;
+    padding-bottom: 8px;
+    background:
+        linear-gradient(180deg, rgba(255, 255, 255, 0), rgba(255, 255, 255, 0.04) 58%, rgba(255, 255, 255, 0.08) 100%);
+}
+
+.chat-input-wrapper.collapsed-with-responses::before {
+    top: -56px;
+    height: 64px;
+    background: linear-gradient(
+        180deg,
+        rgba(255, 255, 255, 0) 0,
+        rgba(255, 255, 255, 0) calc(100% - 1px),
+        rgba(255, 255, 255, 0.46) calc(100% - 1px),
+        rgba(255, 255, 255, 0) 100%
+    );
+    opacity: 0.55;
+    pointer-events: auto;
+}
+
+.chat-input-wrapper.collapsed-with-responses::after {
+    opacity: 0.3;
+    height: 34px;
+    bottom: -6px;
+}
+
+.chat-input-wrapper.collapsed-with-responses .chat-input {
+    opacity: 0;
+    max-height: 0;
+    padding-top: 0;
+    padding-bottom: 0;
+    border-width: 0;
+    box-shadow: none;
+    transform: translateY(18px) scaleY(0.3);
+    overflow: hidden;
+    pointer-events: none;
+}
+
+.chat-input-wrapper.collapsed-with-responses:hover .chat-input,
+.chat-input-wrapper.collapsed-with-responses:focus-within .chat-input {
+    opacity: 1;
+    max-height: 320px;
+    padding-top: 10px;
+    padding-bottom: 10px;
+    border-width: 1px;
+    overflow: visible;
+    transform: translateY(0) scaleY(1);
+    pointer-events: auto;
 }
 
 /* 输入框 */

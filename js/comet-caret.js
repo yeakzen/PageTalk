@@ -215,12 +215,27 @@ export function initCometCaret(textarea) {
     // 初始化大小
     updateContainerSize();
 
-    // 监听 textarea 大小变化 (例如用户拖拽调整大小)
+    // 监听 textarea 自身和父容器的布局变化。
+    // 父容器在折叠/恢复时会改变 padding / max-height / transform，
+    // 这些变化会让 textarea 的 offsetTop 改变，但不一定触发 textarea 自身的 resize。
     const resizeObserver = new ResizeObserver(() => {
         updateContainerSize();
         updateCaretPosition(false);
     });
     resizeObserver.observe(textarea);
+    if (parent) {
+        resizeObserver.observe(parent);
+    }
+
+    function onParentTransitionEnd(event) {
+        if (!parent || event.target !== parent) return;
+        updateContainerSize();
+        updateCaretPosition(false, true);
+    }
+
+    if (parent) {
+        parent.addEventListener('transitionend', onParentTransitionEnd);
+    }
 
     // 启用自定义光标模式
     textarea.classList.add('comet-caret-enabled');
@@ -377,6 +392,9 @@ export function initCometCaret(textarea) {
             
             // 停止观察
             if (resizeObserver) resizeObserver.disconnect();
+            if (parent) {
+                parent.removeEventListener('transitionend', onParentTransitionEnd);
+            }
 
             // 从实例 map 中移除
             caretInstances.delete(textarea);
