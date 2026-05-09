@@ -429,6 +429,46 @@
                             </div>
                         </div>
 
+                        <!-- Mermaid 总览设置卡片 -->
+                        <div class="setting-group">
+                            <div class="setting-card">
+                                <div class="setting-card-header">
+                                    <div class="setting-card-icon">
+                                        <svg width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.5"
+                                            viewBox="0 0 24 24">
+                                            <path d="M4 5h6v6H4z"></path>
+                                            <path d="M14 5h6v6h-6z"></path>
+                                            <path d="M9 16h6"></path>
+                                            <path d="M7 11v2a3 3 0 0 0 3 3"></path>
+                                            <path d="M17 11v2a3 3 0 0 1-3 3"></path>
+                                        </svg>
+                                    </div>
+                                    <h3 class="setting-card-title" data-i18n="mermaidOverviewSettingsLabel">Mermaid 总览设置</h3>
+                                </div>
+                                <p class="setting-card-description" data-i18n="mermaidOverviewSettingsDescription">配置多模型回答的总结模型与 Mermaid 绘图提示词。</p>
+                                <div class="setting-card-content">
+                                    <div class="setting-group">
+                                        <label for="mermaid-overview-model" data-i18n="mermaidOverviewModelLabel">Mermaid 生成模型</label>
+                                        <select id="mermaid-overview-model" class="setting-select"></select>
+                                    </div>
+                                    <div class="setting-group">
+                                        <label for="mermaid-overview-summary-prompt" data-i18n="mermaidOverviewSummaryPromptLabel">总结提示词</label>
+                                        <textarea id="mermaid-overview-summary-prompt" rows="5"
+                                            class="setting-textarea"
+                                            data-i18n-placeholder="mermaidOverviewSummaryPromptPlaceholder"
+                                            placeholder="总结本轮问题与各模型回答，提炼共识、分歧和关键结构。"></textarea>
+                                    </div>
+                                    <div class="setting-group">
+                                        <label for="mermaid-overview-diagram-prompt" data-i18n="mermaidOverviewDiagramPromptLabel">Mermaid 绘图提示词</label>
+                                        <textarea id="mermaid-overview-diagram-prompt" rows="6"
+                                            class="setting-textarea"
+                                            data-i18n-placeholder="mermaidOverviewDiagramPromptPlaceholder"
+                                            placeholder="根据问题、回答和总结生成 Mermaid 图，仅返回 Mermaid 代码。"></textarea>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
                         <!-- 代理设置卡片 -->
                         <div class="setting-group">
                             <div class="setting-card">
@@ -959,6 +999,11 @@
         <span class="close-modal mermaid-close-modal">&times;</span>
         <div id="mermaid-modal-content" class="modal-content mermaid-modal-content">
             <!-- 放大的 Mermaid SVG 将被注入这里 -->
+        </div>
+        <div id="mermaid-modal-footer" class="mermaid-modal-footer">
+            <button id="mermaid-modal-regenerate" class="setting-action-btn" type="button" style="display: none;">
+                <span data-i18n="regenerate">重新生成</span>
+            </button>
         </div>
     </div>
 

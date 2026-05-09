@@ -821,6 +821,16 @@ body.dark-mode .bot-message {
     /* User message action buttons also hover to primary */
 }
 
+.user-message .mermaid-overview-btn[data-mermaid-status="ready"] {
+    background-color: rgba(34, 197, 94, 0.18);
+    color: #15803d;
+}
+
+.user-message .mermaid-overview-btn[data-mermaid-status="ready"]:hover {
+    background-color: rgba(34, 197, 94, 0.28);
+    color: #166534;
+}
+
 /* 聊天消息中删除操作按钮的特定悬停样式 (现在与用户消息操作按钮悬停一致) */
 .message-action-btn.delete-message-action:hover {
     background-color: rgba(255, 255, 255, 0.6);
@@ -1931,8 +1941,8 @@ body.dark-mode #send-message.stop-streaming {
     /* For image modal specifically */
     margin: auto;
     display: block;
-    max-width: 90%;
-    max-height: 80vh;
+    /* max-width: 90%;
+    max-height: 80vh;  */
     object-fit: contain;
 }
 

@@ -984,70 +984,117 @@ export function addCopyButtonToCodeBlock(block, currentTranslations, copyCodeToC
  * @param {function} copyMessageContentCallback - Callback
  * @param {function} regenerateMessageCallback - Callback
  * @param {function} deleteMessageCallback - Callback
+ * @param {function} [mermaidOverviewCallback] - Optional callback
  */
-export function addMessageActionButtons(messageElement, content, currentTranslations, copyMessageContentCallback, regenerateMessageCallback, deleteMessageCallback) {
+export function addMessageActionButtons(messageElement, content, currentTranslations, copyMessageContentCallback, regenerateMessageCallback, deleteMessageCallback, mermaidOverviewCallback = null) {
     const messageId = messageElement.dataset.messageId;
     if (!messageId) return; // Need ID for actions
 
-    if (messageElement.querySelector('.message-actions')) {
-        return; // Avoid duplicate buttons
+    let messageActions = messageElement.querySelector('.message-actions');
+    if (!messageActions) {
+        messageActions = document.createElement('div');
+        messageActions.className = 'message-actions';
+        messageElement.appendChild(messageActions);
     }
 
-    const messageActions = document.createElement('div');
-    messageActions.className = 'message-actions';
-
-    const buttonsToAppend = [];
-
     // Copy Button
-    const copyButton = document.createElement('button');
-    copyButton.classList.add('copy-button'); // Use base class
+    let copyButton = messageActions.querySelector('.copy-button');
+    if (!copyButton) {
+        copyButton = document.createElement('button');
+        copyButton.classList.add('copy-button'); // Use base class
+        copyButton.innerHTML = `
+            <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect>
+                <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path>
+            </svg>
+        `;
+        messageActions.appendChild(copyButton);
+    }
     copyButton.title = _('copyAll', {}, currentTranslations);
-    copyButton.innerHTML = `
-        <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-            <rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect>
-            <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path>
-        </svg>
-    `;
-    copyButton.addEventListener('click', (e) => {
+    copyButton.onclick = (e) => {
         e.stopPropagation();
         copyMessageContentCallback(messageElement, content, copyButton); // Use callback
-    });
-    buttonsToAppend.push(copyButton);
+    };
 
     // Regenerate Button
-    const regenerateButton = document.createElement('button');
-    regenerateButton.className = 'message-action-btn regenerate-btn';
+    let regenerateButton = messageActions.querySelector('.regenerate-btn');
+    if (!regenerateButton) {
+        regenerateButton = document.createElement('button');
+        regenerateButton.className = 'message-action-btn regenerate-btn';
+        regenerateButton.innerHTML = `
+            <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" viewBox="0 0 16 16">
+                <path d="M8 3a5 5 0 1 0 4.546 2.914.5.5 0 0 1 .908-.417A6 6 0 1 1 8 2v1z"/>
+                <path d="M8 4.466V.534a.25.25 0 0 1 .41-.192l2.36 1.966c.12.1.12.284 0 .384L8.41 4.658A.25.25 0 0 1 8 4.466z"/>
+            </svg>
+        `;
+        messageActions.appendChild(regenerateButton);
+    }
     regenerateButton.title = _('regenerate', {}, currentTranslations);
-    regenerateButton.innerHTML = `
-        <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" viewBox="0 0 16 16">
-            <path d="M8 3a5 5 0 1 0 4.546 2.914.5.5 0 0 1 .908-.417A6 6 0 1 1 8 2v1z"/>
-            <path d="M8 4.466V.534a.25.25 0 0 1 .41-.192l2.36 1.966c.12.1.12.284 0 .384L8.41 4.658A.25.25 0 0 1 8 4.466z"/>
-        </svg>
-    `;
-    regenerateButton.addEventListener('click', (e) => {
+    regenerateButton.onclick = (e) => {
         e.stopPropagation();
         regenerateMessageCallback(messageId); // Use callback
-    });
-    buttonsToAppend.push(regenerateButton);
+    };
+
+    if (typeof mermaidOverviewCallback === 'function') {
+        let mermaidButton = messageActions.querySelector('.mermaid-overview-btn');
+        const mermaidState = mermaidOverviewCallback('getState', messageElement) || {};
+        const shouldShowMermaidButton = mermaidOverviewCallback('shouldShow', messageElement);
+
+        if (shouldShowMermaidButton) {
+            if (!mermaidButton) {
+                mermaidButton = document.createElement('button');
+                mermaidButton.className = 'message-action-btn mermaid-overview-btn';
+                mermaidButton.innerHTML = `
+                    <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.8" viewBox="0 0 24 24">
+                        <path d="M4 5h6v6H4z"></path>
+                        <path d="M14 5h6v6h-6z"></path>
+                        <path d="M9 16h6"></path>
+                        <path d="M7 11v2a3 3 0 0 0 3 3"></path>
+                        <path d="M17 11v2a3 3 0 0 1-3 3"></path>
+                    </svg>
+                `;
+                messageActions.insertBefore(mermaidButton, copyButton);
+            }
+
+            const status = mermaidState.status || 'idle';
+            const titleKey = status === 'ready'
+                ? 'mermaidOverviewView'
+                : status === 'generating'
+                    ? 'mermaidOverviewGenerating'
+                    : status === 'error'
+                        ? 'mermaidOverviewRetry'
+                        : 'mermaidOverviewGenerate';
+
+            mermaidButton.title = _(titleKey, {}, currentTranslations);
+            mermaidButton.dataset.mermaidStatus = status;
+            mermaidButton.disabled = status === 'generating';
+            mermaidButton.onclick = (e) => {
+                e.stopPropagation();
+                mermaidOverviewCallback('trigger', messageElement);
+            };
+        } else if (mermaidButton) {
+            mermaidButton.remove();
+        }
+    }
 
     // Delete Button
-    const deleteButton = document.createElement('button');
-    deleteButton.className = 'message-action-btn delete-btn';
+    let deleteButton = messageActions.querySelector('.delete-btn');
+    if (!deleteButton) {
+        deleteButton = document.createElement('button');
+        deleteButton.className = 'message-action-btn delete-btn';
+        deleteButton.innerHTML = `
+            <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" viewBox="0 0 16 16">
+                <path d="M5.5 5.5A.5.5 0 0 1 6 6v6a.5.5 0 0 1-1 0V6a.5.5 0 0 1 .5-.5zm2.5 0a.5.5 0 0 1 .5.5v6a.5.5 0 0 1-1 0V6a.5.5 0 0 1 .5-.5zm3 .5a.5.5 0 0 0-1 0v6a.5.5 0 0 0 1 0V6z"/>
+                <path fill-rule="evenodd" d="M14.5 3a1 1 0 0 1-1 1H13v9a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V4h-.5a1 1 0 0 1-1-1V2a1 1 0 0 1 1-1H6a1 1 0 0 1 1-1h3.5a1 1 0 0 1 1 1v1zM4.118 4 4 4.059V13a1 1 0 0 0 1 1h6a1 1 0 0 0 1-1V4.059L11.882 4H4.118zM2.5 3V2h11v1h-11z"/>
+            </svg>
+        `;
+        messageActions.appendChild(deleteButton);
+    }
     deleteButton.title = _('deleteMessage', {}, currentTranslations);
-    deleteButton.innerHTML = `
-        <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" viewBox="0 0 16 16">
-            <path d="M5.5 5.5A.5.5 0 0 1 6 6v6a.5.5 0 0 1-1 0V6a.5.5 0 0 1 .5-.5zm2.5 0a.5.5 0 0 1 .5.5v6a.5.5 0 0 1-1 0V6a.5.5 0 0 1 .5-.5zm3 .5a.5.5 0 0 0-1 0v6a.5.5 0 0 0 1 0V6z"/>
-            <path fill-rule="evenodd" d="M14.5 3a1 1 0 0 1-1 1H13v9a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V4h-.5a1 1 0 0 1-1-1V2a1 1 0 0 1 1-1H6a1 1 0 0 1 1-1h3.5a1 1 0 0 1 1 1v1zM4.118 4 4 4.059V13a1 1 0 0 0 1 1h6a1 1 0 0 0 1-1V4.059L11.882 4H4.118zM2.5 3V2h11v1h-11z"/>
-        </svg>
-    `;
-    deleteButton.addEventListener('click', (e) => {
+    deleteButton.onclick = (e) => {
         e.stopPropagation();
         deleteMessageCallback(messageId); // Use callback
-    });
-    buttonsToAppend.push(deleteButton);
-
-    buttonsToAppend.forEach(button => messageActions.appendChild(button));
-    messageElement.appendChild(messageActions);
+    };
 }
 
 /**

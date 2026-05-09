@@ -6,6 +6,11 @@ import * as QuickActionsManager from './quick-actions-manager.js';
 import { tr as _, getCurrentTranslations } from './utils/i18n.js';
 
 const DEFAULT_BOT_BOLD_HIGHLIGHT_COLOR = 'none';
+const DEFAULT_MERMAID_OVERVIEW_SETTINGS = Object.freeze({
+    model: '',
+    summaryPrompt: '',
+    diagramPrompt: ''
+});
 
 const BOT_BOLD_HIGHLIGHT_PRESETS = Object.freeze({
     none: {
@@ -56,6 +61,97 @@ function normalizeBotBoldHighlightColor(colorValue) {
     return Object.prototype.hasOwnProperty.call(BOT_BOLD_HIGHLIGHT_PRESETS, colorValue)
         ? colorValue
         : DEFAULT_BOT_BOLD_HIGHLIGHT_COLOR;
+}
+
+function normalizeMermaidOverviewSettings(rawSettings = {}) {
+    return {
+        model: typeof rawSettings.model === 'string' ? rawSettings.model : DEFAULT_MERMAID_OVERVIEW_SETTINGS.model,
+        summaryPrompt: typeof rawSettings.summaryPrompt === 'string' ? rawSettings.summaryPrompt : DEFAULT_MERMAID_OVERVIEW_SETTINGS.summaryPrompt,
+        diagramPrompt: typeof rawSettings.diagramPrompt === 'string' ? rawSettings.diagramPrompt : DEFAULT_MERMAID_OVERVIEW_SETTINGS.diagramPrompt
+    };
+}
+
+function getDefaultMermaidOverviewSettings(currentTranslations) {
+    return {
+        model: '',
+        summaryPrompt: currentTranslations.mermaidOverviewSummarySystemPrompt || '',
+        diagramPrompt: currentTranslations.mermaidOverviewDiagramSystemPrompt || ''
+    };
+}
+
+function createMermaidOverviewModelLabel(modelValue) {
+    if (!modelValue) return '';
+    const [, modelName = modelValue] = modelValue.split('::');
+    return modelName;
+}
+
+function renderCurrentMermaidOverviewModelOption(selectElement, modelValue) {
+    if (!selectElement) return;
+    selectElement.innerHTML = '';
+
+    const optionElement = document.createElement('option');
+    optionElement.value = modelValue || '';
+    optionElement.textContent = createMermaidOverviewModelLabel(modelValue) || '';
+    optionElement.selected = true;
+    selectElement.appendChild(optionElement);
+    selectElement.value = modelValue || '';
+    selectElement.dataset.modelsLoaded = 'false';
+}
+
+function populateMermaidOverviewModelSelectOptions(selectElement, modelOptions, selectedValue, state) {
+    if (!selectElement) return;
+    selectElement.innerHTML = '';
+
+    const modelsByProvider = {};
+    modelOptions.forEach(option => {
+        const providerId = option.providerId || 'unknown';
+        const providerName = option.providerName || 'Unknown';
+
+        if (!modelsByProvider[providerId]) {
+            modelsByProvider[providerId] = {
+                name: providerName,
+                models: []
+            };
+        }
+        modelsByProvider[providerId].models.push(option);
+    });
+
+    const sortedProviders = Object.entries(modelsByProvider).sort(([, a], [, b]) =>
+        a.name.localeCompare(b.name)
+    );
+
+    sortedProviders.forEach(([providerId, providerData]) => {
+        const optgroup = document.createElement('optgroup');
+        optgroup.label = providerData.name;
+        optgroup.setAttribute('data-provider-id', providerId);
+
+        const sortedModels = providerData.models.sort((a, b) => a.text.localeCompare(b.text));
+
+        sortedModels.forEach(option => {
+            const optionElement = document.createElement('option');
+            optionElement.value = option.value;
+            optionElement.textContent = option.text;
+            if (option.disabled) {
+                optionElement.disabled = true;
+            }
+            optionElement.setAttribute('data-provider-id', option.providerId || '');
+            optionElement.setAttribute('data-provider-name', option.providerName || '');
+            optgroup.appendChild(optionElement);
+        });
+
+        selectElement.appendChild(optgroup);
+    });
+
+    if (selectedValue && modelOptions.some(o => o.value === selectedValue)) {
+        selectElement.value = selectedValue;
+    } else if (modelOptions.length > 0) {
+        selectElement.value = modelOptions[0].value;
+        if (state) {
+            state.mermaidOverviewModel = modelOptions[0].value;
+        }
+    }
+
+    selectElement.dataset.modelsLoaded = 'true';
 }
 
 export function applyBotBoldHighlightColor(colorValue = DEFAULT_BOT_BOLD_HIGHLIGHT_COLOR) {
@@ -124,7 +220,7 @@ export function loadSettings(state, elements, updateConnectionIndicatorCallback,
         console.log('[Settings] Updated manual add button for language:', newLanguage);
     });
 
-    chrome.storage.sync.get(['apiKey', 'model', 'selectedModels', 'language', 'proxyAddress', 'providerSettings', 'botBoldHighlightColor'], async (syncResult) => {
+    chrome.storage.sync.get(['apiKey', 'model', 'selectedModels', 'language', 'proxyAddress', 'providerSettings', 'botBoldHighlightColor', 'mermaidOverviewSettings'], async (syncResult) => {
         // 初始化 ModelManager
         if (window.ModelManager?.instance) {
             try {
@@ -200,6 +296,22 @@ export function loadSettings(state, elements, updateConnectionIndicatorCallback,
         applyBotBoldHighlightColor(state.botBoldHighlightColor);
         if (elements.botBoldHighlightColorSelect) {
             elements.botBoldHighlightColorSelect.value = state.botBoldHighlightColor;
+        }
+
+        const translationsForDefaults = window.translations && window.translations[state.language]
+            ? window.translations[state.language]
+            : {};
+        const defaultMermaidSettings = getDefaultMermaidOverviewSettings(translationsForDefaults);
+        const storedMermaidSettings = normalizeMermaidOverviewSettings(syncResult.mermaidOverviewSettings);
+        state.mermaidOverviewModel = storedMermaidSettings.model || defaultMermaidSettings.model;
+        state.mermaidOverviewSummaryPrompt = storedMermaidSettings.summaryPrompt || defaultMermaidSettings.summaryPrompt;
+        state.mermaidOverviewDiagramPrompt = storedMermaidSettings.diagramPrompt || defaultMermaidSettings.diagramPrompt;
+
+        if (elements.mermaidOverviewSummaryPromptTextarea) {
+            elements.mermaidOverviewSummaryPromptTextarea.value = state.mermaidOverviewSummaryPrompt;
+        }
+        if (elements.mermaidOverviewDiagramPromptTextarea) {
+            elements.mermaidOverviewDiagramPromptTextarea.value = state.mermaidOverviewDiagramPrompt;
         }
 
         // Theme (Load default unless content script already applied a webpage theme)
@@ -326,6 +438,36 @@ export function handleBotBoldHighlightColorChange(state, elements, showToastCall
         }
 
         showToastCallback(_('saveSuccessToast', {}, currentTranslations), 'success');
+    });
+}
+
+export function saveMermaidOverviewSettings(state, elements, showToastCallback, currentTranslations, { showToast = false } = {}) {
+    const nextSettings = {
+        model: elements.mermaidOverviewModelSelect?.value?.trim() || '',
+        summaryPrompt: elements.mermaidOverviewSummaryPromptTextarea?.value ?? '',
+        diagramPrompt: elements.mermaidOverviewDiagramPromptTextarea?.value ?? ''
+    };
+
+    state.mermaidOverviewModel = nextSettings.model;
+    state.mermaidOverviewSummaryPrompt = nextSettings.summaryPrompt;
+    state.mermaidOverviewDiagramPrompt = nextSettings.diagramPrompt;
+
+    if (elements.mermaidOverviewModelSelect) {
+        renderCurrentMermaidOverviewModelOption(elements.mermaidOverviewModelSelect, nextSettings.model);
+    }
+
+    chrome.storage.sync.set({
+        mermaidOverviewSettings: nextSettings
+    }, () => {
+        if (chrome.runtime.lastError) {
+            console.error('Error saving Mermaid overview settings:', chrome.runtime.lastError);
+            showToastCallback(_('saveFailedToast', { error: chrome.runtime.lastError.message }, currentTranslations), 'error');
+            return;
+        }
+
+        if (showToast) {
+            showToastCallback(_('saveSuccessToast', {}, currentTranslations), 'success');
+        }
     });
 }
 
@@ -798,6 +940,7 @@ export async function initModelSelection(state, elements) {
 
     // 获取用户可用的模型选项
     const modelOptions = modelManager.getModelOptionsForUI();
+    const mermaidOverviewSelect = elements.mermaidOverviewModelSelect;
 
     // 填充选择器的通用函数 - 按提供商分组
     const populateSelect = (selectElement) => {
@@ -861,8 +1004,35 @@ export async function initModelSelection(state, elements) {
     populateSelect(elements.modelSelection); // Settings tab
     populateSelect(elements.chatModelSelection); // Chat tab
 
+    if (mermaidOverviewSelect) {
+        if (!state.mermaidOverviewModel && modelOptions.length > 0) {
+            state.mermaidOverviewModel = modelOptions[0].value;
+        }
+        renderCurrentMermaidOverviewModelOption(mermaidOverviewSelect, state.mermaidOverviewModel);
+    }
+
     // 更新模型卡片显示
     updateModelCardsDisplay();
+
+    if (mermaidOverviewSelect) {
+        mermaidOverviewSelect.dataset.modelsLoaded = 'false';
+        mermaidOverviewSelect.onfocus = async () => {
+            if (mermaidOverviewSelect.dataset.modelsLoaded === 'true') return;
+
+            try {
+                await modelManager.initialize();
+                const latestModelOptions = modelManager.getModelOptionsForUI();
+                populateMermaidOverviewModelSelectOptions(
+                    mermaidOverviewSelect,
+                    latestModelOptions,
+                    state.mermaidOverviewModel,
+                    state
+                );
+            } catch (error) {
+                console.error('[Settings] Failed to populate Mermaid overview model select:', error);
+            }
+        };
+    }
 
     console.log('[Settings] Model selection initialized with', modelOptions.length, 'models');
 }
@@ -1206,6 +1376,8 @@ async function removeModelFromSelection(modelKey) {
     if (modelSelection || chatModelSelection) {
         const modelOptions = modelManager.getModelOptionsForUI();
 
+        const mermaidOverviewModelSelect = document.getElementById('mermaid-overview-model');
+
         [modelSelection, chatModelSelection].forEach(selectElement => {
             if (!selectElement) return;
 
@@ -1261,6 +1433,13 @@ async function removeModelFromSelection(modelKey) {
                 selectElement.value = modelOptions[0].value;
             }
         });
+
+        if (mermaidOverviewModelSelect && window.state) {
+            if (!window.state.mermaidOverviewModel || !modelOptions.some(o => o.value === window.state.mermaidOverviewModel)) {
+                window.state.mermaidOverviewModel = modelOptions[0]?.value || '';
+            }
+            renderCurrentMermaidOverviewModelOption(mermaidOverviewModelSelect, window.state.mermaidOverviewModel);
+        }
     }
 
     // 更新内联模型选择器的显示

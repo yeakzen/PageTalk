@@ -24,7 +24,7 @@ import {
     loadCurrentAgentSettingsIntoState,
     autoSaveAgentSettings as autoSaveAgentSettingsFromAgent // Alias the import
 } from './agent.js';
-import { loadSettings as loadAppSettings, handleLanguageChange, handleBotBoldHighlightColorChange, handleExportChat, handleCopyChat, initModelSelection, updateModelCardsDisplay, handleProxyAddressChange, handleProxyTest, setupProviderEventListeners, initQuickActionsSettings, renderQuickActionsList } from './settings.js';
+import { loadSettings as loadAppSettings, handleLanguageChange, handleBotBoldHighlightColorChange, saveMermaidOverviewSettings, handleExportChat, handleCopyChat, initModelSelection, updateModelCardsDisplay, handleProxyAddressChange, handleProxyTest, setupProviderEventListeners, initQuickActionsSettings, renderQuickActionsList } from './settings.js';
 import * as QuickActionsManager from './quick-actions-manager.js';
 import { initTextSelectionHelperSettings, isTextSelectionHelperEnabled } from './text-selection-helper-settings.js';
 import { sendUserMessage as sendUserMessageAction, clearContext as clearContextAction, deleteMessage as deleteMessageAction, regenerateMessage as regenerateMessageAction, abortStreaming as abortStreamingAction, handleRemoveSentTabContext as handleRemoveSentTabContextAction, createWelcomeMessage } from './chat.js';
@@ -65,6 +65,11 @@ import {
 import { initCometCaret } from './comet-caret.js';
 import { getPageContextStatus, getPageContextTextForPrompt, getPageContextCharCount } from './context-state.js';
 
+const MERMAID_OVERVIEW_IDLE = 'idle';
+const MERMAID_OVERVIEW_GENERATING = 'generating';
+const MERMAID_OVERVIEW_READY = 'ready';
+const MERMAID_OVERVIEW_ERROR = 'error';
+
 // --- State Management ---
 const state = {
     apiKey: '',
@@ -89,6 +94,9 @@ const state = {
     language: 'en', // Changed default language to English
     proxyAddress: '', // 代理地址
     botBoldHighlightColor: 'none',
+    mermaidOverviewModel: '',
+    mermaidOverviewSummaryPrompt: '',
+    mermaidOverviewDiagramPrompt: '',
     isStreaming: false,
     userScrolledUpDuringStream: false, // 新增：跟踪用户在流式传输期间是否已向上滚动
     // userHasSetPreference: false, // Removed
@@ -99,8 +107,24 @@ const state = {
     quickActionIgnoreAssistant: false, // 新增：快捷操作忽略助手标记
 };
 
+function createDefaultMermaidOverviewState(overrides = {}) {
+    return {
+        status: MERMAID_OVERVIEW_IDLE,
+        linkedResponseId: '',
+        generatorModel: '',
+        summaryPromptSnapshot: '',
+        diagramPromptSnapshot: '',
+        summaryText: '',
+        mermaidCode: '',
+        generatedAt: 0,
+        errorMessage: '',
+        ...overrides
+    };
+}
+
 const THEME_READY_TIMEOUT_MS = 800;
 let themeReadyTimeoutId = null;
+let activeMermaidOverviewMessageId = null;
 
 function startThemeReadyTimeout() {
     if (!document.body || !document.body.classList.contains('theme-pending')) {
@@ -183,6 +207,8 @@ const elements = {
     closeModal: document.querySelector('.close-modal'),
     mermaidModal: document.getElementById('mermaid-modal'),
     mermaidModalContent: document.getElementById('mermaid-modal-content'),
+    mermaidModalFooter: document.getElementById('mermaid-modal-footer'),
+    mermaidModalRegenerateBtn: document.getElementById('mermaid-modal-regenerate'),
     mermaidCloseModal: document.querySelector('.mermaid-close-modal'),
     chatStatusMessage: document.getElementById('chat-status-message'),
     // Settings Interface
@@ -193,6 +219,9 @@ const elements = {
     // Settings - General
     languageSelect: document.getElementById('language-select'),
     botBoldHighlightColorSelect: document.getElementById('bot-bold-highlight-color'),
+    mermaidOverviewModelSelect: document.getElementById('mermaid-overview-model'),
+    mermaidOverviewSummaryPromptTextarea: document.getElementById('mermaid-overview-summary-prompt'),
+    mermaidOverviewDiagramPromptTextarea: document.getElementById('mermaid-overview-diagram-prompt'),
     proxyAddressInput: document.getElementById('proxy-address-input'),
     testProxyBtn: document.getElementById('test-proxy-btn'),
     themeToggleBtnSettings: document.getElementById('theme-toggle-btn'), // Draggable button
@@ -237,6 +266,12 @@ const elements = {
     navPrevUser: document.getElementById('nav-prev-user'),
     navNextUser: document.getElementById('nav-next-user'),
     navToBottom: document.getElementById('nav-to-bottom'),
+};
+
+elements.handleMermaidModalContextChange = (context) => {
+    const overviewMessageId = context?.type === 'overview' ? context.userMessageId : null;
+    activeMermaidOverviewMessageId = overviewMessageId || null;
+    updateMermaidModalRegenerateButton();
 };
 
 // --- Translation ---
@@ -639,8 +674,23 @@ function setupEventListeners() {
     window.addEventListener('click', (e) => { if (e.target === elements.youtubeUrlDialog) hideYouTubeDialog(elements); }); // Close dialog on overlay click
 
     // Mermaid Modal
-    elements.mermaidCloseModal.addEventListener('click', () => hideMermaidModal(elements));
-    elements.mermaidModal.addEventListener('click', (e) => { if (e.target === elements.mermaidModal) hideMermaidModal(elements); });
+    elements.mermaidCloseModal.addEventListener('click', () => {
+        activeMermaidOverviewMessageId = null;
+        updateMermaidModalRegenerateButton();
+        hideMermaidModal(elements);
+    });
+    elements.mermaidModal.addEventListener('click', (e) => {
+        if (e.target === elements.mermaidModal) {
+            activeMermaidOverviewMessageId = null;
+            updateMermaidModalRegenerateButton();
+            hideMermaidModal(elements);
+        }
+    });
+    if (elements.mermaidModalRegenerateBtn) {
+        elements.mermaidModalRegenerateBtn.addEventListener('click', () => {
+            void regenerateMermaidOverviewFromModal();
+        });
+    }
 
     if (elements.contextPreviewCloseIcon) {
         elements.contextPreviewCloseIcon.addEventListener('click', closeContextPreviewModal);
@@ -672,6 +722,21 @@ function setupEventListeners() {
     elements.languageSelect.addEventListener('change', () => handleLanguageChange(state, elements, loadAndApplyTranslations, showToastUI, currentTranslations));
     if (elements.botBoldHighlightColorSelect) {
         elements.botBoldHighlightColorSelect.addEventListener('change', () => handleBotBoldHighlightColorChange(state, elements, showToastUI, currentTranslations));
+    }
+    if (elements.mermaidOverviewModelSelect) {
+        elements.mermaidOverviewModelSelect.addEventListener('change', () => {
+            saveMermaidOverviewSettings(state, elements, showToastUI, currentTranslations);
+        });
+    }
+    if (elements.mermaidOverviewSummaryPromptTextarea) {
+        elements.mermaidOverviewSummaryPromptTextarea.addEventListener('blur', () => {
+            saveMermaidOverviewSettings(state, elements, showToastUI, currentTranslations);
+        });
+    }
+    if (elements.mermaidOverviewDiagramPromptTextarea) {
+        elements.mermaidOverviewDiagramPromptTextarea.addEventListener('blur', () => {
+            saveMermaidOverviewSettings(state, elements, showToastUI, currentTranslations);
+        });
     }
     elements.exportChatHistoryBtn.addEventListener('click', () => handleExportChat(state, elements, showToastUI, currentTranslations));
     elements.copyChatHistoryBtn.addEventListener('click', () => handleCopyChat(state, elements, showToastUI, currentTranslations));
@@ -1629,7 +1694,15 @@ function addCopyButtonToCodeBlockUI(block) {
 
 // Wrapper function for addMessageActionButtons
 function addMessageActionButtonsUI(messageElement, content) {
-    addMessageActionButtons(messageElement, content, currentTranslations, copyMessageContent, regenerateMessageUI, deleteMessageUI);
+    addMessageActionButtons(
+        messageElement,
+        content,
+        currentTranslations,
+        copyMessageContent,
+        regenerateMessageUI,
+        deleteMessageUI,
+        handleMermaidOverviewAction
+    );
 }
 
 // Wrapper function for copyCodeToClipboard (handles feedback)
@@ -1643,6 +1716,407 @@ function copyMessageContent(messageElement, originalContent, buttonElement) {
     const formattedContent = originalContent.replace(/\n/g, '\r\n');
     window.parent.postMessage({ action: 'copyText', text: formattedContent }, '*');
     showCopyMessageFeedback(buttonElement); // Show UI feedback
+}
+
+function isUserMessageElement(messageElement) {
+    return !!(messageElement && messageElement.classList.contains('user-message'));
+}
+
+function findMessageById(messageId) {
+    return state.chatHistory.find((msg) => msg.id === messageId) || null;
+}
+
+function ensureUserMessageMermaidOverview(userMessage) {
+    if (!userMessage) return createDefaultMermaidOverviewState();
+    if (!userMessage.mermaidOverview || typeof userMessage.mermaidOverview !== 'object') {
+        userMessage.mermaidOverview = createDefaultMermaidOverviewState();
+    } else {
+        userMessage.mermaidOverview = createDefaultMermaidOverviewState(userMessage.mermaidOverview);
+    }
+    return userMessage.mermaidOverview;
+}
+
+function getLinkedMultiModelResponseForUserMessage(userMessageId) {
+    const userIndex = state.chatHistory.findIndex((msg) => msg.id === userMessageId && msg.role === 'user');
+    if (userIndex === -1) return null;
+    const nextMessage = state.chatHistory[userIndex + 1];
+    if (!nextMessage || nextMessage.role !== 'model') return null;
+    if (!nextMessage.multiModelResponses || Object.keys(nextMessage.multiModelResponses).length <= 1) return null;
+    return nextMessage;
+}
+
+function getMermaidOverviewStateForMessageElement(messageElement) {
+    if (!isUserMessageElement(messageElement)) {
+        return { status: MERMAID_OVERVIEW_IDLE };
+    }
+
+    const userMessage = findMessageById(messageElement.dataset.messageId);
+    if (!userMessage) {
+        return { status: MERMAID_OVERVIEW_IDLE };
+    }
+
+    return ensureUserMessageMermaidOverview(userMessage);
+}
+
+function shouldShowMermaidOverviewButton(messageElement) {
+    if (!isUserMessageElement(messageElement)) return false;
+    const linkedResponse = getLinkedMultiModelResponseForUserMessage(messageElement.dataset.messageId);
+    return !!linkedResponse;
+}
+
+function refreshMessageActionButtonsByMessageId(messageId) {
+    if (!messageId) return;
+    const messageElement = document.querySelector(`.message[data-message-id="${messageId}"]`);
+    if (!messageElement) return;
+
+    const historyMessage = findMessageById(messageId);
+    const content = historyMessage?.parts
+        ?.filter((part) => !!part.text)
+        .map((part) => part.text)
+        .join('\n') || '';
+
+    addMessageActionButtonsUI(messageElement, content);
+}
+
+window.refreshMessageActionButtonsByMessageId = refreshMessageActionButtonsByMessageId;
+
+const MERMAID_DIAGRAM_START_RE = /^\s*(graph|flowchart|sequenceDiagram|classDiagram|stateDiagram(?:-v2)?|erDiagram|journey|gantt|pie\b|gitGraph|mindmap|timeline|quadrantChart|requirementDiagram|C4Context|C4Container|C4Component|C4Dynamic|C4Deployment|xychart-beta|sankey-beta|packet-beta|block-beta|architecture|kanban)\b/i;
+
+function removeThinkingBlocks(text) {
+    if (!text) return '';
+    return text.replace(/<think>[\s\S]*?<\/think>/gi, ' ').trim();
+}
+
+function extractFromMarkdownFence(text) {
+    if (!text) return '';
+
+    const mermaidFenceMatch = text.match(/```mermaid\s*([\s\S]*?)```/i);
+    if (mermaidFenceMatch?.[1]) {
+        return mermaidFenceMatch[1].trim();
+    }
+
+    const genericFenceMatch = text.match(/```\s*([\s\S]*?)```/i);
+    if (genericFenceMatch?.[1]) {
+        return genericFenceMatch[1].trim();
+    }
+
+    return '';
+}
+
+function extractMermaidCandidateText(text) {
+    if (!text) return '';
+
+    const withoutThinking = removeThinkingBlocks(text)
+        .replace(/^Here is .*?Mermaid.*?:\s*/i, '')
+        .replace(/^下面是.*?Mermaid.*?[：:]\s*/i, '')
+        .trim();
+
+    const fencedContent = extractFromMarkdownFence(withoutThinking);
+    if (fencedContent) {
+        return fencedContent;
+    }
+
+    const lines = withoutThinking.split(/\r?\n/);
+    const diagramStartIndex = lines.findIndex((line) => MERMAID_DIAGRAM_START_RE.test(line));
+
+    if (diagramStartIndex !== -1) {
+        return lines.slice(diagramStartIndex).join('\n').trim();
+    }
+
+    return withoutThinking;
+}
+
+async function tryParseMermaidCode(candidate) {
+    await mermaid.parse(candidate);
+    return candidate;
+}
+
+async function validateMermaidCode(mermaidCode) {
+    if (typeof mermaid === 'undefined') {
+        return { valid: false, error: 'Mermaid library not available' };
+    }
+
+    const extracted = extractMermaidCandidateText(mermaidCode);
+    if (!extracted) {
+        return { valid: false, error: 'Empty Mermaid output' };
+    }
+
+    const lines = extracted.split(/\r?\n/);
+    let lastError = null;
+
+    try {
+        await tryParseMermaidCode(extracted);
+        return { valid: true, code: extracted };
+    } catch (error) {
+        lastError = error;
+    }
+
+    for (let end = lines.length - 1; end >= 1; end--) {
+        const candidate = lines.slice(0, end).join('\n').trim();
+        if (!candidate) continue;
+
+        try {
+            await tryParseMermaidCode(candidate);
+            return { valid: true, code: candidate };
+        } catch (error) {
+            lastError = error;
+        }
+    }
+
+    return { valid: false, error: lastError?.message || 'Parse failed' };
+}
+
+function buildMermaidOverviewPromptPayload(userMessage, linkedResponse) {
+    const question = userMessage?.parts
+        ?.filter((part) => !!part.text)
+        .map((part) => part.text)
+        .join('\n')
+        .trim() || '';
+
+    const modelOrder = Array.isArray(linkedResponse.modelOrder)
+        ? linkedResponse.modelOrder
+        : Object.keys(linkedResponse.multiModelResponses || {});
+
+    const answers = modelOrder
+        .filter((modelId) => typeof linkedResponse.multiModelResponses?.[modelId] === 'string')
+        .map((modelId) => ({
+            modelId,
+            answer: linkedResponse.multiModelResponses[modelId]
+        }));
+
+    return { question, answers };
+}
+
+async function callTextModelOnce(modelId, messages) {
+    let accumulatedText = '';
+    await window.PageTalkAPI.callApi(modelId, messages, (chunk) => {
+        accumulatedText += chunk;
+    }, {});
+    return accumulatedText.trim();
+}
+
+async function openMermaidOverviewModal(mermaidCode) {
+    const validationResult = await validateMermaidCode(mermaidCode);
+    if (!validationResult.valid) {
+        throw new Error(_('mermaidOverviewInvalidCode', { error: validationResult.error }));
+    }
+
+    const { svg } = await mermaid.render(`mermaid-overview-${Date.now()}`, validationResult.code);
+    showMermaidModal(svg, elements, {
+        type: 'overview',
+        userMessageId: activeMermaidOverviewMessageId
+    });
+}
+
+function updateMermaidModalRegenerateButton() {
+    if (!elements.mermaidModalRegenerateBtn) return;
+
+    if (!activeMermaidOverviewMessageId) {
+        elements.mermaidModalRegenerateBtn.style.display = 'none';
+        elements.mermaidModalRegenerateBtn.disabled = false;
+        return;
+    }
+
+    const userMessage = findMessageById(activeMermaidOverviewMessageId);
+    const mermaidOverview = userMessage ? ensureUserMessageMermaidOverview(userMessage) : null;
+    const isGenerating = mermaidOverview?.status === MERMAID_OVERVIEW_GENERATING;
+
+    elements.mermaidModalRegenerateBtn.style.display = 'inline-flex';
+    elements.mermaidModalRegenerateBtn.disabled = isGenerating;
+
+    const label = isGenerating ? _('mermaidOverviewGenerating') : _('regenerate');
+    const span = elements.mermaidModalRegenerateBtn.querySelector('span');
+    if (span) {
+        span.textContent = label;
+    } else {
+        elements.mermaidModalRegenerateBtn.textContent = label;
+    }
+}
+
+async function generateMermaidOverviewForMessage(userMessage) {
+    const mermaidOverview = ensureUserMessageMermaidOverview(userMessage);
+    const linkedResponse = getLinkedMultiModelResponseForUserMessage(userMessage.id);
+
+    if (!linkedResponse) {
+        throw new Error(_('mermaidOverviewNoLinkedResponse'));
+    }
+
+    if (!state.mermaidOverviewModel || !state.mermaidOverviewSummaryPrompt || !state.mermaidOverviewDiagramPrompt) {
+        throw new Error(_('mermaidOverviewMissingSettings'));
+    }
+
+    const { question, answers } = buildMermaidOverviewPromptPayload(userMessage, linkedResponse);
+    if (!question || answers.length === 0) {
+        throw new Error(_('mermaidOverviewNoLinkedResponse'));
+    }
+
+    const answersText = answers.map(({ modelId, answer }) => `## ${modelId}\n${answer}`).join('\n\n');
+    const summaryMessages = [
+        {
+            role: 'system',
+            content: `${state.mermaidOverviewSummaryPrompt}\n\n${_('mermaidOverviewSummarySystemPrompt')}`
+        },
+        {
+            role: 'user',
+            content: `用户问题：\n${question}\n\n所有模型回答：\n${answersText}`
+        }
+    ];
+
+    const summaryText = await callTextModelOnce(state.mermaidOverviewModel, summaryMessages);
+
+    const diagramMessages = [
+        {
+            role: 'system',
+            content: `${state.mermaidOverviewDiagramPrompt}\n\n${_('mermaidOverviewDiagramSystemPrompt')}`
+        },
+        {
+            role: 'user',
+            content: `用户问题：\n${question}\n\n所有模型回答：\n${answersText}\n\n总结结果：\n${summaryText}`
+        }
+    ];
+
+    const mermaidCode = await callTextModelOnce(state.mermaidOverviewModel, diagramMessages);
+    const validationResult = await validateMermaidCode(mermaidCode);
+    if (!validationResult.valid) {
+        throw new Error(validationResult.error);
+    }
+
+    userMessage.mermaidOverview = createDefaultMermaidOverviewState({
+        status: MERMAID_OVERVIEW_READY,
+        linkedResponseId: linkedResponse.id,
+        generatorModel: state.mermaidOverviewModel,
+        summaryPromptSnapshot: state.mermaidOverviewSummaryPrompt,
+        diagramPromptSnapshot: state.mermaidOverviewDiagramPrompt,
+        summaryText,
+        mermaidCode: validationResult.code,
+        generatedAt: Date.now(),
+        errorMessage: ''
+    });
+
+    return userMessage.mermaidOverview;
+}
+
+function resetMermaidOverviewForUserMessage(userMessageId) {
+    const userMessage = findMessageById(userMessageId);
+    if (!userMessage || userMessage.role !== 'user') return;
+    userMessage.mermaidOverview = createDefaultMermaidOverviewState();
+    refreshMessageActionButtonsByMessageId(userMessageId);
+}
+
+window.resetMermaidOverviewForUserMessage = resetMermaidOverviewForUserMessage;
+
+async function triggerMermaidOverviewForMessage(messageElement) {
+    const userMessageId = messageElement?.dataset?.messageId;
+    const userMessage = findMessageById(userMessageId);
+    if (!userMessage || userMessage.role !== 'user') {
+        return;
+    }
+
+    const mermaidOverview = ensureUserMessageMermaidOverview(userMessage);
+    if (mermaidOverview.status === MERMAID_OVERVIEW_GENERATING) {
+        return;
+    }
+
+    if (mermaidOverview.status === MERMAID_OVERVIEW_READY && mermaidOverview.mermaidCode) {
+        try {
+            activeMermaidOverviewMessageId = userMessageId;
+            await openMermaidOverviewModal(mermaidOverview.mermaidCode);
+        } catch (error) {
+            activeMermaidOverviewMessageId = null;
+            updateMermaidModalRegenerateButton();
+            showToastUI(error.message, 'error');
+        }
+        return;
+    }
+
+    mermaidOverview.status = MERMAID_OVERVIEW_GENERATING;
+    mermaidOverview.errorMessage = '';
+    refreshMessageActionButtonsByMessageId(userMessageId);
+    showToastUI(_('mermaidOverviewGenerationStarted'), 'success');
+
+    try {
+        const generatedOverview = await generateMermaidOverviewForMessage(userMessage);
+        refreshMessageActionButtonsByMessageId(userMessageId);
+        showToastUI(_('mermaidOverviewGeneratedSuccess'), 'success');
+    } catch (error) {
+        userMessage.mermaidOverview = createDefaultMermaidOverviewState({
+            status: MERMAID_OVERVIEW_ERROR,
+            linkedResponseId: mermaidOverview.linkedResponseId || '',
+            generatorModel: state.mermaidOverviewModel,
+            summaryPromptSnapshot: state.mermaidOverviewSummaryPrompt,
+            diagramPromptSnapshot: state.mermaidOverviewDiagramPrompt,
+            errorMessage: error.message || 'Unknown error'
+        });
+        refreshMessageActionButtonsByMessageId(userMessageId);
+        activeMermaidOverviewMessageId = null;
+        showToastUI(_('mermaidOverviewGenerationFailed', { error: error.message || 'Unknown error' }), 'error');
+        updateMermaidModalRegenerateButton();
+    }
+}
+
+async function regenerateMermaidOverviewFromModal() {
+    if (!activeMermaidOverviewMessageId) return;
+
+    const userMessage = findMessageById(activeMermaidOverviewMessageId);
+    if (!userMessage || userMessage.role !== 'user') return;
+
+    const previousOverview = ensureUserMessageMermaidOverview(userMessage);
+    const previousReadyState = previousOverview.status === MERMAID_OVERVIEW_READY ? { ...previousOverview } : null;
+
+    userMessage.mermaidOverview = createDefaultMermaidOverviewState({
+        ...previousOverview,
+        status: MERMAID_OVERVIEW_GENERATING,
+        errorMessage: ''
+    });
+    refreshMessageActionButtonsByMessageId(activeMermaidOverviewMessageId);
+    updateMermaidModalRegenerateButton();
+    showToastUI(_('mermaidOverviewGenerationStarted'), 'success');
+
+    try {
+        const generatedOverview = await generateMermaidOverviewForMessage(userMessage);
+        refreshMessageActionButtonsByMessageId(activeMermaidOverviewMessageId);
+        showToastUI(_('mermaidOverviewGeneratedSuccess'), 'success');
+        await openMermaidOverviewModal(generatedOverview.mermaidCode);
+    } catch (error) {
+        if (previousReadyState) {
+            userMessage.mermaidOverview = previousReadyState;
+            try {
+                await openMermaidOverviewModal(previousReadyState.mermaidCode);
+            } catch (modalError) {
+                console.warn('[main.js] Failed to restore previous Mermaid modal content:', modalError);
+            }
+        } else {
+            userMessage.mermaidOverview = createDefaultMermaidOverviewState({
+                status: MERMAID_OVERVIEW_ERROR,
+                linkedResponseId: previousOverview.linkedResponseId || '',
+                generatorModel: state.mermaidOverviewModel,
+                summaryPromptSnapshot: state.mermaidOverviewSummaryPrompt,
+                diagramPromptSnapshot: state.mermaidOverviewDiagramPrompt,
+                errorMessage: error.message || 'Unknown error'
+            });
+        }
+
+        refreshMessageActionButtonsByMessageId(activeMermaidOverviewMessageId);
+        showToastUI(_('mermaidOverviewGenerationFailed', { error: error.message || 'Unknown error' }), 'error');
+    } finally {
+        updateMermaidModalRegenerateButton();
+    }
+}
+
+function handleMermaidOverviewAction(action, messageElement) {
+    if (action === 'shouldShow') {
+        return shouldShowMermaidOverviewButton(messageElement);
+    }
+
+    if (action === 'getState') {
+        return getMermaidOverviewStateForMessageElement(messageElement);
+    }
+
+    if (action === 'trigger') {
+        void triggerMermaidOverviewForMessage(messageElement);
+    }
+
+    return null;
 }
 
 
@@ -2156,8 +2630,20 @@ async function loadAndApplyTranslations(language) {
             if (btn.classList.contains('copy-button')) btn.title = _('copyAll');
             else if (btn.classList.contains('regenerate-btn')) btn.title = _('regenerate');
             else if (btn.classList.contains('delete-btn')) btn.title = _('deleteMessage');
+            else if (btn.classList.contains('mermaid-overview-btn')) {
+                const status = btn.dataset.mermaidStatus || MERMAID_OVERVIEW_IDLE;
+                const titleKey = status === MERMAID_OVERVIEW_READY
+                    ? 'mermaidOverviewView'
+                    : status === MERMAID_OVERVIEW_GENERATING
+                        ? 'mermaidOverviewGenerating'
+                        : status === MERMAID_OVERVIEW_ERROR
+                            ? 'mermaidOverviewRetry'
+                            : 'mermaidOverviewGenerate';
+                btn.title = _(titleKey);
+            }
         });
         document.querySelectorAll('.code-copy-button').forEach(btn => btn.title = _('copyCode'));
+        updateMermaidModalRegenerateButton();
     }
 
     syncChatInputVisibility();
@@ -2303,6 +2789,8 @@ function handleGlobalEscapeForModals() {
 
         // 9) Mermaid preview modal
         if (elements.mermaidModal && getComputedStyle(elements.mermaidModal).display !== 'none') {
+            activeMermaidOverviewMessageId = null;
+            updateMermaidModalRegenerateButton();
             hideMermaidModal(elements);
             return true;
         }

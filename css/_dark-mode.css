@@ -302,6 +302,16 @@ body.dark-mode .user-message .message-action-btn:hover {
     /* 悬停时图标变为白色 */
 }
 
+body.dark-mode .user-message .mermaid-overview-btn[data-mermaid-status="ready"] {
+    background-color: rgba(34, 197, 94, 0.22);
+    color: #86efac;
+}
+
+body.dark-mode .user-message .mermaid-overview-btn[data-mermaid-status="ready"]:hover {
+    background-color: rgba(34, 197, 94, 0.32);
+    color: #dcfce7;
+}
+
 /* 用户消息气泡内的复制按钮特定样式 (深色模式) */
 body.dark-mode .user-message .copy-button {
     background-color: transparent;

@@ -486,6 +486,9 @@ async function sendMultiModelMessage(
                             multiModelResponses: modelResponses, // 存储所有模型的响应
                             modelOrder: modelInfos.map(info => info.modelId) // 保存模型顺序
                         });
+                        if (userMessageForHistory?.id && typeof window.refreshMessageActionButtonsByMessageId === 'function') {
+                            window.refreshMessageActionButtonsByMessageId(userMessageForHistory.id);
+                        }
                     }
                 },
                 showToast: showToastCallback,
@@ -527,6 +530,9 @@ async function sendMultiModelMessage(
                                 multiModelResponses: modelResponses,
                                 modelOrder: modelInfos.map(info => info.modelId)
                             });
+                            if (userMessageForHistory?.id && typeof window.refreshMessageActionButtonsByMessageId === 'function') {
+                                window.refreshMessageActionButtonsByMessageId(userMessageForHistory.id);
+                            }
                         }
                     }
                 }
@@ -797,6 +803,9 @@ async function regenerateMultiModelMessage(
                             multiModelResponses: modelResponses, // 存储所有模型的响应
                             modelOrder: modelInfos.map(info => info.modelId)
                         });
+                        if (userMessageElement?.dataset?.messageId && typeof window.refreshMessageActionButtonsByMessageId === 'function') {
+                            window.refreshMessageActionButtonsByMessageId(userMessageElement.dataset.messageId);
+                        }
                     }
                 },
                 showToast: showToastCallback,
@@ -838,6 +847,9 @@ async function regenerateMultiModelMessage(
                                 multiModelResponses: modelResponses,
                                 modelOrder: modelInfos.map(info => info.modelId)
                             });
+                            if (userMessageElement?.dataset?.messageId && typeof window.refreshMessageActionButtonsByMessageId === 'function') {
+                                window.refreshMessageActionButtonsByMessageId(userMessageElement.dataset.messageId);
+                            }
                         }
                     }
                 }
@@ -928,6 +940,9 @@ async function regenerateSingleModelInContainer(
     }
 
     const userMessageData = state.chatHistory[userIndex];
+    if (userMessageData?.role === 'user' && typeof window.resetMermaidOverviewForUserMessage === 'function') {
+        window.resetMermaidOverviewForUserMessage(userMessageData.id);
+    }
     const { text: userMessageText, images: userImages, videos: userVideos } = extractPartsFromMessage(userMessageData);
 
     // 提取上下文标签页
@@ -1144,6 +1159,11 @@ export function deleteMessage(messageId, state) {
                             delete aiMessage.multiModelResponses[modelId];
                             console.log(`[DeleteSingleModel] Removed ${modelId} from multiModelResponses`);
 
+                            const userMessage = state.chatHistory[historyIndex - 1];
+                            if (userMessage?.role === 'user' && typeof window.resetMermaidOverviewForUserMessage === 'function') {
+                                window.resetMermaidOverviewForUserMessage(userMessage.id);
+                            }
+
                             // 如果删除后还有其他模型的响应，更新 parts 为第一个剩余模型的响应
                             const remainingModelIds = Object.keys(aiMessage.multiModelResponses);
                             if (remainingModelIds.length > 0) {
@@ -1175,6 +1195,16 @@ export function deleteMessage(messageId, state) {
     const messageIndex = state.chatHistory.findIndex(msg => msg.id === messageId);
     let historyRemoved = false;
     if (messageIndex !== -1) {
+        const deletedMessage = state.chatHistory[messageIndex];
+        if (deletedMessage?.role === 'user' && typeof window.resetMermaidOverviewForUserMessage === 'function') {
+            window.resetMermaidOverviewForUserMessage(deletedMessage.id);
+        }
+        if (deletedMessage?.role === 'model') {
+            const previousMessage = state.chatHistory[messageIndex - 1];
+            if (previousMessage?.role === 'user' && typeof window.resetMermaidOverviewForUserMessage === 'function') {
+                window.resetMermaidOverviewForUserMessage(previousMessage.id);
+            }
+        }
         state.chatHistory.splice(messageIndex, 1);
         historyRemoved = true;
     }
@@ -1293,6 +1323,9 @@ export async function regenerateMessage(messageId, state, elements, currentTrans
 
     // Extract user input parts
     const userMessageData = state.chatHistory[userIndex];
+    if (userMessageData?.role === 'user' && typeof window.resetMermaidOverviewForUserMessage === 'function') {
+        window.resetMermaidOverviewForUserMessage(userMessageData.id);
+    }
     const { text: userMessageText, images: userImages, videos: userVideos } = extractPartsFromMessage(userMessageData); // Use helper
 
     // 新增：提取该用户轮次最初发送的上下文标签页

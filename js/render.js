@@ -268,10 +268,15 @@ function handleMermaidContainerClick(event, elements) {
  * 显示 Mermaid 图表放大预览模态框
  * @param {string} svgContent - 要显示的 SVG 图表内容 (outerHTML)
  * @param {object} elements - Reference to the main elements object.
+ * @param {object|null} [context=null] - Optional modal context metadata.
  */
-export function showMermaidModal(svgContent, elements) {
+export function showMermaidModal(svgContent, elements, context = null) {
     console.log('showMermaidModal called. SVG content length:', svgContent?.length);
     if (!elements.mermaidModal || !elements.mermaidModalContent) return;
+
+    if (typeof elements.handleMermaidModalContextChange === 'function') {
+        elements.handleMermaidModalContextChange(context);
+    }
 
     if (currentPanzoomInstance) {
         currentPanzoomInstance.destroy();
