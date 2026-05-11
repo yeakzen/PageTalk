@@ -264,8 +264,8 @@ const elements = {
     contextPreviewCloseIcon: document.getElementById('context-preview-close-icon'),
     // Chat Navigation Buttons
     navToTop: document.getElementById('nav-to-top'),
-    navPrevUser: document.getElementById('nav-prev-user'),
-    navNextUser: document.getElementById('nav-next-user'),
+    navUserQuestions: document.getElementById('nav-user-questions'),
+    navUserQuestionsPanel: document.getElementById('nav-user-questions-panel'),
     navToBottom: document.getElementById('nav-to-bottom'),
 };
 
@@ -293,6 +293,7 @@ function _(key, replacements = {}) {
 // --- Scroll Tracking ---
 let isUserNearBottom = true; // This remains the live state
 const SCROLL_THRESHOLD = 30; // Increased threshold slightly
+let userQuestionNavSignature = '';
 
 function hasVisibleBotResponses() {
     if (!elements.chatMessages) return false;
@@ -304,11 +305,12 @@ function syncChatInputVisibility() {
     elements.chatInputWrapper.classList.toggle('collapsed-with-responses', hasVisibleBotResponses());
 }
 
-function setupChatInputVisibilityObserver() {
+function setupChatMessagesObserver() {
     if (!elements.chatMessages) return;
 
     const observer = new MutationObserver(() => {
         syncChatInputVisibility();
+        updateUserQuestionNav();
     });
 
     observer.observe(elements.chatMessages, {
@@ -319,6 +321,7 @@ function setupChatInputVisibilityObserver() {
     });
 
     syncChatInputVisibility();
+    updateUserQuestionNav();
 }
 
 
@@ -404,7 +407,7 @@ async function init() {
     setupEventListeners(); // Setup all event listeners
     setupImagePaste(elements, (file) => handleImageFile(file, state, updateImagesPreviewUI)); // Setup paste
     setupAutoresizeTextarea(elements); // Setup textarea resize
-    setupChatInputVisibilityObserver();
+    setupChatMessagesObserver();
 
     // Initialize comet caret animation for chat input
     let cometCaretInstance = null;
@@ -812,11 +815,9 @@ function setupEventListeners() {
     if (elements.navToTop) {
         elements.navToTop.addEventListener('click', () => navScrollToTop());
     }
-    if (elements.navPrevUser) {
-        elements.navPrevUser.addEventListener('click', () => navToPrevUserMessage());
-    }
-    if (elements.navNextUser) {
-        elements.navNextUser.addEventListener('click', () => navToNextUserMessage());
+    if (elements.navUserQuestions) {
+        elements.navUserQuestions.addEventListener('click', handleUserQuestionNavClick);
+        elements.navUserQuestions.addEventListener('mouseleave', () => setActiveUserQuestionNavItem(-1));
     }
     if (elements.navToBottom) {
         elements.navToBottom.addEventListener('click', () => navScrollToBottom());
@@ -1437,6 +1438,125 @@ function navScrollToBottom() {
 function getUserMessageElements() {
     if (!elements.chatMessages) return [];
     return Array.from(elements.chatMessages.querySelectorAll('.message.user-message:not(.empty-bubble)'));
+}
+
+function getMessageTextFromHistory(messageId) {
+    if (!messageId) return '';
+    const message = state.chatHistory.find((item) => item.id === messageId && item.role === 'user');
+    if (!message?.parts || !Array.isArray(message.parts)) return '';
+
+    return message.parts
+        .filter((part) => part?.text)
+        .map((part) => part.text)
+        .join('\n')
+        .trim();
+}
+
+function getUserQuestionText(messageElement) {
+    if (!messageElement) return '';
+
+    const contentClone = messageElement.cloneNode(true);
+    contentClone.querySelectorAll(
+        '.message-actions, .copy-button, .mermaid-overview-btn, .code-copy-button'
+    ).forEach((node) => node.remove());
+
+    const domText = contentClone.textContent?.trim() || '';
+    return domText || getMessageTextFromHistory(messageElement.dataset.messageId);
+}
+
+function getUserQuestionNavLabel(questionText, fallbackIndex) {
+    const text = (questionText || '').replace(/\s+/g, ' ').trim();
+    if (!text) return `${fallbackIndex + 1}.`;
+
+    const firstPunctuationIndex = text.search(/[，。！？；：,.!?;:、]/);
+    const label = firstPunctuationIndex > 0
+        ? text.slice(0, firstPunctuationIndex)
+        : text;
+
+    return label.trim() || `${fallbackIndex + 1}.`;
+}
+
+function updateUserQuestionNav() {
+    if (!elements.navUserQuestions) return;
+
+    const userMessages = getUserMessageElements();
+    const navItems = userMessages.map((messageElement, index) => {
+        const questionText = getUserQuestionText(messageElement);
+        return {
+            messageElement,
+            questionText,
+            label: getUserQuestionNavLabel(questionText, index)
+        };
+    });
+    const nextSignature = navItems
+        .map(({ messageElement, questionText }) => `${messageElement.dataset.messageId || ''}:${questionText}`)
+        .join('|');
+
+    if (nextSignature === userQuestionNavSignature) {
+        return;
+    }
+
+    userQuestionNavSignature = nextSignature;
+    elements.navUserQuestions.classList.toggle('is-empty', userMessages.length === 0);
+    elements.navUserQuestions.querySelectorAll('.chat-nav-question-dot').forEach((node) => node.remove());
+    if (elements.navUserQuestionsPanel) {
+        elements.navUserQuestionsPanel.replaceChildren();
+    }
+
+    navItems.forEach(({ messageElement, label }, index) => {
+        const item = document.createElement('button');
+        item.type = 'button';
+        item.className = 'chat-nav-question-dot';
+        item.dataset.messageId = messageElement.dataset.messageId || '';
+        item.dataset.questionIndex = String(index);
+        item.setAttribute('aria-label', label);
+        item.addEventListener('mouseenter', () => setActiveUserQuestionNavItem(index));
+        item.addEventListener('focus', () => setActiveUserQuestionNavItem(index));
+
+        elements.navUserQuestions.appendChild(item);
+
+        if (elements.navUserQuestionsPanel) {
+            const panelItem = document.createElement('button');
+            panelItem.type = 'button';
+            panelItem.className = 'chat-nav-question-item';
+            panelItem.dataset.messageId = messageElement.dataset.messageId || '';
+            panelItem.dataset.questionIndex = String(index);
+            panelItem.textContent = label;
+            panelItem.setAttribute('aria-label', label);
+            elements.navUserQuestionsPanel.appendChild(panelItem);
+        }
+    });
+
+    setActiveUserQuestionNavItem(-1);
+}
+
+function setActiveUserQuestionNavItem(activeIndex) {
+    if (!elements.navUserQuestions) return;
+
+    elements.navUserQuestions.querySelectorAll('.chat-nav-question-dot').forEach((item) => {
+        item.classList.toggle('is-active', Number.parseInt(item.dataset.questionIndex, 10) === activeIndex);
+    });
+
+    if (elements.navUserQuestionsPanel) {
+        elements.navUserQuestionsPanel.querySelectorAll('.chat-nav-question-item').forEach((item) => {
+            item.classList.toggle('is-active', Number.parseInt(item.dataset.questionIndex, 10) === activeIndex);
+        });
+    }
+}
+
+function handleUserQuestionNavClick(event) {
+    const navItem = event.target.closest('.chat-nav-question-dot, .chat-nav-question-item');
+    if (!navItem || !elements.navUserQuestions?.contains(navItem)) return;
+
+    const messageId = navItem.dataset.messageId;
+    const userMessages = getUserMessageElements();
+    const targetMessage = messageId
+        ? userMessages.find((message) => message.dataset.messageId === messageId)
+        : userMessages[Number.parseInt(navItem.dataset.questionIndex, 10)];
+
+    if (targetMessage) {
+        scrollToUserMessage(targetMessage);
+    }
 }
 
 /**

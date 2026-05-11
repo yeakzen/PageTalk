@@ -3865,12 +3865,13 @@ body.dark-mode .tab-selection-actions .tab-action.cancel {
 
 .chat-nav-buttons {
     position: absolute;
-    right: 1px;
+    right: 4px;
     top: 50%;
     transform: translateY(-50%);
     display: flex;
     flex-direction: column;
-    gap: 1px;
+    align-items: center;
+    gap: 4px;
     z-index: 50;
     opacity: 0;
     transition: opacity 0.3s ease;
@@ -3886,53 +3887,22 @@ body.dark-mode .tab-selection-actions .tab-action.cancel {
 
 .chat-nav-btn {
     width: 20px;
-    height: 24px;
+    height: 20px;
     border-radius: 999px;
-    border: 1px solid rgba(255, 255, 255, 0.12);
-    background:
-        linear-gradient(180deg, rgba(255, 255, 255, 0.22), rgba(255, 255, 255, 0.08)),
-        transparent;
-    backdrop-filter: blur(12px) saturate(170%);
-    -webkit-backdrop-filter: blur(12px) saturate(170%);
-    display: flex;
-    align-items: center;
-    justify-content: center;
+    border: 1px solid transparent;
+    background: transparent;
+    display: block;
     cursor: pointer;
     color: var(--text-secondary);
-    transition: color 0.18s ease, background-color 0.18s ease, border-color 0.18s ease, transform 0.18s ease, box-shadow 0.18s ease;
+    opacity: 0.72;
+    transition: opacity 0.18s ease, color 0.18s ease;
     padding: 0;
-    box-shadow:
-        inset 0 1px 0 rgba(255, 255, 255, 0.12);
-    overflow: hidden;
     position: relative;
 }
 
-.chat-nav-btn::before {
-    content: '';
-    position: absolute;
-    inset: 0;
-    border-radius: inherit;
-    background: linear-gradient(120deg, transparent 18%, rgba(255, 255, 255, 0.22) 45%, transparent 72%);
-    opacity: 0;
-    transform: translateX(-20%);
-    transition: opacity 0.18s ease, transform 0.22s ease;
-}
-
 .chat-nav-btn:hover {
-    color: var(--primary-color);
-    background:
-        linear-gradient(180deg, rgba(255, 255, 255, 0.34), rgba(255, 255, 255, 0.14)),
-        rgba(70, 116, 255, 0.05);
-    border-color: rgba(70, 116, 255, 0.16);
-    transform: scale(1.08);
-    box-shadow:
-        0 6px 14px rgba(70, 116, 255, 0.08),
-        inset 0 1px 0 rgba(255, 255, 255, 0.2);
-}
-
-.chat-nav-btn:hover::before {
     opacity: 1;
-    transform: translateX(0);
+    color: var(--primary-color);
 }
 
 .chat-nav-btn:active {
@@ -3942,25 +3912,157 @@ body.dark-mode .tab-selection-actions .tab-action.cancel {
 .chat-nav-btn svg {
     width: 12px;
     height: 12px;
+    position: absolute;
+    right: 4px;
+    top: 50%;
+    transform: translateY(-50%);
+}
+
+.chat-nav-question-dots {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 6px;
+    overflow: visible;
+    padding: 2px 0;
+    position: relative;
+}
+
+.chat-nav-question-dots.is-empty {
+    display: none;
+}
+
+.chat-nav-question-dot {
+    width: 20px;
+    min-height: 18px;
+    border: 1px solid transparent;
+    border-radius: 999px;
+    background: transparent;
+    color: var(--text-secondary);
+    display: flex;
+    align-items: center;
+    justify-content: flex-end;
+    padding: 0;
+    cursor: pointer;
+    overflow: visible;
+    white-space: nowrap;
+    opacity: 0.72;
+    position: relative;
+    transition: opacity 0.18s ease, color 0.18s ease;
+}
+
+.chat-nav-question-dot.is-active {
+    opacity: 1;
+    color: var(--primary-color);
+}
+
+.chat-nav-question-dot::after {
+    content: '';
+    position: absolute;
+    right: 7px;
+    top: 50%;
+    transform: translateY(-50%);
+    width: 6px;
+    height: 6px;
+    border-radius: 999px;
+    background: currentColor;
+    box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.18);
+    z-index: 2;
+}
+
+.chat-nav-questions-panel {
+    position: absolute;
+    top: 50%;
+    right: calc(100% + 12px);
+    transform: translateY(-50%);
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    min-width: 220px;
+    max-width: min(280px, calc(100vw - 76px));
+    padding: 14px 16px;
+    border-radius: 16px;
+    border: 1px solid rgba(255, 255, 255, 0.68);
+    background: rgba(255, 255, 255, 0.68);
+    box-shadow:
+        0 14px 36px rgba(15, 23, 42, 0.14),
+        inset 0 1px 0 rgba(255, 255, 255, 0.8);
+    backdrop-filter: blur(20px) saturate(150%);
+    -webkit-backdrop-filter: blur(20px) saturate(150%);
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity 0.18s ease;
+}
+
+.chat-nav-question-dots:hover .chat-nav-questions-panel,
+.chat-nav-question-dots:focus-within .chat-nav-questions-panel {
+    opacity: 1;
+    pointer-events: auto;
+}
+
+.chat-nav-question-item {
+    border: 0;
+    background: transparent;
+    color: #8b95a7;
+    position: static;
+    width: 100%;
+    padding: 0;
+    font-size: 12px;
+    line-height: 18px;
+    text-align: left;
+    cursor: pointer;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    transition: color 0.18s ease;
+}
+
+.chat-nav-question-item:hover,
+.chat-nav-question-item:focus-visible,
+.chat-nav-question-item.is-active {
+    color: #5b6270;
+    outline: none;
+}
+
+.chat-nav-question-item.is-active {
+    font-weight: 600;
 }
 
 /* 深色模式下导航按钮样式 */
 body.dark-mode .chat-nav-btn {
-    background:
-        linear-gradient(180deg, rgba(255, 255, 255, 0.08), rgba(255, 255, 255, 0.03)),
-        transparent;
-    border-color: rgba(255, 255, 255, 0.08);
     color: var(--text-secondary);
-    box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.08);
+    opacity: 0.72;
 }
 
 body.dark-mode .chat-nav-btn:hover {
+    opacity: 1;
     color: #f3c1f6;
-    background:
-        linear-gradient(180deg, rgba(255, 255, 255, 0.12), rgba(227, 124, 235, 0.08)),
-        rgba(255, 255, 255, 0.02);
-    border-color: rgba(227, 124, 235, 0.16);
+}
+
+body.dark-mode .chat-nav-question-dot {
+    color: rgba(229, 222, 236, 0.68);
+}
+
+body.dark-mode .chat-nav-question-dot:hover,
+body.dark-mode .chat-nav-question-dot:focus-visible,
+body.dark-mode .chat-nav-question-dot.is-active {
+    color: #f3c1f6;
+}
+
+body.dark-mode .chat-nav-questions-panel {
+    border-color: rgba(118, 128, 150, 0.34);
+    background: rgba(29, 34, 43, 0.94);
     box-shadow:
-        0 6px 14px rgba(0, 0, 0, 0.18),
-        inset 0 1px 0 rgba(255, 255, 255, 0.12);
+        0 8px 20px rgba(0, 0, 0, 0.28),
+        inset 0 1px 0 rgba(255, 255, 255, 0.08);
+}
+
+body.dark-mode .chat-nav-question-item {
+    color: #a1abbb;
+}
+
+body.dark-mode .chat-nav-question-item:hover,
+body.dark-mode .chat-nav-question-item:focus-visible,
+body.dark-mode .chat-nav-question-item.is-active {
+    color: #edf2f8;
 }
