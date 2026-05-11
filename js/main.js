@@ -84,6 +84,8 @@ const state = {
     // Other state
     pageContext: null, // Use null initially to indicate not yet extracted
     pageTitle: '', // 当前页面标题，用于保存对话时作为标题
+    pageContextMeta: null,
+    removeContextWebLinks: true,
     chatHistory: [],
     isConnected: false,
     hasDeterminedConnection: false, // 新增：是否已判定连接状态，避免初始闪烁
@@ -261,6 +263,7 @@ const elements = {
     contextPreviewMeta: document.getElementById('context-preview-meta'),
     contextPreviewContent: document.getElementById('context-preview-content'),
     contextPreviewCopy: document.getElementById('context-preview-copy'),
+    contextPreviewRemoveLinks: document.getElementById('context-preview-remove-links'),
     contextPreviewCloseIcon: document.getElementById('context-preview-close-icon'),
     // Chat Navigation Buttons
     navToTop: document.getElementById('nav-to-top'),
@@ -713,6 +716,15 @@ function setupEventListeners() {
 
             window.parent.postMessage({ action: 'copyText', text: pageContext }, '*');
             showToastUI(_('copied', {}, currentTranslations), 'success');
+        });
+    }
+    if (elements.contextPreviewRemoveLinks) {
+        elements.contextPreviewRemoveLinks.checked = state.removeContextWebLinks !== false;
+        elements.contextPreviewRemoveLinks.addEventListener('change', () => {
+            state.removeContextWebLinks = elements.contextPreviewRemoveLinks.checked;
+            if (isContextPreviewModalOpen()) {
+                renderContextPreviewModal();
+            }
         });
     }
 
@@ -2308,7 +2320,7 @@ function updateFooterContextStatusFromState() {
     }
 
     if (pageContextStatus === 'ready') {
-        updateContextStatus('contextStatusChars', { charCount: getPageContextCharCount(state.pageContext) }, elements, currentTranslations);
+        updateContextStatus('contextStatusChars', { charCount: getPageContextCharCount(getPageContextTextForPrompt(state)) }, elements, currentTranslations);
         return;
     }
 
@@ -2322,6 +2334,10 @@ function isContextPreviewModalOpen() {
 function renderContextPreviewModal() {
     if (!elements.contextPreviewContent || !elements.contextPreviewMeta || !elements.contextPreviewCopy) return;
 
+    if (elements.contextPreviewRemoveLinks) {
+        elements.contextPreviewRemoveLinks.checked = state.removeContextWebLinks !== false;
+    }
+
     const pageContextStatus = getPageContextStatus(state.pageContext);
     const pageContext = getPageContextTextForPrompt(state);
     const metaParts = [];
@@ -2331,7 +2347,9 @@ function renderContextPreviewModal() {
     }
 
     if (pageContextStatus === 'ready') {
-        metaParts.push(_('contextStatusChars', { charCount: getPageContextCharCount(state.pageContext) }));
+        metaParts.push(_('contextStatusChars', { charCount: getPageContextCharCount(pageContext) }));
+        const extractionMetaParts = formatPageContextMetaForPreview(state.pageContextMeta);
+        metaParts.push(...extractionMetaParts);
     }
 
     elements.contextPreviewMeta.textContent = metaParts.join(' · ');
@@ -2351,6 +2369,28 @@ function renderContextPreviewModal() {
 
     elements.contextPreviewContent.textContent = _(statusKeyMap[pageContextStatus] || 'contextStatusNone');
     elements.contextPreviewCopy.disabled = true;
+}
+
+function formatPageContextMetaForPreview(meta) {
+    if (!meta || typeof meta !== 'object') return [];
+
+    const parts = [];
+    if (typeof meta.articleCharCount === 'number' && meta.articleCharCount > 0) {
+        parts.push(_('contextPreviewPageContentChars', { charCount: meta.articleCharCount }));
+    }
+    if (typeof meta.commentsCharCount === 'number' && meta.commentsCharCount > 0) {
+        parts.push(_('contextPreviewCommentsChars', {
+            charCount: meta.commentsCharCount,
+            sectionCount: meta.commentContainerCount || 0
+        }));
+    } else if (meta.mode === 'article-plus-comments') {
+        parts.push(_('contextPreviewCommentsNone'));
+    }
+    if (meta.truncated) {
+        parts.push(_('contextPreviewTruncated'));
+    }
+
+    return parts;
 }
 
 function openContextPreviewModal() {
@@ -2374,6 +2414,7 @@ function handleContentScriptMessages(event) {
         case 'pageContentExtracted':
             state.pageContext = message.content;
             state.pageTitle = message.pageTitle || ''; // 保存页面标题
+            state.pageContextMeta = message.meta || null;
             updateFooterContextStatusFromState();
             if (isContextPreviewModalOpen()) {
                 renderContextPreviewModal();
@@ -2445,6 +2486,7 @@ function handleContentScriptMessages(event) {
 function requestPageContent() {
     state.pageContext = null;
     state.pageTitle = '';
+    state.pageContextMeta = null;
     updateFooterContextStatusFromState();
     if (isContextPreviewModalOpen()) {
         renderContextPreviewModal();
@@ -2456,6 +2498,7 @@ function requestPageContent() {
         if (state.pageContext === null) { // 仍然是初始状态，说明没有收到响应
             console.warn('[main.js] Page content extraction timeout');
             state.pageContext = 'error';
+            state.pageContextMeta = null;
             updateFooterContextStatusFromState();
             if (isContextPreviewModalOpen()) {
                 renderContextPreviewModal();

@@ -2465,8 +2465,42 @@ body.dark-mode #send-message.stop-streaming {
 
 .dialog-actions {
     display: flex;
+    align-items: center;
     justify-content: flex-end;
     gap: var(--spacing-md);
+}
+
+.context-preview-dialog .dialog-actions {
+    justify-content: space-between;
+}
+
+.context-preview-option {
+    display: inline-flex;
+    align-items: center;
+    gap: var(--spacing-xs);
+    margin-right: auto;
+    color: var(--text-secondary);
+    font-size: 13px;
+    line-height: 1.4;
+    cursor: pointer;
+    user-select: none;
+}
+
+.context-preview-option input[type="checkbox"] {
+    width: 16px;
+    height: 16px;
+    padding: 0;
+    margin: 0;
+    border-radius: 3px;
+    background: initial;
+    box-shadow: none;
+    transform: none;
+    accent-color: var(--primary-color);
+    flex-shrink: 0;
+}
+
+#context-preview-remove-links:focus {
+    transform: none;
 }
 
 .dialog-actions button {

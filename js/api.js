@@ -8,7 +8,7 @@
  * - Anthropic (Claude)
  */
 
-import { getPageContextTextForPrompt } from './context-state.js';
+import { getPageContextTextForPrompt, sanitizeContextTextForPrompt } from './context-state.js';
 
 // --- 简单重试机制 ---
 class SimpleRetryHandler {
@@ -188,6 +188,7 @@ function buildSystemPrompt(stateRef, explicitContextTabs = null) {
   </output_format>
   <context_handling>
     <general>You have access to your full knowledge base plus additional context from the current page content, additional web pages (if selected), and ongoing chat history. Use your complete knowledge to provide comprehensive answers, and reference the provided context when it's relevant and adds value to your response.</general>
+    <source_sections>The provided page context may be divided into labeled sections such as "Page Content" and "Comments / Replies". Treat "Page Content" as the main body/article content from the page, and treat "Comments / Replies" as user discussion or reply content detected from the page. Keep this distinction in mind when reasoning, especially if the body and comments disagree.</source_sections>
     <natural_response_style>
       <guideline>Answer questions naturally and conversationally. When information comes from the provided page content, integrate it seamlessly without mechanical attribution phrases. You know where the information comes from - just use it naturally.</guideline>
       <avoid_mechanical_phrases>Do not use rigid phrases like "根据Current Page Document" or "According to the provided document". Instead, when appropriate, use natural language like "这个页面提到", "从内容来看", "页面上显示", or simply present the information directly without attribution if it flows naturally.</avoid_mechanical_phrases>
@@ -230,8 +231,9 @@ function buildSystemPrompt(stateRef, explicitContextTabs = null) {
         xmlSystemPrompt += `  <additional_pages>
 `;
         explicitContextTabs.forEach(tab => {
-            if (tab.content) {
-                xmlSystemPrompt += `    <page source_title="${escapeXml(tab.title)}">\n      <content>\n${escapeXml(tab.content)}\n      </content>\n    </page>\n`;
+            const tabContent = sanitizeContextTextForPrompt(tab.content, stateRef);
+            if (tabContent) {
+                xmlSystemPrompt += `    <page source_title="${escapeXml(tab.title)}">\n      <content>\n${escapeXml(tabContent)}\n      </content>\n    </page>\n`;
             } else {
                 xmlSystemPrompt += `    <page source_title="${escapeXml(tab.title)}">\n      <content>Content for this tab was not loaded or is empty.</content>\n    </page>\n`;
             }

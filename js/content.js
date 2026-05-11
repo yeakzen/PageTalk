@@ -16,6 +16,7 @@ if (window.contentScriptInitialized) {
   let maxPanelWidthPercentage = 0.98; // 最大宽度为窗口的95%
   let resizing = false;
   let messageShownForThisPageView = false; // 新增：跟踪当前页面视图是否已显示过提取成功消息
+  let lastPageContextMeta = null; // 最近一次上下文提取的来源统计
 
   // 划词助手相关变量
   let textSelectionHelperLoaded = false;
@@ -335,7 +336,7 @@ if (window.contentScriptInitialized) {
       (async () => { // 使用 IIFE 来处理异步操作
         try {
           const content = await extractPageContent(); // extractPageContent 现在是异步的
-          sendResponse({ content: content });
+          sendResponse({ content: content, meta: lastPageContextMeta, pageTitle: getSmartPageTitle() });
         } catch (error) {
           console.error('[PageTalk] Error during content extraction (getFullPageContentRequest listener):', error);
           sendResponse({ error: error.message });
@@ -476,6 +477,7 @@ if (window.contentScriptInitialized) {
 
   // 提取页面的主要内容 - 现在是异步函数
   async function extractPageContent() {
+    lastPageContextMeta = null;
     const currentUrl = window.location.href;
     const contentType = document.contentType;
     // 检测是否为 PDF.js 渲染的页面 (例如 arXiv)
@@ -649,87 +651,243 @@ if (window.contentScriptInitialized) {
     }
   }
 
-  // 页面内容提取：并行正文与全量，择优合并
+  // 页面内容提取：默认合并正文与评论，并在发送给 AI 的上下文里保留来源标注
   function extractComprehensivePageContent() {
-    const parts = [];
+    const extraction = extractStructuredPageContext();
+    lastPageContextMeta = extraction.meta;
+    return extraction.content;
+  }
 
-    // 1) 标题与元信息
+  function extractStructuredPageContext() {
+    const title = getSmartPageTitle() || document.title || '';
+    const meta = {
+      mode: 'article-plus-comments',
+      articleCharCount: 0,
+      commentsCharCount: 0,
+      commentContainerCount: 0,
+      hasComments: false,
+      truncated: false
+    };
+
+    let articleMarkdown = '';
     try {
-      const title = (document.querySelector('title')?.innerText || '').trim();
-      if (title) parts.push(`# ${title}`);
-
-      const metaDesc = document.querySelector('meta[name="description"]')?.getAttribute('content')
-        || document.querySelector('meta[property="og:description"]')?.getAttribute('content')
-        || document.querySelector('meta[name="twitter:description"]')?.getAttribute('content')
-        || '';
-      if (metaDesc && metaDesc.trim()) {
-        parts.push(metaDesc.trim());
-      }
-    } catch (_) { /* ignore */ }
-
-    // 2) Turndown 仅对清理后的 DOM
-    let domMarkdown = '';
-    try {
-      const td = new window.TurndownService({ headingStyle: 'atx', codeBlockStyle: 'fenced', bulletListMarker: '-' });
-      // 基础剔除
-      td.remove(['script', 'style', 'noscript']);
-
-      // 导航/页眉/页脚中的链接仅保留文本（不带 URL），减少噪音
-      td.addRule('navLinksAsText', {
-        filter: function (node) {
-          if (!node || node.nodeName !== 'A') return false;
-          try { return isInNavLike(node); } catch (_) { return false; }
-        },
-        replacement: function (content, node) {
-          const t = (node.textContent || '').trim();
-          return t;
-        }
-      });
-
-      // 剔除疑似站点脚本的代码块
-      td.addRule('stripSiteInitScripts', {
-        filter: function (node) {
-          try {
-            if (!node) return false;
-            const tag = node.nodeName;
-            if (tag === 'PRE' || tag === 'CODE') {
-              const t = (node.textContent || '').trim();
-              return isLikelySiteScript(t, node);
-            }
-            return false;
-          } catch (_) { return false; }
-        },
-        replacement: function () { return ''; }
-      });
-
-      // 仅取主内容容器作为根，进行克隆与去噪
-      const domCleaned = cloneAndPruneRootForConversion(pickMainRootNode());
-      domMarkdown = td.turndown(domCleaned) || '';
-    } catch (e1) {
-      domMarkdown = (document.body && document.body.innerText) ? document.body.innerText : '';
+      articleMarkdown = extractMarkdownFromNode(pickMainRootNode());
+    } catch (e) {
+      console.warn('[PageTalk] Article extraction failed, falling back to body text:', e);
+      articleMarkdown = (document.body && document.body.innerText) ? document.body.innerText : '';
     }
+    articleMarkdown = dedupeMarkdownParagraphs(articleMarkdown);
 
-    // 3) 段落级去重与空白压缩
-    domMarkdown = dedupeMarkdownParagraphs(domMarkdown);
+    const articleParts = [];
+    if (title) articleParts.push(`# ${title}`);
+    const metaDesc = getPageMetaDescription();
+    if (metaDesc) articleParts.push(metaDesc);
+    if (articleMarkdown) articleParts.push(articleMarkdown);
 
-    // 4) 仅解析 JSON-LD（内嵌结构化数据）
     try {
       const embeddedText = extractEmbeddedJsonText();
       if (embeddedText && embeddedText.trim()) {
-        parts.push('---');
-        parts.push(embeddedText.trim());
+        articleParts.push('---');
+        articleParts.push(embeddedText.trim());
       }
     } catch (_) { /* ignore */ }
 
-    // 5) 拼装与总长度限制（宽松软上限）
-    parts.unshift(domMarkdown.trim());
-    let full = parts.filter(Boolean).join('\n\n');
-    const maxLength = 300000; // 30 万字符软上限
+    const articleContent = dedupeMarkdownParagraphs(articleParts.filter(Boolean).join('\n\n'));
+    const commentsExtraction = extractCommentsMarkdown(articleContent);
+    const sections = [];
+
+    if (articleContent) {
+      sections.push(`# Page Content\n\n_Source: main page/article content._\n\n${articleContent}`);
+      meta.articleCharCount = articleContent.length;
+    }
+
+    if (commentsExtraction.content) {
+      sections.push(`# Comments / Replies\n\n_Source: detected comment and reply sections from the page DOM._\n\n${commentsExtraction.content}`);
+      meta.commentsCharCount = commentsExtraction.content.length;
+      meta.commentContainerCount = commentsExtraction.containerCount;
+      meta.hasComments = true;
+    }
+
+    let full = sections.filter(Boolean).join('\n\n---\n\n');
+    const maxLength = 300000;
     if (full.length > maxLength) {
       const truncatedSuffix = trContent('contentTruncated') || '...(Content truncated)';
       full = full.substring(0, maxLength) + truncatedSuffix;
+      meta.truncated = true;
     }
-    return full;
+
+    return { content: full, meta };
+  }
+
+  function getPageMetaDescription() {
+    try {
+      return (document.querySelector('meta[name="description"]')?.getAttribute('content')
+        || document.querySelector('meta[property="og:description"]')?.getAttribute('content')
+        || document.querySelector('meta[name="twitter:description"]')?.getAttribute('content')
+        || '').trim();
+    } catch (_) {
+      return '';
+    }
+  }
+
+  function createTurndownForContext() {
+    const td = new window.TurndownService({ headingStyle: 'atx', codeBlockStyle: 'fenced', bulletListMarker: '-' });
+    td.remove(['script', 'style', 'noscript']);
+
+    td.addRule('navLinksAsText', {
+      filter: function (node) {
+        if (!node || node.nodeName !== 'A') return false;
+        try { return isInNavLike(node); } catch (_) { return false; }
+      },
+      replacement: function (content, node) {
+        return (node.textContent || '').trim();
+      }
+    });
+
+    td.addRule('stripSiteInitScripts', {
+      filter: function (node) {
+        try {
+          if (!node) return false;
+          const tag = node.nodeName;
+          if (tag === 'PRE' || tag === 'CODE') {
+            const t = (node.textContent || '').trim();
+            return isLikelySiteScript(t, node);
+          }
+          return false;
+        } catch (_) { return false; }
+      },
+      replacement: function () { return ''; }
+    });
+
+    return td;
+  }
+
+  function extractMarkdownFromNode(root) {
+    if (!root) return '';
+    const td = createTurndownForContext();
+    const domCleaned = cloneAndPruneRootForConversion(root);
+    return td.turndown(domCleaned) || '';
+  }
+
+  function extractCommentsMarkdown(articleContent = '') {
+    const candidates = findCommentRootCandidates();
+    const scored = candidates
+      .map(el => ({ el, score: scoreCommentCandidate(el) }))
+      .filter(item => item.score >= 4)
+      .sort((a, b) => b.score - a.score);
+
+    const roots = [];
+    for (const item of scored) {
+      if (roots.some(existing => existing.contains(item.el))) continue;
+      roots.push(item.el);
+      if (roots.length >= 4) break;
+    }
+
+    const articleNorm = normalizeTextForDedupe(articleContent);
+    const chunks = [];
+    const seen = new Set();
+
+    roots.forEach((root, index) => {
+      try {
+        let md = extractMarkdownFromNode(root);
+        md = dedupeMarkdownParagraphs(md);
+        if (!md || md.length < 80) return;
+
+        const norm = normalizeTextForDedupe(md);
+        if (!norm || seen.has(norm)) return;
+        if (articleNorm && isMostlyContainedInArticle(norm, articleNorm)) return;
+
+        seen.add(norm);
+        chunks.push(`## Comment Section ${index + 1}\n\n${md}`);
+      } catch (e) {
+        console.warn('[PageTalk] Failed to extract comment candidate:', e);
+      }
+    });
+
+    return {
+      content: chunks.join('\n\n').trim(),
+      containerCount: chunks.length
+    };
+  }
+
+  function isMostlyContainedInArticle(candidateNorm, articleNorm) {
+    if (!candidateNorm || !articleNorm || candidateNorm.length < 200) return false;
+    const sampleLength = Math.min(500, candidateNorm.length);
+    const samples = [
+      candidateNorm.slice(0, sampleLength),
+      candidateNorm.slice(Math.max(0, Math.floor(candidateNorm.length / 2) - Math.floor(sampleLength / 2)), Math.floor(candidateNorm.length / 2) + Math.floor(sampleLength / 2)),
+      candidateNorm.slice(Math.max(0, candidateNorm.length - sampleLength))
+    ].filter(sample => sample.length >= 80);
+
+    const containedCount = samples.filter(sample => articleNorm.includes(sample)).length;
+    return containedCount >= Math.max(1, Math.ceil(samples.length * 0.67));
+  }
+
+  function findCommentRootCandidates() {
+    const selectors = [
+      '#comments',
+      '.comments',
+      '.comment-list',
+      '.comment-thread',
+      '[role="feed"]',
+      '[aria-label*="comment" i]',
+      '[aria-label*="reply" i]',
+      '[id*="comment" i]',
+      '[class*="comment" i]',
+      '[id*="reply" i]',
+      '[class*="reply" i]',
+      '[data-testid*="comment" i]',
+      '[data-testid*="reply" i]',
+      '.giscus',
+      '.utterances',
+      '.remark42'
+    ];
+
+    const result = [];
+    const seen = new Set();
+    selectors.forEach(selector => {
+      try {
+        document.querySelectorAll(selector).forEach(el => {
+          if (!el || seen.has(el)) return;
+          if (el.closest('#pagetalk-panel-container')) return;
+          if (el === document.body || el === document.documentElement) return;
+          seen.add(el);
+          result.push(el);
+        });
+      } catch (_) { /* ignore invalid selectors */ }
+    });
+    return result;
+  }
+
+  function scoreCommentCandidate(el) {
+    if (!el) return 0;
+    const text = (el.innerText || el.textContent || '').replace(/\s+/g, ' ').trim();
+    if (text.length < 120) return 0;
+    if (isInNavLike(el)) return 0;
+    if (el.closest('[role="dialog"], [role="alertdialog"], nav, header, footer')) return 0;
+
+    const attrs = `${el.id || ''} ${el.className || ''} ${el.getAttribute('aria-label') || ''} ${el.getAttribute('data-testid') || ''}`.toLowerCase();
+    let score = 0;
+    if (/comment|reply|discussion|thread|conversation|giscus|utterances|remark42/.test(attrs)) score += 4;
+    if (text.length > 500) score += 1;
+    if (text.length > 1500) score += 1;
+
+    try {
+      const repeatedItems = el.querySelectorAll('[class*="comment" i], [data-testid*="comment" i], article, li, [role="article"]');
+      if (repeatedItems.length >= 2) score += 2;
+      if (el.querySelector('time, [datetime], [class*="author" i], [class*="user" i], [class*="avatar" i]')) score += 1;
+      if (el.querySelector('button, a')) {
+        const actionText = Array.from(el.querySelectorAll('button, a')).slice(0, 20).map(node => node.textContent || '').join(' ').toLowerCase();
+        if (/reply|comment|like|upvote|展开|回复|评论|赞|更多/.test(actionText)) score += 1;
+      }
+    } catch (_) { /* ignore */ }
+
+    const mainRoot = pickMainRootNode();
+    if (mainRoot && mainRoot !== document.body && mainRoot.contains(el) && !/comment|reply|discussion|thread/.test(attrs)) {
+      score -= 2;
+    }
+
+    return score;
   }
 
   // 选择主内容容器
@@ -868,87 +1026,11 @@ if (window.contentScriptInitialized) {
     }
   }
 
-  // 页面内容提取：并行正文与全量，择优合并
+  // 页面内容提取：默认合并正文与评论，并在发送给 AI 的上下文里保留来源标注
   function extractComprehensivePageContent() {
-    const parts = [];
-
-    // 1) 标题与元信息
-    try {
-      const title = (document.querySelector('title')?.innerText || '').trim();
-      if (title) parts.push(`# ${title}`);
-
-      const metaDesc = document.querySelector('meta[name="description"]')?.getAttribute('content')
-        || document.querySelector('meta[property="og:description"]')?.getAttribute('content')
-        || document.querySelector('meta[name="twitter:description"]')?.getAttribute('content')
-        || '';
-      if (metaDesc && metaDesc.trim()) {
-        parts.push(metaDesc.trim());
-      }
-    } catch (_) { /* ignore */ }
-
-    // 2) Turndown 仅对清理后的 DOM
-    let domMarkdown = '';
-    try {
-      const td = new window.TurndownService({ headingStyle: 'atx', codeBlockStyle: 'fenced', bulletListMarker: '-' });
-      // 基础剔除
-      td.remove(['script', 'style', 'noscript']);
-
-      // 导航/页眉/页脚中的链接仅保留文本（不带 URL），减少噪音
-      td.addRule('navLinksAsText', {
-        filter: function (node) {
-          if (!node || node.nodeName !== 'A') return false;
-          try { return isInNavLike(node); } catch (_) { return false; }
-        },
-        replacement: function (content, node) {
-          const t = (node.textContent || '').trim();
-          return t;
-        }
-      });
-
-      // 剔除疑似站点脚本的代码块
-      td.addRule('stripSiteInitScripts', {
-        filter: function (node) {
-          try {
-            if (!node) return false;
-            const tag = node.nodeName;
-            if (tag === 'PRE' || tag === 'CODE') {
-              const t = (node.textContent || '').trim();
-              return isLikelySiteScript(t, node);
-            }
-            return false;
-          } catch (_) { return false; }
-        },
-        replacement: function () { return ''; }
-      });
-
-      // 仅取主内容容器作为根，进行克隆与去噪
-      const domCleaned = cloneAndPruneRootForConversion(pickMainRootNode());
-      domMarkdown = td.turndown(domCleaned) || '';
-    } catch (e1) {
-      domMarkdown = (document.body && document.body.innerText) ? document.body.innerText : '';
-    }
-
-    // 3) 段落级去重与空白压缩
-    domMarkdown = dedupeMarkdownParagraphs(domMarkdown);
-
-    // 4) 仅解析 JSON-LD（内嵌结构化数据）
-    try {
-      const embeddedText = extractEmbeddedJsonText();
-      if (embeddedText && embeddedText.trim()) {
-        parts.push('---');
-        parts.push(embeddedText.trim());
-      }
-    } catch (_) { /* ignore */ }
-
-    // 5) 拼装与总长度限制（宽松软上限）
-    parts.unshift(domMarkdown.trim());
-    let full = parts.filter(Boolean).join('\n\n');
-    const maxLength = 300000; // 30 万字符软上限
-    if (full.length > maxLength) {
-      const truncatedSuffix = trContent('contentTruncated') || '...(Content truncated)';
-      full = full.substring(0, maxLength) + truncatedSuffix;
-    }
-    return full;
+    const extraction = extractStructuredPageContext();
+    lastPageContextMeta = extraction.meta;
+    return extraction.content;
   }
 
   // 选择主内容容器
@@ -1131,6 +1213,13 @@ if (window.contentScriptInitialized) {
       }
     }
     return out.join('\n\n').replace(/\n{3,}/g, '\n\n');
+  }
+
+  function normalizeTextForDedupe(text) {
+    return String(text || '')
+      .replace(/\s+/g, ' ')
+      .trim()
+      .toLowerCase();
   }
 
 
@@ -1368,6 +1457,7 @@ if (window.contentScriptInitialized) {
           iframe.contentWindow.postMessage({
             action: 'pageContentExtracted',
             content: content,
+            meta: lastPageContextMeta,
             pageTitle: getSmartPageTitle(), // 发送页面标题（含 Twitter/X 特殊处理）
             showSuccessMessage: showSuccess // 添加标志
           }, '*');
