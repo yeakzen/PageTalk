@@ -17,6 +17,8 @@ if (window.contentScriptInitialized) {
   let resizing = false;
   let messageShownForThisPageView = false; // 新增：跟踪当前页面视图是否已显示过提取成功消息
   let lastPageContextMeta = null; // 最近一次上下文提取的来源统计
+  let pageAreaSelectionActive = false;
+  let pageAreaSelectionCleanup = null;
 
   // 划词助手相关变量
   let textSelectionHelperLoaded = false;
@@ -1026,13 +1028,6 @@ if (window.contentScriptInitialized) {
     }
   }
 
-  // 页面内容提取：默认合并正文与评论，并在发送给 AI 的上下文里保留来源标注
-  function extractComprehensivePageContent() {
-    const extraction = extractStructuredPageContext();
-    lastPageContextMeta = extraction.meta;
-    return extraction.content;
-  }
-
   // 选择主内容容器
   function pickMainRootNode() {
     const candidates = [
@@ -1220,6 +1215,166 @@ if (window.contentScriptInitialized) {
       .replace(/\s+/g, ' ')
       .trim()
       .toLowerCase();
+  }
+
+  function startPageAreaSelection() {
+    if (pageAreaSelectionActive && typeof pageAreaSelectionCleanup === 'function') {
+      pageAreaSelectionCleanup();
+    }
+
+    pageAreaSelectionActive = true;
+    const overlay = document.createElement('div');
+    overlay.id = 'pagetalk-area-selection-overlay';
+    overlay.style.position = 'fixed';
+    overlay.style.pointerEvents = 'none';
+    overlay.style.zIndex = '2147483646';
+    overlay.style.border = '2px solid #317bf5';
+    overlay.style.background = 'rgba(49, 123, 245, 0.14)';
+    overlay.style.boxShadow = '0 0 0 9999px rgba(15, 23, 42, 0.18)';
+    overlay.style.borderRadius = '6px';
+    overlay.style.display = 'none';
+    overlay.style.transition = 'all 80ms ease-out';
+
+    const hint = document.createElement('div');
+    hint.id = 'pagetalk-area-selection-hint';
+    const currentLang = localStorage.getItem('language') || 'zh-CN';
+    hint.textContent = currentLang.startsWith('zh')
+      ? '点击页面区域添加到 PageTalk 上下文。按 Esc 取消。'
+      : 'Click an area to add it to PageTalk context. Press Esc to cancel.';
+    hint.style.position = 'fixed';
+    hint.style.left = '50%';
+    hint.style.top = '16px';
+    hint.style.transform = 'translateX(-50%)';
+    hint.style.zIndex = '2147483647';
+    hint.style.padding = '8px 12px';
+    hint.style.borderRadius = '8px';
+    hint.style.background = 'rgba(15, 23, 42, 0.92)';
+    hint.style.color = '#fff';
+    hint.style.font = '13px/1.4 -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif';
+    hint.style.boxShadow = '0 10px 28px rgba(15, 23, 42, 0.24)';
+
+    document.body.appendChild(overlay);
+    document.body.appendChild(hint);
+    document.body.style.cursor = 'crosshair';
+
+    let currentTarget = null;
+
+    const isSelectableElement = (el) => {
+      if (!el || el === document.documentElement || el === document.body) return false;
+      if (el.closest('#pagetalk-panel-container, #pagetalk-area-selection-overlay, #pagetalk-area-selection-hint')) return false;
+      return true;
+    };
+
+    const updateOverlay = (el) => {
+      if (!isSelectableElement(el)) {
+        currentTarget = null;
+        overlay.style.display = 'none';
+        return;
+      }
+      currentTarget = el;
+      const rect = el.getBoundingClientRect();
+      overlay.style.display = 'block';
+      overlay.style.left = `${Math.max(0, rect.left)}px`;
+      overlay.style.top = `${Math.max(0, rect.top)}px`;
+      overlay.style.width = `${Math.max(0, rect.width)}px`;
+      overlay.style.height = `${Math.max(0, rect.height)}px`;
+    };
+
+    const cleanup = () => {
+      pageAreaSelectionActive = false;
+      pageAreaSelectionCleanup = null;
+      document.body.style.cursor = '';
+      overlay.remove();
+      hint.remove();
+      document.removeEventListener('mousemove', onMouseMove, true);
+      document.removeEventListener('click', onClick, true);
+      document.removeEventListener('keydown', onKeyDown, true);
+      window.removeEventListener('scroll', onScroll, true);
+      window.removeEventListener('resize', onScroll, true);
+    };
+
+    const sendSelectionResult = (payload) => {
+      const iframe = document.getElementById('pagetalk-panel-iframe');
+      if (iframe && iframe.contentWindow) {
+        iframe.contentWindow.postMessage(payload, '*');
+      }
+    };
+
+    function onMouseMove(event) {
+      updateOverlay(event.target);
+    }
+
+    function onScroll() {
+      if (currentTarget) updateOverlay(currentTarget);
+    }
+
+    function onKeyDown(event) {
+      if (event.key === 'Escape') {
+        event.preventDefault();
+        event.stopPropagation();
+        cleanup();
+        sendSelectionResult({ action: 'pageAreaSelectionCancelled' });
+      }
+    }
+
+    function onClick(event) {
+      if (!currentTarget || !isSelectableElement(currentTarget)) return;
+      event.preventDefault();
+      event.stopPropagation();
+
+      const selectedElement = currentTarget;
+      cleanup();
+
+      try {
+        const extracted = extractManualAreaContext(selectedElement);
+        if (extracted.content) {
+          sendSelectionResult({
+            action: 'pageAreaSelected',
+            content: extracted.content,
+            meta: extracted.meta
+          });
+        } else {
+          sendSelectionResult({ action: 'pageAreaSelectionFailed', error: 'No readable content was found in the selected area.' });
+        }
+      } catch (error) {
+        console.error('[PageTalk] Manual area extraction failed:', error);
+        sendSelectionResult({ action: 'pageAreaSelectionFailed', error: error.message });
+      }
+    }
+
+    pageAreaSelectionCleanup = cleanup;
+    document.addEventListener('mousemove', onMouseMove, true);
+    document.addEventListener('click', onClick, true);
+    document.addEventListener('keydown', onKeyDown, true);
+    window.addEventListener('scroll', onScroll, true);
+    window.addEventListener('resize', onScroll, true);
+  }
+
+  function extractManualAreaContext(element) {
+    let markdown = extractMarkdownFromNode(element);
+    markdown = dedupeMarkdownParagraphs(markdown);
+    if (!markdown || markdown.trim().length === 0) {
+      markdown = (element.innerText || element.textContent || '').replace(/\s+/g, ' ').trim();
+    }
+
+    const content = markdown.trim();
+    return {
+      content,
+      meta: {
+        charCount: content.length,
+        selector: describeElementForContext(element)
+      }
+    };
+  }
+
+  function describeElementForContext(element) {
+    if (!element || !element.tagName) return '';
+    const tag = element.tagName.toLowerCase();
+    const id = element.id ? `#${element.id}` : '';
+    const classText = typeof element.className === 'string'
+      ? element.className.trim().split(/\s+/).filter(Boolean).slice(0, 3).map(cls => `.${cls}`).join('')
+      : '';
+    return `${tag}${id}${classText}`;
   }
 
 
@@ -1463,6 +1618,9 @@ if (window.contentScriptInitialized) {
           }, '*');
         }
       })();
+    }
+    else if (event.data.action === 'startPageAreaSelection') {
+      startPageAreaSelection();
     }
     // 添加复制文本的功能
     else if (event.data.action === 'copyText') {

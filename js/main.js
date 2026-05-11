@@ -128,6 +128,11 @@ const THEME_READY_TIMEOUT_MS = 800;
 let themeReadyTimeoutId = null;
 let activeMermaidOverviewMessageId = null;
 let expandedSavedSessionTopicKey = null;
+let contextPreviewSearchState = {
+    query: '',
+    matches: [],
+    activeIndex: -1
+};
 
 function startThemeReadyTimeout() {
     if (!document.body || !document.body.classList.contains('theme-pending')) {
@@ -264,6 +269,10 @@ const elements = {
     contextPreviewContent: document.getElementById('context-preview-content'),
     contextPreviewCopy: document.getElementById('context-preview-copy'),
     contextPreviewRemoveLinks: document.getElementById('context-preview-remove-links'),
+    contextPreviewSearch: document.getElementById('context-preview-search'),
+    contextPreviewSearchPrev: document.getElementById('context-preview-search-prev'),
+    contextPreviewSearchNext: document.getElementById('context-preview-search-next'),
+    contextPreviewSelectArea: document.getElementById('context-preview-select-area'),
     contextPreviewCloseIcon: document.getElementById('context-preview-close-icon'),
     // Chat Navigation Buttons
     navToTop: document.getElementById('nav-to-top'),
@@ -725,6 +734,27 @@ function setupEventListeners() {
             if (isContextPreviewModalOpen()) {
                 renderContextPreviewModal();
             }
+        });
+    }
+    if (elements.contextPreviewSearch) {
+        elements.contextPreviewSearch.addEventListener('input', () => {
+            applyContextPreviewSearch(elements.contextPreviewSearch.value);
+        });
+    }
+    if (elements.contextPreviewSearchPrev) {
+        elements.contextPreviewSearchPrev.addEventListener('click', () => {
+            navigateContextPreviewSearch(-1);
+        });
+    }
+    if (elements.contextPreviewSearchNext) {
+        elements.contextPreviewSearchNext.addEventListener('click', () => {
+            navigateContextPreviewSearch(1);
+        });
+    }
+    if (elements.contextPreviewSelectArea) {
+        elements.contextPreviewSelectArea.addEventListener('click', () => {
+            closeContextPreviewModal();
+            window.parent.postMessage({ action: 'startPageAreaSelection' }, '*');
         });
     }
 
@@ -2356,7 +2386,7 @@ function renderContextPreviewModal() {
     elements.contextPreviewMeta.style.display = metaParts.length > 0 ? 'block' : 'none';
 
     if (pageContextStatus === 'ready') {
-        elements.contextPreviewContent.textContent = pageContext;
+        renderContextPreviewSections(pageContext);
         elements.contextPreviewCopy.disabled = false;
         return;
     }
@@ -2367,8 +2397,245 @@ function renderContextPreviewModal() {
         none: 'contextStatusNone'
     };
 
-    elements.contextPreviewContent.textContent = _(statusKeyMap[pageContextStatus] || 'contextStatusNone');
+    renderContextPreviewStatus(_(statusKeyMap[pageContextStatus] || 'contextStatusNone'));
     elements.contextPreviewCopy.disabled = true;
+}
+
+function renderContextPreviewStatus(text) {
+    elements.contextPreviewContent.innerHTML = '';
+    elements.contextPreviewContent.classList.remove('context-preview-sections');
+    elements.contextPreviewContent.textContent = text;
+    contextPreviewSearchState = { query: '', matches: [], activeIndex: -1 };
+    updateContextPreviewSearchNavState();
+}
+
+function renderContextPreviewSections(pageContext) {
+    elements.contextPreviewContent.innerHTML = '';
+    elements.contextPreviewContent.classList.add('context-preview-sections');
+
+    const sections = splitContextPreviewSections(pageContext);
+    const panelData = [
+        {
+            key: 'article',
+            title: _('contextPreviewArticlePanelTitle'),
+            content: sections.article,
+            empty: _('contextPreviewArticleEmpty')
+        },
+        {
+            key: 'comments',
+            title: _('contextPreviewCommentsPanelTitle'),
+            content: sections.comments,
+            empty: _('contextPreviewCommentsEmpty')
+        },
+        {
+            key: 'manual',
+            title: _('contextPreviewManualAreaPanelTitle'),
+            content: sections.manual,
+            empty: _('contextPreviewManualAreaEmpty')
+        }
+    ];
+
+    panelData.forEach(panel => {
+        const panelEl = document.createElement('section');
+        panelEl.className = `context-preview-section context-preview-section-${panel.key}`;
+
+        const titleEl = document.createElement('h4');
+        titleEl.className = 'context-preview-section-title';
+        titleEl.textContent = panel.title;
+
+        const bodyEl = document.createElement('div');
+        bodyEl.className = 'context-preview-section-body';
+        bodyEl.dataset.contextPreviewText = panel.content || '';
+        bodyEl.dataset.contextPreviewEmpty = panel.empty;
+        bodyEl.textContent = panel.content || panel.empty;
+        if (!panel.content) {
+            bodyEl.classList.add('context-preview-section-empty');
+        }
+
+        panelEl.appendChild(titleEl);
+        panelEl.appendChild(bodyEl);
+        elements.contextPreviewContent.appendChild(panelEl);
+    });
+
+    if (elements.contextPreviewSearch?.value) {
+        applyContextPreviewSearch(elements.contextPreviewSearch.value);
+    }
+}
+
+function applyContextPreviewSearch(rawQuery) {
+    if (!elements.contextPreviewContent) return;
+    const query = String(rawQuery || '').trim();
+    const bodies = Array.from(elements.contextPreviewContent.querySelectorAll('.context-preview-section-body'));
+    contextPreviewSearchState = {
+        query,
+        matches: [],
+        activeIndex: -1
+    };
+
+    bodies.forEach(body => {
+        body.classList.remove('context-preview-section-active-match');
+        const originalText = body.dataset.contextPreviewText || '';
+        if (originalText) {
+            body.textContent = originalText;
+            body.classList.remove('context-preview-section-empty');
+        } else {
+            body.textContent = body.dataset.contextPreviewEmpty || '';
+            body.classList.add('context-preview-section-empty');
+        }
+    });
+
+    if (!query) {
+        updateContextPreviewSearchNavState();
+        return;
+    }
+
+    for (const body of bodies) {
+        const text = body.dataset.contextPreviewText || '';
+        if (!text) continue;
+        const matches = findContextPreviewMatches(text, query);
+        if (matches.length === 0) continue;
+
+        renderContextPreviewHighlightedMatches(body, text, matches);
+        const renderedMarks = Array.from(body.querySelectorAll('.context-preview-search-match'));
+        if (renderedMarks.length > 0) {
+            contextPreviewSearchState.matches.push(...renderedMarks);
+        }
+    }
+
+    if (contextPreviewSearchState.matches.length > 0) {
+        contextPreviewSearchState.activeIndex = 0;
+        activateContextPreviewSearchMatch(0);
+    }
+    updateContextPreviewSearchNavState();
+}
+
+function navigateContextPreviewSearch(direction) {
+    const matches = contextPreviewSearchState.matches || [];
+    if (!matches.length) return;
+    const nextIndex = (contextPreviewSearchState.activeIndex + direction + matches.length) % matches.length;
+    activateContextPreviewSearchMatch(nextIndex);
+    updateContextPreviewSearchNavState();
+}
+
+function activateContextPreviewSearchMatch(index) {
+    const matches = contextPreviewSearchState.matches || [];
+    if (!matches.length || index < 0 || index >= matches.length) return;
+
+    matches.forEach(match => match.classList.remove('context-preview-search-match-active'));
+    elements.contextPreviewContent
+        ?.querySelectorAll('.context-preview-section-body')
+        .forEach(body => body.classList.remove('context-preview-section-active-match'));
+
+    const activeMatch = matches[index];
+    activeMatch.classList.add('context-preview-search-match-active');
+    const matchBody = activeMatch.closest('.context-preview-section-body');
+    matchBody?.classList.add('context-preview-section-active-match');
+    contextPreviewSearchState.activeIndex = index;
+    activeMatch.scrollIntoView({ behavior: 'smooth', block: 'center', inline: 'nearest' });
+}
+
+function updateContextPreviewSearchNavState() {
+    const hasMatches = (contextPreviewSearchState.matches || []).length > 0;
+    if (elements.contextPreviewSearchPrev) elements.contextPreviewSearchPrev.disabled = !hasMatches;
+    if (elements.contextPreviewSearchNext) elements.contextPreviewSearchNext.disabled = !hasMatches;
+}
+
+function findContextPreviewMatches(text, query) {
+    const normalizedText = text.toLowerCase();
+    const normalizedQuery = query.toLowerCase();
+    const exactMatches = [];
+    let exactIndex = normalizedText.indexOf(normalizedQuery);
+    while (exactIndex !== -1) {
+        exactMatches.push({
+            start: exactIndex,
+            end: exactIndex + query.length
+        });
+        exactIndex = normalizedText.indexOf(normalizedQuery, exactIndex + Math.max(1, query.length));
+    }
+    if (exactMatches.length > 0) {
+        return exactMatches;
+    }
+
+    let textIndex = 0;
+    const positions = [];
+    for (const char of normalizedQuery) {
+        const foundAt = normalizedText.indexOf(char, textIndex);
+        if (foundAt === -1) return [];
+        positions.push(foundAt);
+        textIndex = foundAt + 1;
+    }
+
+    if (positions.length === 0) return [];
+    return [{
+        start: positions[0],
+        end: positions[positions.length - 1] + 1
+    }];
+}
+
+function renderContextPreviewHighlightedMatches(body, text, matches) {
+    body.innerHTML = '';
+    let cursor = 0;
+    matches.forEach(match => {
+        if (match.start > cursor) {
+            body.appendChild(document.createTextNode(text.slice(cursor, match.start)));
+        }
+        const mark = document.createElement('mark');
+        mark.className = 'context-preview-search-match';
+        mark.textContent = text.slice(match.start, match.end);
+        body.appendChild(mark);
+        cursor = match.end;
+    });
+    if (cursor < text.length) {
+        body.appendChild(document.createTextNode(text.slice(cursor)));
+    }
+}
+
+function splitContextPreviewSections(pageContext) {
+    const sections = {
+        article: '',
+        comments: '',
+        manual: ''
+    };
+
+    if (typeof pageContext !== 'string' || !pageContext.trim()) {
+        return sections;
+    }
+
+    const matches = Array.from(pageContext.matchAll(/^# (Page Content|Comments \/ Replies|Manually Selected Page Area)\s*$/gm));
+    if (matches.length === 0) {
+        sections.article = pageContext.trim();
+        return sections;
+    }
+
+    matches.forEach((match, index) => {
+        const title = match[1];
+        const start = match.index + match[0].length;
+        const end = index + 1 < matches.length ? matches[index + 1].index : pageContext.length;
+        const body = stripContextPreviewSectionDecorators(pageContext.slice(start, end));
+
+        if (title === 'Page Content') {
+            sections.article = appendPreviewSectionText(sections.article, body);
+        } else if (title === 'Comments / Replies') {
+            sections.comments = appendPreviewSectionText(sections.comments, body);
+        } else if (title === 'Manually Selected Page Area') {
+            sections.manual = appendPreviewSectionText(sections.manual, body);
+        }
+    });
+
+    return sections;
+}
+
+function stripContextPreviewSectionDecorators(text) {
+    return String(text || '')
+        .replace(/^\s*---\s*$/gm, '')
+        .replace(/^_Source:[^\n]*_\s*/gmi, '')
+        .trim();
+}
+
+function appendPreviewSectionText(existing, next) {
+    const cleanNext = String(next || '').trim();
+    if (!cleanNext) return existing || '';
+    return existing ? `${existing}\n\n---\n\n${cleanNext}` : cleanNext;
 }
 
 function formatPageContextMetaForPreview(meta) {
@@ -2389,8 +2656,36 @@ function formatPageContextMetaForPreview(meta) {
     if (meta.truncated) {
         parts.push(_('contextPreviewTruncated'));
     }
+    if (typeof meta.manualAreaCharCount === 'number' && meta.manualAreaCharCount > 0) {
+        parts.push(_('contextPreviewManualAreaChars', {
+            charCount: meta.manualAreaCharCount,
+            areaCount: meta.manualAreaCount || 1
+        }));
+    }
 
     return parts;
+}
+
+function appendManualAreaToPageContext(content, meta = {}) {
+    const cleanContent = typeof content === 'string' ? content.trim() : '';
+    if (!cleanContent) return;
+
+    const sectionLabel = _('manualAreaContextSectionTitle', {}, currentTranslations);
+    const sourceLabel = _('manualAreaContextSourceLabel', {
+        selector: meta?.selector || ''
+    }, currentTranslations);
+    const manualSection = `# ${sectionLabel}\n\n_${sourceLabel}_\n\n${cleanContent}`;
+    const existingContext = typeof state.pageContext === 'string' && state.pageContext !== 'error' ? state.pageContext.trim() : '';
+    state.pageContext = existingContext ? `${existingContext}\n\n---\n\n${manualSection}` : manualSection;
+
+    const previousMeta = state.pageContextMeta && typeof state.pageContextMeta === 'object' ? state.pageContextMeta : {};
+    const previousManualCount = previousMeta.manualAreaCount || 0;
+    const previousManualChars = previousMeta.manualAreaCharCount || 0;
+    state.pageContextMeta = {
+        ...previousMeta,
+        manualAreaCount: previousManualCount + 1,
+        manualAreaCharCount: previousManualChars + cleanContent.length
+    };
 }
 
 function openContextPreviewModal() {
@@ -2423,6 +2718,18 @@ function handleContentScriptMessages(event) {
                 const msgText = _('pageContentExtractedSuccess', {}, currentTranslations);
                 showChatStatusMessage(msgText, 'success', elements);
             }
+            break;
+        case 'pageAreaSelected':
+            appendManualAreaToPageContext(message.content, message.meta);
+            updateFooterContextStatusFromState();
+            openContextPreviewModal();
+            showToastUI(_('contextAreaAddedSuccess', {}, currentTranslations), 'success');
+            break;
+        case 'pageAreaSelectionCancelled':
+            showToastUI(_('contextAreaSelectionCancelled', {}, currentTranslations), 'info');
+            break;
+        case 'pageAreaSelectionFailed':
+            showToastUI(_('contextAreaSelectionFailed', { error: message.error || '' }, currentTranslations), 'error');
             break;
         case 'pageContentLoaded':
             requestPageContent();

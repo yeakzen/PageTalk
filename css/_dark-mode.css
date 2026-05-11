@@ -818,3 +818,25 @@ body.dark-mode #context-preview-modal .context-preview-content {
     border-color: rgba(255, 255, 255, 0.1);
     box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.08);
 }
+
+body.dark-mode #context-preview-modal .context-preview-content.context-preview-sections {
+    background: transparent;
+    border-color: transparent;
+    box-shadow: none;
+}
+
+body.dark-mode #context-preview-modal .context-preview-section {
+    background: rgba(255, 255, 255, 0.06);
+    border-color: rgba(255, 255, 255, 0.1);
+    box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.08);
+}
+
+body.dark-mode #context-preview-modal .context-preview-section-title {
+    background: rgba(255, 255, 255, 0.07);
+    border-bottom-color: rgba(255, 255, 255, 0.1);
+}
+
+body.dark-mode #context-preview-modal .context-preview-search-match {
+    background: rgba(250, 204, 21, 0.86);
+    color: #111827;
+}
