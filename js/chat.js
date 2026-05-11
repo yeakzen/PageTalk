@@ -1117,27 +1117,67 @@ export async function clearContext(state, elements, clearImagesCallback, clearVi
     }
 }
 
+function removeMessageDomById(messageId) {
+    if (!messageId) return false;
+
+    const messageElement = document.querySelector(`.message[data-message-id="${messageId}"]`);
+    const multiModelContainer = document.querySelector(`.multi-model-response-container[data-message-id="${messageId}"]`);
+    const targetElement = messageElement || multiModelContainer;
+
+    if (!targetElement) {
+        return false;
+    }
+
+    let prevSibling = targetElement.previousElementSibling;
+    while (prevSibling && prevSibling.dataset.messageIdRef === messageId) {
+        const siblingToRemove = prevSibling;
+        prevSibling = siblingToRemove.previousElementSibling;
+        siblingToRemove.remove();
+    }
+
+    targetElement.remove();
+    return true;
+}
+
 /**
  * Deletes a specific message from chat history and UI.
  * @param {string} messageId - The ID of the message to delete.
  * @param {object} state - Global state reference
  */
 export function deleteMessage(messageId, state) {
-    // 首先尝试查找普通消息
-    const messageElement = document.querySelector(`.message[data-message-id="${messageId}"]`);
-    let domRemoved = false;
+    const messageIndex = state.chatHistory.findIndex(msg => msg.id === messageId);
 
-    if (messageElement) {
-        // 循环删除所有与此消息关联的前置容器（图片、标签页等）
-        let prevSibling = messageElement.previousElementSibling;
-        while (prevSibling && prevSibling.dataset.messageIdRef === messageId) {
-            const siblingToRemove = prevSibling;
-            prevSibling = siblingToRemove.previousElementSibling; // 先移动指针
-            siblingToRemove.remove(); // 再删除
+    if (messageIndex !== -1 && state.chatHistory[messageIndex]?.role === 'user') {
+        const deletedMessages = [state.chatHistory[messageIndex]];
+        let nextIndex = messageIndex + 1;
+
+        while (nextIndex < state.chatHistory.length && state.chatHistory[nextIndex]?.role === 'model') {
+            deletedMessages.push(state.chatHistory[nextIndex]);
+            nextIndex++;
         }
-        messageElement.remove();
-        domRemoved = true;
-    } else {
+
+        deletedMessages.forEach((message) => {
+            if (message?.role === 'user' && typeof window.resetMermaidOverviewForUserMessage === 'function') {
+                window.resetMermaidOverviewForUserMessage(message.id);
+            }
+
+            removeMessageDomById(message.id);
+
+            if (state.locallyIgnoredTabs && state.locallyIgnoredTabs[message.id]) {
+                delete state.locallyIgnoredTabs[message.id];
+                console.log(`Cleaned up ignored tabs for deleted message ${message.id}`);
+            }
+        });
+
+        state.chatHistory.splice(messageIndex, deletedMessages.length);
+        console.log(`Deleted user turn starting at ${messageId}, removed ${deletedMessages.length} history item(s)`);
+        return;
+    }
+
+    // 首先尝试查找普通消息
+    let domRemoved = removeMessageDomById(messageId);
+
+    if (!domRemoved) {
         // 检查是否是多模型容器中的单个模型消息
         const botMessageElement = document.querySelector(`.bot-message[data-message-id="${messageId}"]`);
         if (botMessageElement) {
@@ -1192,7 +1232,6 @@ export function deleteMessage(messageId, state) {
         }
     }
 
-    const messageIndex = state.chatHistory.findIndex(msg => msg.id === messageId);
     let historyRemoved = false;
     if (messageIndex !== -1) {
         const deletedMessage = state.chatHistory[messageIndex];
