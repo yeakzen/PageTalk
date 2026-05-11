@@ -125,6 +125,7 @@ function createDefaultMermaidOverviewState(overrides = {}) {
 const THEME_READY_TIMEOUT_MS = 800;
 let themeReadyTimeoutId = null;
 let activeMermaidOverviewMessageId = null;
+let expandedSavedSessionTopicKey = null;
 
 function startThemeReadyTimeout() {
     if (!document.body || !document.body.classList.contains('theme-pending')) {
@@ -3281,6 +3282,317 @@ function hideSavedSessionsPopup() {
 }
 
 /**
+ * 提取已保存会话中的用户问题
+ */
+function extractUserQuestionsFromSession(session) {
+    const userQuestions = [];
+
+    if (!session?.chatHistory || !Array.isArray(session.chatHistory)) {
+        return userQuestions;
+    }
+
+    session.chatHistory.forEach(msg => {
+        if (msg.role !== 'user' || !Array.isArray(msg.parts)) {
+            return;
+        }
+
+        const textPart = msg.parts.find(part => part?.text && part.text.trim());
+        if (!textPart) {
+            return;
+        }
+
+        const firstLine = textPart.text.trim().split('\n')[0].trim();
+        if (firstLine) {
+            userQuestions.push(firstLine);
+        }
+    });
+
+    return userQuestions;
+}
+
+/**
+ * 轻量标准化问题文本，用于主题归组
+ */
+function normalizeQuestionForTopicGrouping(text) {
+    if (!text) return '';
+
+    return text
+        .replace(/\s+/g, ' ')
+        .replace(/[？?。！!]+$/g, '')
+        .trim();
+}
+
+/**
+ * 计算两个问题序列的最长公共前缀长度
+ */
+function getCommonQuestionPrefixLength(questionsA, questionsB) {
+    const maxLength = Math.min(questionsA.length, questionsB.length);
+    let index = 0;
+
+    while (index < maxLength) {
+        if (questionsA[index] !== questionsB[index]) {
+            break;
+        }
+        index += 1;
+    }
+
+    return index;
+}
+
+/**
+ * 计算一组会话问题序列的全组公共前缀长度
+ */
+function getGroupCommonQuestionPrefixLength(normalizedQuestionLists) {
+    if (!Array.isArray(normalizedQuestionLists) || normalizedQuestionLists.length === 0) {
+        return 0;
+    }
+
+    return normalizedQuestionLists.slice(1).reduce((prefixLength, questions) => {
+        const nextPrefixLength = getCommonQuestionPrefixLength(
+            normalizedQuestionLists[0].slice(0, prefixLength),
+            questions.slice(0, prefixLength)
+        );
+        return Math.min(prefixLength, nextPrefixLength);
+    }, normalizedQuestionLists[0].length);
+}
+
+/**
+ * 格式化已保存会话时间
+ */
+function formatSavedSessionDate(timestamp, includeTime = true) {
+    const date = new Date(timestamp);
+    const datePart = date.toLocaleDateString();
+
+    if (!includeTime) {
+        return datePart;
+    }
+
+    const timePart = date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+    return `${datePart} ${timePart}`;
+}
+
+/**
+ * 构建已保存会话主题组
+ */
+function buildSavedSessionTopicGroups(sessions) {
+    const groupsByKey = new Map();
+
+    sessions.forEach(session => {
+        const userQuestions = extractUserQuestionsFromSession(session);
+        const normalizedQuestions = userQuestions.map(normalizeQuestionForTopicGrouping);
+        const hasTwoSharedQuestions = normalizedQuestions.length >= 2;
+        const topicKey = hasTwoSharedQuestions
+            ? `${normalizedQuestions[0]}\n@@\n${normalizedQuestions[1]}`
+            : `session:${session.id}`;
+
+        if (!groupsByKey.has(topicKey)) {
+            groupsByKey.set(topicKey, {
+                topicKey,
+                sharedQuestions: hasTwoSharedQuestions
+                    ? [userQuestions[0], userQuestions[1]]
+                    : userQuestions.slice(0, 2),
+                latestSavedAt: session.savedAt || 0,
+                sessions: []
+            });
+        }
+
+        const group = groupsByKey.get(topicKey);
+        group.latestSavedAt = Math.max(group.latestSavedAt, session.savedAt || 0);
+
+        const remainingQuestions = hasTwoSharedQuestions ? userQuestions.slice(2) : userQuestions.slice();
+
+        group.sessions.push({
+            session,
+            userQuestions,
+            normalizedQuestions,
+            remainingQuestions,
+            matchedPrefixLength: hasTwoSharedQuestions ? 2 : 0,
+            onlySharedQuestions: hasTwoSharedQuestions && remainingQuestions.length === 0
+        });
+    });
+
+    return Array.from(groupsByKey.values())
+        .map(group => {
+            if (group.sessions.length <= 1) {
+                const singleSession = group.sessions[0];
+                return {
+                    ...group,
+                    sharedQuestions: singleSession ? singleSession.userQuestions.slice(0, 2) : [],
+                    sharedPrefixLength: 0,
+                    sessions: group.sessions.sort((a, b) => (b.session.savedAt || 0) - (a.session.savedAt || 0))
+                };
+            }
+
+            const normalizedQuestionLists = group.sessions.map(item => item.normalizedQuestions);
+            const sharedPrefixLength = getGroupCommonQuestionPrefixLength(normalizedQuestionLists);
+            const sharedQuestions = group.sessions[0].userQuestions.slice(0, sharedPrefixLength);
+
+            const sessionsWithPrefix = group.sessions
+                .map(item => {
+                    const remainingQuestions = item.userQuestions.slice(sharedPrefixLength);
+
+                    return {
+                        ...item,
+                        matchedPrefixLength: sharedPrefixLength,
+                        remainingQuestions,
+                        onlySharedQuestions: remainingQuestions.length === 0
+                    };
+                })
+                .sort((a, b) => {
+                    if ((b.session.savedAt || 0) !== (a.session.savedAt || 0)) {
+                        return (b.session.savedAt || 0) - (a.session.savedAt || 0);
+                    }
+                    return b.matchedPrefixLength - a.matchedPrefixLength;
+                });
+
+            return {
+                ...group,
+                sharedQuestions,
+                sharedPrefixLength,
+                sessions: sessionsWithPrefix
+            };
+        })
+        .sort((a, b) => {
+            if (b.latestSavedAt !== a.latestSavedAt) {
+                return b.latestSavedAt - a.latestSavedAt;
+            }
+            return b.sessions.length - a.sessions.length;
+        });
+}
+
+/**
+ * 创建第二层会话问题列表
+ */
+function createSavedSessionQuestionsElement(questions, { highlightFirst = false, placeholder = '' } = {}) {
+    const questionsContainer = document.createElement('div');
+    questionsContainer.className = 'saved-session-questions';
+
+    if (placeholder) {
+        const placeholderEl = document.createElement('div');
+        placeholderEl.className = 'saved-session-question saved-session-question-placeholder';
+        placeholderEl.textContent = placeholder;
+        questionsContainer.appendChild(placeholderEl);
+        return questionsContainer;
+    }
+
+    questions.forEach((question, index) => {
+        const questionEl = document.createElement('div');
+        questionEl.className = 'saved-session-question';
+        if (highlightFirst && index === 0) {
+            questionEl.classList.add('saved-session-question-highlight');
+        }
+        questionEl.title = question;
+        questionEl.textContent = question;
+        questionsContainer.appendChild(questionEl);
+    });
+
+    return questionsContainer;
+}
+
+/**
+ * 创建主题块第一层预览问题
+ */
+function createTopicPreviewQuestion(question) {
+    const previewEl = document.createElement('div');
+    previewEl.className = 'saved-session-topic-preview-question';
+    previewEl.title = question;
+    previewEl.textContent = question;
+    return previewEl;
+}
+
+/**
+ * 创建主题块下的原始会话
+ */
+function createSavedSessionBranchItem(groupSession) {
+    const { session, remainingQuestions, onlySharedQuestions } = groupSession;
+    const branchItem = document.createElement('div');
+    branchItem.className = 'saved-session-item saved-session-branch-item';
+    branchItem.dataset.sessionId = session.id;
+
+    branchItem.innerHTML = `
+        <div class="saved-session-top-row">
+            <div class="saved-session-info">
+                <div class="saved-session-title" title="${escapeHtml(session.title)}">${escapeHtml(session.title)}</div>
+                <div class="saved-session-date">${formatSavedSessionDate(session.savedAt)}</div>
+            </div>
+            <div class="saved-session-actions">
+                <button class="session-action-btn delete-btn" data-session-id="${session.id}" title="${_('delete')}">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" fill="currentColor" viewBox="0 0 16 16">
+                        <path d="M5.5 5.5A.5.5 0 0 1 6 6v6a.5.5 0 0 1-1 0V6a.5.5 0 0 1 .5-.5zm2.5 0a.5.5 0 0 1 .5.5v6a.5.5 0 0 1-1 0V6a.5.5 0 0 1 .5-.5zm3 .5a.5.5 0 0 0-1 0v6a.5.5 0 0 0 1 0V6z"/>
+                        <path fill-rule="evenodd" d="M14.5 3a1 1 0 0 1-1 1H13v9a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V4h-.5a1 1 0 0 1-1-1V2a1 1 0 0 1 1-1H6a1 1 0 0 1 1-1h3.5a1 1 0 0 1 1 1v1zM4.118 4 4 4.059V13a1 1 0 0 0 1 1h6a1 1 0 0 0 1-1V4.059L11.882 4H4.118zM2.5 3V2h11v1h-11z"/>
+                    </svg>
+                </button>
+            </div>
+        </div>
+    `;
+
+    const questionsEl = onlySharedQuestions
+        ? createSavedSessionQuestionsElement([], { placeholder: _('savedSessionsOnlySharedQuestions') })
+        : createSavedSessionQuestionsElement(remainingQuestions, { highlightFirst: true });
+
+    branchItem.appendChild(questionsEl);
+
+    branchItem.addEventListener('click', (e) => {
+        if (!e.target.closest('.session-action-btn')) {
+            restoreChatSession(session.id);
+        }
+    });
+
+    const deleteBtn = branchItem.querySelector('.delete-btn');
+    deleteBtn.addEventListener('click', (e) => {
+        e.stopPropagation();
+        deleteSavedSession(session.id);
+    });
+
+    return branchItem;
+}
+
+/**
+ * 创建单条已保存会话，保持改版前的平铺记录样式
+ */
+function createStandaloneSavedSessionItem(groupSession) {
+    const { session, userQuestions } = groupSession;
+    const item = document.createElement('div');
+    item.className = 'saved-session-item';
+    item.dataset.sessionId = session.id;
+
+    item.innerHTML = `
+        <div class="saved-session-top-row">
+            <div class="saved-session-info">
+                <div class="saved-session-title" title="${escapeHtml(session.title)}">${escapeHtml(session.title)}</div>
+                <div class="saved-session-date">${formatSavedSessionDate(session.savedAt)}</div>
+            </div>
+            <div class="saved-session-actions">
+                <button class="session-action-btn delete-btn" data-session-id="${session.id}" title="${_('delete')}">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" fill="currentColor" viewBox="0 0 16 16">
+                        <path d="M5.5 5.5A.5.5 0 0 1 6 6v6a.5.5 0 0 1-1 0V6a.5.5 0 0 1 .5-.5zm2.5 0a.5.5 0 0 1 .5.5v6a.5.5 0 0 1-1 0V6a.5.5 0 0 1 .5-.5zm3 .5a.5.5 0 0 0-1 0v6a.5.5 0 0 0 1 0V6z"/>
+                        <path fill-rule="evenodd" d="M14.5 3a1 1 0 0 1-1 1H13v9a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V4h-.5a1 1 0 0 1-1-1V2a1 1 0 0 1 1-1H6a1 1 0 0 1 1-1h3.5a1 1 0 0 1 1 1v1zM4.118 4 4 4.059V13a1 1 0 0 0 1 1h6a1 1 0 0 0 1-1V4.059L11.882 4H4.118zM2.5 3V2h11v1h-11z"/>
+                    </svg>
+                </button>
+            </div>
+        </div>
+    `;
+
+    if (userQuestions.length > 0) {
+        item.appendChild(createSavedSessionQuestionsElement(userQuestions));
+    }
+
+    item.addEventListener('click', (e) => {
+        if (!e.target.closest('.session-action-btn')) {
+            restoreChatSession(session.id);
+        }
+    });
+
+    const deleteBtn = item.querySelector('.delete-btn');
+    deleteBtn.addEventListener('click', (e) => {
+        e.stopPropagation();
+        deleteSavedSession(session.id);
+    });
+
+    return item;
+}
+
+/**
  * 渲染已保存对话列表
  */
 function renderSavedSessionsList(sessions) {
@@ -3290,82 +3602,75 @@ function renderSavedSessionsList(sessions) {
     listContainer.innerHTML = '';
 
     if (!sessions || sessions.length === 0) {
+        expandedSavedSessionTopicKey = null;
         listContainer.style.display = 'none';
         emptyContainer.style.display = 'block';
         return;
     }
 
+    const topicGroups = buildSavedSessionTopicGroups(sessions);
+    const hasExpandedGroup = topicGroups.some(group => group.topicKey === expandedSavedSessionTopicKey);
+    if (!hasExpandedGroup) {
+        expandedSavedSessionTopicKey = null;
+    }
+
     listContainer.style.display = 'block';
     emptyContainer.style.display = 'none';
 
-    sessions.forEach(session => {
-        const item = document.createElement('div');
-        item.className = 'saved-session-item';
-        item.dataset.sessionId = session.id;
-
-        const savedDate = new Date(session.savedAt);
-        const dateStr = savedDate.toLocaleDateString() + ' ' + savedDate.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
-
-        // 提取用户提问的首句
-        const userQuestions = [];
-        if (session.chatHistory && Array.isArray(session.chatHistory)) {
-            session.chatHistory.forEach(msg => {
-                if (msg.role === 'user' && msg.parts && Array.isArray(msg.parts)) {
-                    for (const part of msg.parts) {
-                        if (part.text && part.text.trim()) {
-                            // 取第一行作为摘要
-                            const firstLine = part.text.trim().split('\n')[0].substring(0, 80);
-                            userQuestions.push(firstLine);
-                            break;
-                        }
-                    }
-                }
-            });
+    topicGroups.forEach(group => {
+    if (group.sessions.length === 1) {
+            const standaloneItem = createStandaloneSavedSessionItem(group.sessions[0]);
+            standaloneItem.classList.add('saved-session-standalone-item');
+            listContainer.appendChild(standaloneItem);
+            return;
         }
 
-        // 构建用户提问 HTML
-        let questionsHTML = '';
-        if (userQuestions.length > 0) {
-            questionsHTML = `<div class="saved-session-questions">`;
-            userQuestions.forEach(q => {
-                questionsHTML += `<div class="saved-session-question" title="${escapeHtml(q)}">${escapeHtml(q)}</div>`;
-            });
-            questionsHTML += `</div>`;
-        }
+        const topicItem = document.createElement('div');
+        const isExpanded = expandedSavedSessionTopicKey === group.topicKey;
+        topicItem.className = `saved-session-topic${isExpanded ? ' expanded' : ''}`;
+        topicItem.dataset.topicKey = group.topicKey;
 
-        item.innerHTML = `
-            <div class="saved-session-top-row">
-                <div class="saved-session-info">
-                    <div class="saved-session-title" title="${escapeHtml(session.title)}">${escapeHtml(session.title)}</div>
-                    <div class="saved-session-date">${dateStr}</div>
-                </div>
-                <div class="saved-session-actions">
-                    <button class="session-action-btn delete-btn" data-session-id="${session.id}" title="${_('delete')}">
-                        <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" fill="currentColor" viewBox="0 0 16 16">
-                            <path d="M5.5 5.5A.5.5 0 0 1 6 6v6a.5.5 0 0 1-1 0V6a.5.5 0 0 1 .5-.5zm2.5 0a.5.5 0 0 1 .5.5v6a.5.5 0 0 1-1 0V6a.5.5 0 0 1 .5-.5zm3 .5a.5.5 0 0 0-1 0v6a.5.5 0 0 0 1 0V6z"/>
-                            <path fill-rule="evenodd" d="M14.5 3a1 1 0 0 1-1 1H13v9a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V4h-.5a1 1 0 0 1-1-1V2a1 1 0 0 1 1-1H6a1 1 0 0 1 1-1h3.5a1 1 0 0 1 1 1v1zM4.118 4 4 4.059V13a1 1 0 0 0 1 1h6a1 1 0 0 0 1-1V4.059L11.882 4H4.118zM2.5 3V2h11v1h-11z"/>
-                        </svg>
-                    </button>
+        const topicHeader = document.createElement('button');
+        topicHeader.type = 'button';
+        topicHeader.className = 'saved-session-topic-header';
+        topicHeader.innerHTML = `
+            <span class="saved-session-topic-chevron" aria-hidden="true">${isExpanded ? '▾' : '▸'}</span>
+            <div class="saved-session-topic-header-main">
+                <div class="saved-session-topic-meta">
+                    <span class="saved-session-topic-count">${_('savedSessionsRelatedCount', { count: group.sessions.length })}</span>
+                    <span class="saved-session-topic-date">${formatSavedSessionDate(group.latestSavedAt, false)}</span>
                 </div>
             </div>
-            ${questionsHTML}
         `;
 
-        // 点击恢复对话
-        item.addEventListener('click', (e) => {
-            if (!e.target.closest('.session-action-btn')) {
-                restoreChatSession(session.id);
-            }
+        const previewContainer = document.createElement('div');
+        previewContainer.className = 'saved-session-topic-preview';
+        group.sharedQuestions.forEach(question => {
+            previewContainer.appendChild(createTopicPreviewQuestion(question));
         });
 
-        // 删除按钮事件
-        const deleteBtn = item.querySelector('.delete-btn');
-        deleteBtn.addEventListener('click', (e) => {
+        topicHeader.querySelector('.saved-session-topic-header-main').appendChild(previewContainer);
+
+        topicHeader.addEventListener('click', (e) => {
             e.stopPropagation();
-            deleteSavedSession(session.id);
+            expandedSavedSessionTopicKey = isExpanded ? null : group.topicKey;
+            renderSavedSessionsList(sessions);
         });
 
-        listContainer.appendChild(item);
+        topicItem.appendChild(topicHeader);
+
+        if (isExpanded) {
+            const branchesContainer = document.createElement('div');
+            branchesContainer.className = 'saved-session-topic-branches';
+
+            group.sessions.forEach(groupSession => {
+                branchesContainer.appendChild(createSavedSessionBranchItem(groupSession));
+            });
+
+            topicItem.appendChild(branchesContainer);
+        }
+
+        listContainer.appendChild(topicItem);
     });
 }
 
