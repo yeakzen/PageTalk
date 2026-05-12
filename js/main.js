@@ -88,6 +88,7 @@ const state = {
     pageUrl: '',
     pageContextMeta: null,
     removeContextWebLinks: true,
+    removeContextSitePaths: true,
     chatHistory: [],
     isConnected: false,
     hasDeterminedConnection: false, // 新增：是否已判定连接状态，避免初始闪烁
@@ -276,6 +277,7 @@ const elements = {
     contextPreviewContent: document.getElementById('context-preview-content'),
     contextPreviewCopy: document.getElementById('context-preview-copy'),
     contextPreviewRemoveLinks: document.getElementById('context-preview-remove-links'),
+    contextPreviewRemoveSitePaths: document.getElementById('context-preview-remove-site-paths'),
     contextPreviewSearch: document.getElementById('context-preview-search'),
     contextPreviewSearchPrev: document.getElementById('context-preview-search-prev'),
     contextPreviewSearchNext: document.getElementById('context-preview-search-next'),
@@ -738,6 +740,15 @@ function setupEventListeners() {
         elements.contextPreviewRemoveLinks.checked = state.removeContextWebLinks !== false;
         elements.contextPreviewRemoveLinks.addEventListener('change', () => {
             state.removeContextWebLinks = elements.contextPreviewRemoveLinks.checked;
+            if (isContextPreviewModalOpen()) {
+                renderContextPreviewModal();
+            }
+        });
+    }
+    if (elements.contextPreviewRemoveSitePaths) {
+        elements.contextPreviewRemoveSitePaths.checked = state.removeContextSitePaths !== false;
+        elements.contextPreviewRemoveSitePaths.addEventListener('change', () => {
+            state.removeContextSitePaths = elements.contextPreviewRemoveSitePaths.checked;
             if (isContextPreviewModalOpen()) {
                 renderContextPreviewModal();
             }
@@ -2397,6 +2408,9 @@ function renderContextPreviewModal() {
 
     if (elements.contextPreviewRemoveLinks) {
         elements.contextPreviewRemoveLinks.checked = state.removeContextWebLinks !== false;
+    }
+    if (elements.contextPreviewRemoveSitePaths) {
+        elements.contextPreviewRemoveSitePaths.checked = state.removeContextSitePaths !== false;
     }
 
     const pageContextStatus = getPageContextStatus(state.pageContext);
