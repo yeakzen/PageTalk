@@ -390,7 +390,7 @@ async function sendMultiModelMessage(
     }
 
     // 并行调用所有模型
-    const promises = modelInfos.map(async (modelInfo) => {
+    const promises = modelInfos.map(async (modelInfo, modelIndex) => {
         const modelId = modelInfo.modelId;
 
         try {
@@ -413,7 +413,7 @@ async function sendMultiModelMessage(
             // 为 messageContent 添加 messageId（API 需要）
             const messageId = generateUniqueId();
             messageContent.dataset.messageId = messageId;
-            applyBotMessageHeadingColor(messageContent);
+            applyBotMessageHeadingColor(messageContent, modelIndex);
 
             // 累积的响应内容
             let accumulatedContent = '';
@@ -707,7 +707,7 @@ async function regenerateMultiModelMessage(
     }
 
     // 并行调用所有模型
-    const promises = modelInfos.map(async (modelInfo) => {
+    const promises = modelInfos.map(async (modelInfo, modelIndex) => {
         const modelId = modelInfo.modelId;
 
         try {
@@ -730,7 +730,7 @@ async function regenerateMultiModelMessage(
             // 为 messageContent 添加 messageId（API 需要）
             const messageId = generateUniqueId();
             messageContent.dataset.messageId = messageId;
-            applyBotMessageHeadingColor(messageContent);
+            applyBotMessageHeadingColor(messageContent, modelIndex);
 
             // 累积的响应内容
             let accumulatedContent = '';
