@@ -10,7 +10,8 @@
     "contextMenus",
     "clipboardWrite",
     "proxy",
-    "browsingData"
+    "browsingData",
+    "unlimitedStorage"
   ],
   "host_permissions": [
     "<all_urls>"

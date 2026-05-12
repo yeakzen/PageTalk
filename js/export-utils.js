@@ -1,4 +1,5 @@
 import { tr as _ } from './utils/i18n.js';
+import { generateUniqueId } from './utils.js';
 
 function getModelDisplayName(modelId, elements) {
     if (!elements || !elements.chatModelSelection) return modelId;
@@ -150,6 +151,76 @@ export function extractPartsFromMessage(message) {
     return { text, images };
 }
 
+export function parseChatMarkdown(markdown, elements, currentTranslations) {
+    if (!markdown || typeof markdown !== 'string') return [];
+
+    const normalizedMarkdown = markdown.replace(/\r\n?/g, '\n');
+    const messageSections = splitMarkdownMessageSections(normalizedMarkdown);
+    if (messageSections.length === 0) return [];
+
+    const userLabels = getUserLabels(currentTranslations);
+    const modelLabels = getModelLabels(elements, currentTranslations);
+    const chatHistory = [];
+    let pendingMultiModelResponse = null;
+    let expectingModelResponse = false;
+
+    const flushMultiModelResponse = () => {
+        if (!pendingMultiModelResponse) return;
+        const modelOrder = [...pendingMultiModelResponse.modelOrder];
+        const firstResponse = modelOrder
+            .map(modelId => pendingMultiModelResponse.multiModelResponses[modelId])
+            .find(response => response && response.trim());
+
+        chatHistory.push({
+            role: 'model',
+            parts: [{ text: firstResponse || '' }],
+            id: generateUniqueId(),
+            multiModelResponses: { ...pendingMultiModelResponse.multiModelResponses },
+            modelOrder
+        });
+        pendingMultiModelResponse = null;
+    };
+
+    messageSections.forEach(section => {
+        const normalizedTitle = normalizeLabel(section.title);
+        const explicitModelId = modelLabels.get(normalizedTitle);
+        const content = cleanImportedMessageContent(section.content, currentTranslations);
+        const isUserSection = userLabels.has(normalizedTitle)
+            || (!explicitModelId && headingMatchesImportedContent(section.title, content));
+        const modelId = explicitModelId
+            || (!isUserSection && (expectingModelResponse || pendingMultiModelResponse) ? section.title : '');
+
+        if (isUserSection || !modelId) {
+            flushMultiModelResponse();
+            if (!content) return;
+
+            chatHistory.push({
+                role: 'user',
+                parts: [{ text: content }],
+                id: generateUniqueId()
+            });
+            expectingModelResponse = true;
+            return;
+        }
+
+        if (!pendingMultiModelResponse) {
+            pendingMultiModelResponse = {
+                multiModelResponses: {},
+                modelOrder: []
+            };
+        }
+
+        const restoredContent = restoreMarkdownHeadingLevels(content, 2);
+        const uniqueModelId = getUniqueModelId(modelId, pendingMultiModelResponse.multiModelResponses);
+        pendingMultiModelResponse.multiModelResponses[uniqueModelId] = restoredContent;
+        pendingMultiModelResponse.modelOrder.push(uniqueModelId);
+        expectingModelResponse = false;
+    });
+
+    flushMultiModelResponse();
+    return chatHistory;
+}
+
 export function removeThinkingContent(text) {
     if (!text) return text;
     return text.replace(/<think>[\s\S]*?<\/think>/gi, '').trim();
@@ -161,6 +232,16 @@ export function adjustMarkdownHeadingLevels(text, levels = 2) {
     return text.replace(/^(#{1,6})\s/gm, (match, hashes) => {
         const currentLevel = hashes.length;
         const newLevel = Math.min(currentLevel + levels, 6);
+        return '#'.repeat(newLevel) + ' ';
+    });
+}
+
+export function restoreMarkdownHeadingLevels(text, levels = 2) {
+    if (!text) return text;
+
+    return text.replace(/^(#{1,6})\s/gm, (match, hashes) => {
+        const currentLevel = hashes.length;
+        const newLevel = Math.max(currentLevel - levels, 1);
         return '#'.repeat(newLevel) + ' ';
     });
 }
@@ -177,4 +258,114 @@ function getFirstSentence(text, maxLength = 50) {
     }
 
     return sentence;
+}
+
+function splitMarkdownMessageSections(markdown) {
+    const lines = markdown.split('\n');
+    const sections = [];
+    let currentSection = null;
+
+    lines.forEach(line => {
+        const headingMatch = line.match(/^(#{2})\s+(.+?)\s*#*\s*$/);
+        if (headingMatch) {
+            if (currentSection) {
+                sections.push({
+                    title: currentSection.title,
+                    content: currentSection.lines.join('\n').trim()
+                });
+            }
+            currentSection = {
+                title: headingMatch[2].trim(),
+                lines: []
+            };
+            return;
+        }
+
+        if (currentSection) {
+            currentSection.lines.push(line);
+        }
+    });
+
+    if (currentSection) {
+        sections.push({
+            title: currentSection.title,
+            content: currentSection.lines.join('\n').trim()
+        });
+    }
+
+    return sections;
+}
+
+function getUserLabels(currentTranslations) {
+    return new Set([
+        normalizeLabel(_('userLabel', {}, currentTranslations)),
+        normalizeLabel('我'),
+        normalizeLabel('Me')
+    ]);
+}
+
+function getModelLabels(elements, currentTranslations) {
+    const labels = new Map();
+
+    if (elements?.chatModelSelection) {
+        elements.chatModelSelection.querySelectorAll('option').forEach(option => {
+            if (option.value && option.textContent) {
+                labels.set(normalizeLabel(option.textContent), option.value);
+                labels.set(normalizeLabel(option.value), option.value);
+            }
+        });
+    }
+
+    const selectedModel = elements?.chatModelSelection?.value || '';
+    if (selectedModel) {
+        labels.set(normalizeLabel(_('appName', {}, currentTranslations)), selectedModel);
+        labels.set(normalizeLabel('PageTalk'), selectedModel);
+    }
+
+    return labels;
+}
+
+function normalizeLabel(label) {
+    return (label || '').replace(/\s+/g, ' ').trim().toLowerCase();
+}
+
+function headingMatchesImportedContent(heading, content) {
+    const normalizedHeading = normalizeLabel(heading).replace(/\.\.\.$/, '');
+    const firstSentence = normalizeLabel(getFirstSentence(content)).replace(/\.\.\.$/, '');
+    const firstLine = normalizeLabel((content || '').trim().split('\n')[0] || '');
+
+    if (!normalizedHeading || !firstSentence) return false;
+    return normalizedHeading === firstSentence || firstLine.startsWith(normalizedHeading);
+}
+
+function cleanImportedMessageContent(content, currentTranslations) {
+    const contextLabel = escapeRegExp(_('contextPagesLabel', {}, currentTranslations));
+    const fallbackContextLabels = ['标签页', 'Tabs']
+        .map(escapeRegExp)
+        .join('|');
+    const contextBlockRe = new RegExp(
+        `^\\*\\*(?:${contextLabel}|${fallbackContextLabels}):\\*\\*\\n(?:\\d+\\.\\s+\\[[^\\]]+\\]\\([^\\n]+\\)\\n?)+\\n*`,
+        'i'
+    );
+
+    return (content || '')
+        .replace(contextBlockRe, '')
+        .replace(/^\[[^\]\n]+ - image\/[^\]\n]+\]\n*/gim, '')
+        .trim();
+}
+
+function getUniqueModelId(modelId, responses) {
+    if (!Object.prototype.hasOwnProperty.call(responses, modelId)) return modelId;
+
+    let index = 2;
+    let nextModelId = `${modelId}#${index}`;
+    while (Object.prototype.hasOwnProperty.call(responses, nextModelId)) {
+        index += 1;
+        nextModelId = `${modelId}#${index}`;
+    }
+    return nextModelId;
+}
+
+function escapeRegExp(text) {
+    return String(text || '').replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 }

@@ -26,6 +26,7 @@ import {
 } from './agent.js';
 import { loadSettings as loadAppSettings, handleLanguageChange, handleBotBoldHighlightColorChange, saveMermaidOverviewSettings, handleExportChat, handleCopyChat, handleObsidianSettingsChange, initModelSelection, updateModelCardsDisplay, handleProxyAddressChange, handleProxyTest, setupProviderEventListeners, initQuickActionsSettings, renderQuickActionsList } from './settings.js';
 import { handleExportToObsidian } from './obsidian-export.js';
+import { parseChatMarkdown } from './export-utils.js';
 import * as QuickActionsManager from './quick-actions-manager.js';
 import { initTextSelectionHelperSettings, isTextSelectionHelperEnabled } from './text-selection-helper-settings.js';
 import { sendUserMessage as sendUserMessageAction, clearContext as clearContextAction, deleteMessage as deleteMessageAction, regenerateMessage as regenerateMessageAction, abortStreaming as abortStreamingAction, handleRemoveSentTabContext as handleRemoveSentTabContextAction, createWelcomeMessage } from './chat.js';
@@ -240,6 +241,8 @@ const elements = {
     moonIconSettings: document.getElementById('moon-icon'),
     sunIconSettings: document.getElementById('sun-icon'),
     exportFormatSelect: document.getElementById('export-format'),
+    importChatHistoryBtn: document.getElementById('import-chat-history'),
+    importChatHistoryInput: document.getElementById('import-chat-history-input'),
     exportChatHistoryBtn: document.getElementById('export-chat-history'),
     copyChatHistoryBtn: document.getElementById('copy-chat-history'),
     obsidianVaultInput: document.getElementById('obsidian-vault-input'),
@@ -807,6 +810,10 @@ function setupEventListeners() {
         elements.mermaidOverviewDiagramPromptTextarea.addEventListener('blur', () => {
             saveMermaidOverviewSettings(state, elements, showToastUI, currentTranslations);
         });
+    }
+    if (elements.importChatHistoryBtn && elements.importChatHistoryInput) {
+        elements.importChatHistoryBtn.addEventListener('click', () => elements.importChatHistoryInput.click());
+        elements.importChatHistoryInput.addEventListener('change', handleImportChatMarkdown);
     }
     elements.exportChatHistoryBtn.addEventListener('click', () => handleExportChat(state, elements, showToastUI, currentTranslations));
     elements.copyChatHistoryBtn.addEventListener('click', () => handleCopyChat(state, elements, showToastUI, currentTranslations));
@@ -1853,6 +1860,70 @@ function abortStreamingUI() {
 function restoreSendButtonAndInputUI() {
     restoreSendButtonAndInput(state, elements, currentTranslations);
     syncChatInputVisibility();
+}
+
+function handleImportChatMarkdown(event) {
+    const file = event.target.files?.[0];
+    event.target.value = '';
+    if (!file) return;
+
+    const fileName = file.name || '';
+    if (!/\.(md|markdown)$/i.test(fileName)) {
+        showToastUI(_('chatImportMarkdownOnly', {}, currentTranslations), 'error');
+        return;
+    }
+
+    if (state.isStreaming) {
+        showToastUI(_('streamingInProgress', {}, currentTranslations), 'warning');
+        return;
+    }
+
+    const reader = new FileReader();
+    reader.onload = async (loadEvent) => {
+        try {
+            const markdown = String(loadEvent.target?.result || '');
+            const importedChatHistory = parseChatMarkdown(markdown, elements, currentTranslations);
+
+            if (!importedChatHistory.length) {
+                showToastUI(_('chatImportEmptyError', {}, currentTranslations), 'error');
+                return;
+            }
+
+            if (state.chatHistory?.length > 0 && !confirm(_('chatImportConfirm', {}, currentTranslations))) {
+                return;
+            }
+
+            await restoreImportedChatHistory(importedChatHistory);
+            showToastUI(_('chatImportSuccess', { count: importedChatHistory.length }, currentTranslations), 'success');
+        } catch (error) {
+            console.error('[ImportChatMarkdown] Failed to import chat markdown:', error);
+            showToastUI(_('chatImportError', { error: error.message }, currentTranslations), 'error');
+        }
+    };
+    reader.onerror = () => {
+        showToastUI(_('chatImportError', { error: reader.error?.message || 'File read failed' }, currentTranslations), 'error');
+    };
+    reader.readAsText(file);
+}
+
+async function restoreImportedChatHistory(chatHistory) {
+    elements.chatMessages.innerHTML = '';
+    state.chatHistory = chatHistory;
+    state.locallyIgnoredTabs = {};
+    state.selectedContextTabs = [];
+    clearImagesUI();
+    clearVideosUI();
+    updateSelectedTabsBarFromMain();
+
+    await renderChatHistoryFromSession({ chatHistory });
+    syncChatInputVisibility();
+    switchTab('chat', elements, (subTab) => switchSettingsSubTab(subTab, elements));
+    setThemeButtonVisibility('chat', elements);
+    if (elements.themeToggleBtnSettings) {
+        elements.themeToggleBtnSettings.style.display = 'none';
+        elements.themeToggleBtnSettings.style.visibility = 'hidden';
+    }
+    setTimeout(() => elements.userInput?.focus(), 50);
 }
 
 // Wrapper function for toggleTheme used by draggable button
