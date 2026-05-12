@@ -4,6 +4,13 @@
 import { generateUniqueId } from './utils.js'; // Might need utils later
 import * as QuickActionsManager from './quick-actions-manager.js';
 import { tr as _, getCurrentTranslations } from './utils/i18n.js';
+import { buildChatMarkdown, buildChatText } from './export-utils.js';
+import {
+    normalizeObsidianExportSettings,
+    applyObsidianExportSettingsToElements,
+    readObsidianExportSettingsFromElements,
+    saveObsidianExportSettings
+} from './obsidian-export.js';
 
 const DEFAULT_BOT_BOLD_HIGHLIGHT_COLOR = 'none';
 const DEFAULT_MERMAID_OVERVIEW_SETTINGS = Object.freeze({
@@ -220,7 +227,7 @@ export function loadSettings(state, elements, updateConnectionIndicatorCallback,
         console.log('[Settings] Updated manual add button for language:', newLanguage);
     });
 
-    chrome.storage.sync.get(['apiKey', 'model', 'selectedModels', 'language', 'proxyAddress', 'providerSettings', 'botBoldHighlightColor', 'mermaidOverviewSettings'], async (syncResult) => {
+    chrome.storage.sync.get(['apiKey', 'model', 'selectedModels', 'language', 'proxyAddress', 'providerSettings', 'botBoldHighlightColor', 'mermaidOverviewSettings', 'obsidianExportSettings'], async (syncResult) => {
         // 初始化 ModelManager
         if (window.ModelManager?.instance) {
             try {
@@ -292,6 +299,9 @@ export function loadSettings(state, elements, updateConnectionIndicatorCallback,
         }
         if (elements.proxyAddressInput) elements.proxyAddressInput.value = state.proxyAddress;
 
+        state.obsidianExportSettings = normalizeObsidianExportSettings(syncResult.obsidianExportSettings);
+        applyObsidianExportSettingsToElements(state.obsidianExportSettings, elements);
+
         state.botBoldHighlightColor = normalizeBotBoldHighlightColor(syncResult.botBoldHighlightColor);
         applyBotBoldHighlightColor(state.botBoldHighlightColor);
         if (elements.botBoldHighlightColorSelect) {
@@ -329,6 +339,17 @@ export function loadSettings(state, elements, updateConnectionIndicatorCallback,
             onSettingsLoadedCallback();
         }
     });
+}
+
+export async function handleObsidianSettingsChange(state, elements, showToastCallback, currentTranslations) {
+    try {
+        const settings = readObsidianExportSettingsFromElements(elements, state);
+        state.obsidianExportSettings = settings;
+        await saveObsidianExportSettings(settings);
+    } catch (error) {
+        console.error('[Settings] Failed to save Obsidian export settings:', error);
+        showToastCallback(_('obsidianSettingsSaveError', { error: error.message }, currentTranslations), 'error');
+    }
 }
 
 /**
@@ -611,10 +632,10 @@ export function handleExportChat(state, elements, showToastCallback, currentTran
 
     if (format === 'markdown') {
         filename += '.md';
-        content = exportChatToMarkdown(state, elements, currentTranslations);
+        content = buildChatMarkdown(state, elements, currentTranslations);
     } else { // text format
         filename += '.txt';
-        content = exportChatToText(state, elements, currentTranslations);
+        content = buildChatText(state, elements, currentTranslations);
     }
 
     if (!content) {
@@ -655,9 +676,9 @@ export function handleCopyChat(state, elements, showToastCallback, currentTransl
     let content = '';
 
     if (format === 'markdown') {
-        content = exportChatToMarkdown(state, elements, currentTranslations);
+        content = buildChatMarkdown(state, elements, currentTranslations);
     } else {
-        content = exportChatToText(state, elements, currentTranslations);
+        content = buildChatText(state, elements, currentTranslations);
     }
 
     if (!content) {
@@ -688,239 +709,6 @@ export function handleCopyChat(state, elements, showToastCallback, currentTransl
     } finally {
         document.body.removeChild(textarea);
     }
-}
-
-/**
- * 获取模型显示名称
- * @param {string} modelId - 模型ID
- * @param {object} elements - DOM elements reference
- * @returns {string} 模型显示名称
- */
-function getModelDisplayName(modelId, elements) {
-    if (!elements || !elements.chatModelSelection) return modelId;
-    const option = elements.chatModelSelection.querySelector(`option[value="${modelId}"]`);
-    return option ? option.textContent : modelId;
-}
-
-/**
- * Exports chat history to Markdown format.
- * @param {object} state - Global state reference
- * @param {object} elements - DOM elements reference
- * @param {object} currentTranslations - Translations object
- * @returns {string} Markdown content
- */
-function exportChatToMarkdown(state, elements, currentTranslations) {
-    if (state.chatHistory.length === 0) return '';
-
-    const _tr = (key, rep = {}) => _(key, rep, currentTranslations);
-
-    let markdown = '';
-
-    state.chatHistory.forEach(message => {
-        const { text, images } = extractPartsFromMessage(message); // Use helper
-
-        if (message.role === 'user') {
-            // 使用用户提问内容的首句作为标题
-            const firstSentence = getFirstSentence(text);
-            markdown += `## ${firstSentence || _tr('userLabel')}\n\n`;
-
-            // 添加上下文标签页信息（如果有）
-            if (message.sentContextTabsInfo && message.sentContextTabsInfo.length > 0) {
-                markdown += `**${_tr('contextPagesLabel')}:**\n`;
-                message.sentContextTabsInfo.forEach((tab, index) => {
-                    markdown += `${index + 1}. [${tab.title}](${tab.url || tab.id})\n`;
-                });
-                markdown += '\n';
-            }
-
-            if (images.length > 0) {
-                images.forEach((img, index) => {
-                    markdown += `[${_tr('imageAlt', { index: index + 1 })} - ${img.mimeType}]\n`;
-                });
-                markdown += '\n';
-            }
-
-            if (text) {
-                markdown += `${text}\n\n`;
-            }
-        } else {
-            // 模型响应
-            if (message.multiModelResponses && Object.keys(message.multiModelResponses).length > 0) {
-                // 多模型响应：为每个模型创建单独的标题
-                Object.entries(message.multiModelResponses).forEach(([modelId, responseText]) => {
-                    const modelName = getModelDisplayName(modelId, elements);
-                    markdown += `## ${modelName}\n\n`;
-                    if (responseText) {
-                        // 移除思考内容后再导出
-                        const cleanedText = removeThinkingContent(responseText);
-                        markdown += `${adjustMarkdownHeadingLevels(cleanedText)}\n\n`;
-                    }
-                });
-            } else {
-                // 单模型响应：使用模型名称作为标题
-                const modelName = getModelDisplayName(state.selectedModels?.[0] || '', elements) || _tr('appName');
-                markdown += `## ${modelName}\n\n`;
-                if (text) {
-                    // 移除思考内容后再导出
-                    const cleanedText = removeThinkingContent(text);
-                    markdown += `${adjustMarkdownHeadingLevels(cleanedText)}\n\n`;
-                }
-            }
-        }
-    });
-
-    return markdown;
-}
-
-/**
- * Exports chat history to plain text format.
- * @param {object} state - Global state reference
- * @param {object} elements - DOM elements reference
- * @param {object} currentTranslations - Translations object
- * @returns {string} Plain text content
- */
-function exportChatToText(state, elements, currentTranslations) {
-    if (state.chatHistory.length === 0) return '';
-
-    const _tr = (key, rep = {}) => _(key, rep, currentTranslations);
-    const locale = state.language.toLowerCase() === 'zh-cn' ? 'zh-cn' : 'en';
-    if (typeof dayjs !== 'undefined') dayjs.locale(locale);
-    const timestamp = typeof dayjs !== 'undefined' ? dayjs().format('YYYY-MM-DD HH:mm:ss') : new Date().toLocaleString();
-
-    let textContent = `${_tr('appName')} ${_tr('chatHistoryLabel')} (${timestamp})\n\n`;
-
-    state.chatHistory.forEach(message => {
-        const { text, images } = extractPartsFromMessage(message); // Use helper
-
-        if (message.role === 'user') {
-            textContent += `--- ${_tr('userLabel')} ---\n`;
-
-            // 添加上下文标签页信息（如果有）
-            if (message.sentContextTabsInfo && message.sentContextTabsInfo.length > 0) {
-                textContent += `${_tr('contextPagesLabel')}:\n`;
-                message.sentContextTabsInfo.forEach((tab, index) => {
-                    textContent += `${index + 1}. ${tab.title}`;
-                    if (tab.url) {
-                        textContent += ` (${tab.url})`;
-                    }
-                    textContent += '\n';
-                });
-                textContent += '\n';
-            }
-
-            if (images.length > 0) {
-                textContent += `[${_tr('containsNImages', { count: images.length })}]\n`;
-            }
-
-            if (text) {
-                textContent += `${text}\n`;
-            }
-            textContent += '\n';
-        } else {
-            // 模型响应
-            if (message.multiModelResponses && Object.keys(message.multiModelResponses).length > 0) {
-                // 多模型响应：为每个模型创建单独的标题
-                Object.entries(message.multiModelResponses).forEach(([modelId, responseText]) => {
-                    const modelName = getModelDisplayName(modelId, elements);
-                    textContent += `--- ${modelName} ---\n`;
-                    if (responseText) {
-                        // 移除思考内容后再导出
-                        const cleanedText = removeThinkingContent(responseText);
-                        textContent += `${cleanedText}\n`;
-                    }
-                    textContent += '\n';
-                });
-            } else {
-                // 单模型响应：使用模型名称作为标题
-                const modelName = getModelDisplayName(state.selectedModels?.[0] || '', elements) || _tr('appName');
-                textContent += `--- ${modelName} ---\n`;
-                if (text) {
-                    // 移除思考内容后再导出
-                    const cleanedText = removeThinkingContent(text);
-                    textContent += `${cleanedText}\n`;
-                }
-                textContent += '\n';
-            }
-        }
-    });
-
-    return textContent;
-}
-
-/**
- * Helper to extract text and image info from a message object.
- * (Could be moved to utils.js if used elsewhere)
- * @param {object} message - A message object from state.chatHistory
- * @returns {{text: string, images: Array<{dataUrl: string, mimeType: string}>}}
- */
-function extractPartsFromMessage(message) {
-    let text = '';
-    const images = [];
-    if (message && message.parts && Array.isArray(message.parts)) {
-        message.parts.forEach(part => {
-            if (part.text) {
-                text += (text ? '\n' : '') + part.text; // Combine text parts with newline
-            } else if (part.inlineData && part.inlineData.data && part.inlineData.mimeType) {
-                images.push({
-                    dataUrl: `data:${part.inlineData.mimeType};base64,${part.inlineData.data}`,
-                    mimeType: part.inlineData.mimeType
-                });
-            }
-        });
-    }
-    return { text, images };
-}
-
-/**
- * 移除文本中的 <think>...</think> 标签及其内容
- * @param {string} text - 原始文本
- * @returns {string} 移除思考内容后的文本
- */
-function removeThinkingContent(text) {
-    if (!text) return text;
-    // 移除 <think>...</think> 标签及其内容（支持跨行）
-    return text.replace(/<think>[\s\S]*?<\/think>/gi, '').trim();
-}
-
-/**
- * 将 Markdown 文本中的标题层级下调指定级数
- * @param {string} text - Markdown 文本
- * @param {number} levels - 下调的级数（默认2）
- * @returns {string} 调整后的文本
- */
-function adjustMarkdownHeadingLevels(text, levels = 2) {
-    if (!text) return text;
-
-    // 匹配行首的 # 标题（1-6个#）
-    return text.replace(/^(#{1,6})\s/gm, (match, hashes) => {
-        const currentLevel = hashes.length;
-        const newLevel = Math.min(currentLevel + levels, 6); // 最多6级标题
-        return '#'.repeat(newLevel) + ' ';
-    });
-}
-
-/**
- * 提取文本的首句作为标题
- * @param {string} text - 原始文本
- * @param {number} maxLength - 最大长度（默认50）
- * @returns {string} 首句文本
- */
-function getFirstSentence(text, maxLength = 50) {
-    if (!text) return '';
-
-    // 去除首尾空白并获取第一行
-    const firstLine = text.trim().split('\n')[0].trim();
-
-    // 按句号、问号、感叹号分割，取第一句
-    const sentenceMatch = firstLine.match(/^[^。？！.?!]+[。？！.?!]?/);
-    let sentence = sentenceMatch ? sentenceMatch[0].trim() : firstLine;
-
-    // 如果超过最大长度，截断并添加省略号
-    if (sentence.length > maxLength) {
-        sentence = sentence.substring(0, maxLength) + '...';
-    }
-
-    return sentence;
 }
 
 /**

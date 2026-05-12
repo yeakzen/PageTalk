@@ -158,13 +158,15 @@
 }
 
 /* 通用设置特定样式 */
-#settings-general .setting-group {
+#settings-general .setting-group,
+#settings-obsidian > .setting-group {
     margin: 0 var(--spacing-lg) var(--spacing-md);
     padding-bottom: var(--spacing-sm);
     border-bottom: 1px solid var(--border-color);
 }
 
-#settings-general .setting-group:last-of-type {
+#settings-general .setting-group:last-of-type,
+#settings-obsidian > .setting-group:last-of-type {
     border-bottom: none;
     padding-bottom: 0;
 }
@@ -392,6 +394,22 @@ body.dark-mode .unified-action-btn:hover {
     display: flex;
     gap: var(--spacing-sm);
     align-items: center;
+}
+
+.setting-checkbox-row {
+    display: flex;
+    align-items: center;
+    gap: var(--spacing-sm);
+    color: var(--text-color);
+    font-size: 13px;
+    cursor: pointer;
+    margin: var(--spacing-xs) 0;
+}
+
+.setting-checkbox-row input[type="checkbox"] {
+    width: 16px;
+    height: 16px;
+    accent-color: var(--primary-color);
 }
 
 .setting-select {

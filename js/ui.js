@@ -774,6 +774,7 @@ export function updateUIElementsWithTranslations(currentTranslations) {
     });
 
     setText('#settings-general h2', 'generalSettingsHeading');
+    setText('#settings-obsidian h2', 'obsidianSettingsHeading');
 
     // Language setting card
     setText('.setting-card-title[data-i18n="languageLabel"]', 'languageLabel');
@@ -790,6 +791,15 @@ export function updateUIElementsWithTranslations(currentTranslations) {
     setText('#export-format option[value="text"]', 'exportFormatText');
     setText('#export-chat-history span[data-i18n="exportButton"]', 'exportButton');
     setText('#copy-chat-history span[data-i18n="copyButton"]', 'copyButton');
+
+    // Obsidian export setting card
+    setText('.setting-card-title[data-i18n="obsidianExportLabel"]', 'obsidianExportLabel');
+    setText('.setting-card-description[data-i18n="obsidianExportDescription"]', 'obsidianExportDescription');
+    setText('label[for="obsidian-vault-input"]', 'obsidianVaultLabel');
+    setText('label[for="obsidian-folder-input"]', 'obsidianFolderLabel');
+    setText('label[for="obsidian-note-name-input"]', 'obsidianNoteNameLabel');
+    setText('label[for="obsidian-silent-open"] span[data-i18n="obsidianSilentOpenLabel"]', 'obsidianSilentOpenLabel');
+    setText('#export-to-obsidian span[data-i18n="obsidianExportButton"]', 'obsidianExportButton');
 
     // Proxy setting card
     setText('.setting-card-title[data-i18n="proxyAddressLabel"]', 'proxyAddressLabel');

@@ -319,6 +319,8 @@
                             data-i18n="textSelectionHelper">划词助手</button>
                         <button class="settings-nav-btn" data-subtab="quick-actions"
                             data-i18n="quickActionsNav">快捷操作</button>
+                        <button class="settings-nav-btn" data-subtab="obsidian"
+                            data-i18n="obsidianSettingsNav">Obsidian</button>
                         <button class="settings-nav-btn active" data-subtab="general"
                             data-i18n="generalSettingsNav">通用</button>
                         <!-- 添加关闭按钮 -->
@@ -529,6 +531,59 @@
                                 </div>
                                 <p class="unified-data-description" data-i18n="unifiedImportExportHint">
                                     导出或导入所有助手、划词助手、快捷操作及API Key配置。</p>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Obsidian 设置 -->
+                    <div id="settings-obsidian" class="settings-sub-content">
+                        <h2 data-i18n="obsidianSettingsHeading">Obsidian</h2>
+
+                        <div class="setting-group">
+                            <div class="setting-card">
+                                <div class="setting-card-header">
+                                    <div class="setting-card-icon">
+                                        <svg width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.5"
+                                            viewBox="0 0 24 24">
+                                            <path d="M12 3 4.5 8.25 12 21l7.5-12.75L12 3Z"></path>
+                                            <path d="m4.5 8.25 7.5 3 7.5-3"></path>
+                                            <path d="M12 11.25V21"></path>
+                                        </svg>
+                                    </div>
+                                    <h3 class="setting-card-title" data-i18n="obsidianExportLabel">导出到 Obsidian</h3>
+                                </div>
+                                <p class="setting-card-description" data-i18n="obsidianExportDescription">
+                                    将当前上下文预览和聊天记录导出为 Obsidian 笔记
+                                </p>
+                                <div class="setting-card-content">
+                                    <div class="setting-group">
+                                        <label for="obsidian-vault-input" data-i18n="obsidianVaultLabel">Vault</label>
+                                        <input type="text" id="obsidian-vault-input" class="setting-input"
+                                            data-i18n-placeholder="obsidianVaultPlaceholder"
+                                            placeholder="留空使用当前打开的 vault">
+                                    </div>
+                                    <div class="setting-group">
+                                        <label for="obsidian-folder-input" data-i18n="obsidianFolderLabel">笔记目录</label>
+                                        <input type="text" id="obsidian-folder-input" class="setting-input"
+                                            data-i18n-placeholder="obsidianFolderPlaceholder"
+                                            placeholder="PageTalk">
+                                    </div>
+                                    <div class="setting-group">
+                                        <label for="obsidian-note-name-input" data-i18n="obsidianNoteNameLabel">笔记名</label>
+                                        <input type="text" id="obsidian-note-name-input" class="setting-input"
+                                            data-i18n-placeholder="obsidianNoteNamePlaceholder"
+                                            placeholder="PageTalk - {title} - {date}">
+                                    </div>
+                                    <label class="setting-checkbox-row" for="obsidian-silent-open">
+                                        <input id="obsidian-silent-open" type="checkbox">
+                                        <span data-i18n="obsidianSilentOpenLabel">静默打开</span>
+                                    </label>
+                                    <div class="setting-card-actions">
+                                        <button id="export-to-obsidian" class="setting-action-btn">
+                                            <span data-i18n="obsidianExportButton">导出到 Obsidian</span>
+                                        </button>
+                                    </div>
+                                </div>
                             </div>
                         </div>
                     </div>

@@ -24,7 +24,8 @@ import {
     loadCurrentAgentSettingsIntoState,
     autoSaveAgentSettings as autoSaveAgentSettingsFromAgent // Alias the import
 } from './agent.js';
-import { loadSettings as loadAppSettings, handleLanguageChange, handleBotBoldHighlightColorChange, saveMermaidOverviewSettings, handleExportChat, handleCopyChat, initModelSelection, updateModelCardsDisplay, handleProxyAddressChange, handleProxyTest, setupProviderEventListeners, initQuickActionsSettings, renderQuickActionsList } from './settings.js';
+import { loadSettings as loadAppSettings, handleLanguageChange, handleBotBoldHighlightColorChange, saveMermaidOverviewSettings, handleExportChat, handleCopyChat, handleObsidianSettingsChange, initModelSelection, updateModelCardsDisplay, handleProxyAddressChange, handleProxyTest, setupProviderEventListeners, initQuickActionsSettings, renderQuickActionsList } from './settings.js';
+import { handleExportToObsidian } from './obsidian-export.js';
 import * as QuickActionsManager from './quick-actions-manager.js';
 import { initTextSelectionHelperSettings, isTextSelectionHelperEnabled } from './text-selection-helper-settings.js';
 import { sendUserMessage as sendUserMessageAction, clearContext as clearContextAction, deleteMessage as deleteMessageAction, regenerateMessage as regenerateMessageAction, abortStreaming as abortStreamingAction, handleRemoveSentTabContext as handleRemoveSentTabContextAction, createWelcomeMessage } from './chat.js';
@@ -84,6 +85,7 @@ const state = {
     // Other state
     pageContext: null, // Use null initially to indicate not yet extracted
     pageTitle: '', // 当前页面标题，用于保存对话时作为标题
+    pageUrl: '',
     pageContextMeta: null,
     removeContextWebLinks: true,
     chatHistory: [],
@@ -238,6 +240,11 @@ const elements = {
     exportFormatSelect: document.getElementById('export-format'),
     exportChatHistoryBtn: document.getElementById('export-chat-history'),
     copyChatHistoryBtn: document.getElementById('copy-chat-history'),
+    obsidianVaultInput: document.getElementById('obsidian-vault-input'),
+    obsidianFolderInput: document.getElementById('obsidian-folder-input'),
+    obsidianNoteNameInput: document.getElementById('obsidian-note-name-input'),
+    obsidianSilentOpenToggle: document.getElementById('obsidian-silent-open'),
+    exportToObsidianBtn: document.getElementById('export-to-obsidian'),
     // Unified Import/Export
     exportAllSettingsBtn: document.getElementById('export-all-settings'),
     importAllSettingsBtn: document.getElementById('import-all-settings'),
@@ -786,6 +793,30 @@ function setupEventListeners() {
     }
     elements.exportChatHistoryBtn.addEventListener('click', () => handleExportChat(state, elements, showToastUI, currentTranslations));
     elements.copyChatHistoryBtn.addEventListener('click', () => handleCopyChat(state, elements, showToastUI, currentTranslations));
+    if (elements.exportToObsidianBtn) {
+        elements.exportToObsidianBtn.addEventListener('click', () => {
+            handleExportToObsidian(state, elements, showToastUI, currentTranslations);
+        });
+    }
+    [
+        elements.obsidianVaultInput,
+        elements.obsidianFolderInput,
+        elements.obsidianNoteNameInput
+    ].forEach(input => {
+        if (!input) return;
+        input.addEventListener('blur', () => handleObsidianSettingsChange(state, elements, showToastUI, currentTranslations));
+        input.addEventListener('keydown', (e) => {
+            if (e.key === 'Enter') {
+                e.preventDefault();
+                input.blur();
+            }
+        });
+    });
+    if (elements.obsidianSilentOpenToggle) {
+        elements.obsidianSilentOpenToggle.addEventListener('change', () => {
+            handleObsidianSettingsChange(state, elements, showToastUI, currentTranslations);
+        });
+    }
 
     // Proxy Address Change
     if (elements.proxyAddressInput) {
@@ -2709,6 +2740,7 @@ function handleContentScriptMessages(event) {
         case 'pageContentExtracted':
             state.pageContext = message.content;
             state.pageTitle = message.pageTitle || ''; // 保存页面标题
+            state.pageUrl = message.pageUrl || '';
             state.pageContextMeta = message.meta || null;
             updateFooterContextStatusFromState();
             if (isContextPreviewModalOpen()) {
@@ -2793,6 +2825,7 @@ function handleContentScriptMessages(event) {
 function requestPageContent() {
     state.pageContext = null;
     state.pageTitle = '';
+    state.pageUrl = '';
     state.pageContextMeta = null;
     updateFooterContextStatusFromState();
     if (isContextPreviewModalOpen()) {

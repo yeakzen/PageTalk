@@ -114,6 +114,7 @@ if (window.contentScriptInitialized) {
     iframe.style.overflow = 'hidden';
     iframe.style.background = 'transparent';
     iframe.setAttribute('allowtransparency', 'true');
+    iframe.setAttribute('allow', 'clipboard-write');
 
     panelContainer.appendChild(resizer);
     panelContainer.appendChild(iframe);
@@ -338,7 +339,7 @@ if (window.contentScriptInitialized) {
       (async () => { // 使用 IIFE 来处理异步操作
         try {
           const content = await extractPageContent(); // extractPageContent 现在是异步的
-          sendResponse({ content: content, meta: lastPageContextMeta, pageTitle: getSmartPageTitle() });
+          sendResponse({ content: content, meta: lastPageContextMeta, pageTitle: getSmartPageTitle(), pageUrl: window.location.href });
         } catch (error) {
           console.error('[PageTalk] Error during content extraction (getFullPageContentRequest listener):', error);
           sendResponse({ error: error.message });
@@ -1614,6 +1615,7 @@ if (window.contentScriptInitialized) {
             content: content,
             meta: lastPageContextMeta,
             pageTitle: getSmartPageTitle(), // 发送页面标题（含 Twitter/X 特殊处理）
+            pageUrl: window.location.href,
             showSuccessMessage: showSuccess // 添加标志
           }, '*');
         }

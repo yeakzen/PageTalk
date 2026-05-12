@@ -160,6 +160,23 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
         });
         return true; // 必须返回 true 以表明 sendResponse 将会异步调用
     }
+    else if (message.action === "openObsidianUrl") {
+        const url = message.url;
+        if (!url || typeof url !== 'string' || !url.startsWith('obsidian://')) {
+            sendResponse({ success: false, error: 'Invalid Obsidian URL' });
+            return true;
+        }
+
+        chrome.tabs.create({ url, active: false }, () => {
+            if (chrome.runtime.lastError) {
+                console.error('[Background] Error opening Obsidian URL:', chrome.runtime.lastError.message);
+                sendResponse({ success: false, error: chrome.runtime.lastError.message });
+                return;
+            }
+            sendResponse({ success: true });
+        });
+        return true;
+    }
     // 已废弃：处理来自划词助手的 generateContent 请求
     // 现在划词助手使用统一API接口，不再通过background.js处理
     else if (message.action === "generateContent") {
