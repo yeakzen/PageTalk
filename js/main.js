@@ -102,6 +102,7 @@ const state = {
     mermaidOverviewModel: '',
     mermaidOverviewSummaryPrompt: '',
     mermaidOverviewDiagramPrompt: '',
+    obsidianExportSettings: null,
     isStreaming: false,
     userScrolledUpDuringStream: false, // 新增：跟踪用户在流式传输期间是否已向上滚动
     // userHasSetPreference: false, // Removed
@@ -247,6 +248,9 @@ const elements = {
     obsidianFrontmatterTemplateTextarea: document.getElementById('obsidian-frontmatter-template'),
     obsidianBodyTemplateTextarea: document.getElementById('obsidian-body-template'),
     obsidianSilentOpenToggle: document.getElementById('obsidian-silent-open'),
+    obsidianAiEnabledToggle: document.getElementById('obsidian-ai-enabled'),
+    obsidianAiModelSelect: document.getElementById('obsidian-ai-model'),
+    obsidianAiPromptTextarea: document.getElementById('obsidian-ai-prompt'),
     exportToObsidianBtn: document.getElementById('export-to-obsidian'),
     // Unified Import/Export
     exportAllSettingsBtn: document.getElementById('export-all-settings'),
@@ -816,7 +820,8 @@ function setupEventListeners() {
         elements.obsidianFolderInput,
         elements.obsidianNoteNameInput,
         elements.obsidianFrontmatterTemplateTextarea,
-        elements.obsidianBodyTemplateTextarea
+        elements.obsidianBodyTemplateTextarea,
+        elements.obsidianAiPromptTextarea
     ].forEach(input => {
         if (!input) return;
         input.addEventListener('blur', () => handleObsidianSettingsChange(state, elements, showToastUI, currentTranslations));
@@ -829,6 +834,16 @@ function setupEventListeners() {
     });
     if (elements.obsidianSilentOpenToggle) {
         elements.obsidianSilentOpenToggle.addEventListener('change', () => {
+            handleObsidianSettingsChange(state, elements, showToastUI, currentTranslations);
+        });
+    }
+    if (elements.obsidianAiEnabledToggle) {
+        elements.obsidianAiEnabledToggle.addEventListener('change', () => {
+            handleObsidianSettingsChange(state, elements, showToastUI, currentTranslations);
+        });
+    }
+    if (elements.obsidianAiModelSelect) {
+        elements.obsidianAiModelSelect.addEventListener('change', () => {
             handleObsidianSettingsChange(state, elements, showToastUI, currentTranslations);
         });
     }

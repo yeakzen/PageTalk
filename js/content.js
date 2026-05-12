@@ -669,8 +669,14 @@ if (window.contentScriptInitialized) {
       commentsCharCount: 0,
       commentContainerCount: 0,
       hasComments: false,
-      truncated: false
+      truncated: false,
+      author: '',
+      published: ''
     };
+
+    const pageMetadata = extractPageMetadata();
+    meta.author = pageMetadata.author;
+    meta.published = pageMetadata.published;
 
     let articleMarkdown = '';
     try {
@@ -731,6 +737,69 @@ if (window.contentScriptInitialized) {
     } catch (_) {
       return '';
     }
+  }
+
+  function extractPageMetadata() {
+    const readabilityMetadata = extractReadabilityMetadata();
+    return {
+      author: firstNonEmpty([
+        getMetaContent('author'),
+        getMetaContent('article:author', 'property'),
+        getMetaContent('og:article:author', 'property'),
+        getMetaContent('twitter:creator'),
+        getMetaContent('parsely-author'),
+        readabilityMetadata.author
+      ]),
+      published: firstNonEmpty([
+        getMetaContent('article:published_time', 'property'),
+        getMetaContent('article:modified_time', 'property'),
+        getMetaContent('og:published_time', 'property'),
+        getMetaContent('datePublished', 'itemprop'),
+        getMetaContent('date'),
+        getMetaContent('pubdate'),
+        getTimeElementDate(),
+        readabilityMetadata.published
+      ])
+    };
+  }
+
+  function extractReadabilityMetadata() {
+    try {
+      if (typeof Readability === 'undefined') return { author: '', published: '' };
+      const article = new Readability(document.cloneNode(true)).parse();
+      return {
+        author: article?.byline || '',
+        published: article?.publishedTime || ''
+      };
+    } catch (_) {
+      return { author: '', published: '' };
+    }
+  }
+
+  function getMetaContent(value, attribute = 'name') {
+    try {
+      return document.querySelector(`meta[${attribute}="${cssEscapeAttr(value)}"]`)?.getAttribute('content')?.trim() || '';
+    } catch (_) {
+      return '';
+    }
+  }
+
+  function getTimeElementDate() {
+    try {
+      const time = document.querySelector('time[datetime], [datetime]');
+      return time?.getAttribute('datetime')?.trim() || '';
+    } catch (_) {
+      return '';
+    }
+  }
+
+  function firstNonEmpty(values) {
+    const value = values.find(item => typeof item === 'string' && item.trim());
+    return value ? value.trim() : '';
+  }
+
+  function cssEscapeAttr(value) {
+    return String(value || '').replace(/\\/g, '\\\\').replace(/"/g, '\\"');
   }
 
   function createTurndownForContext() {

@@ -550,10 +550,10 @@
                                             <path d="M12 11.25V21"></path>
                                         </svg>
                                     </div>
-                                    <h3 class="setting-card-title" data-i18n="obsidianExportLabel">导出到 Obsidian</h3>
+                                    <h3 class="setting-card-title" data-i18n="obsidianExportSettingsLabel">Obsidian 导出设置</h3>
                                 </div>
-                                <p class="setting-card-description" data-i18n="obsidianExportDescription">
-                                    将当前上下文预览和聊天记录导出为 Obsidian 笔记
+                                <p class="setting-card-description" data-i18n="obsidianExportSettingsDescription">
+                                    配置导出到 Obsidian 的模板、目录和 AI 生成选项
                                 </p>
                                 <div class="setting-card-content">
                                     <div class="setting-group">
@@ -591,15 +591,28 @@
                                             支持 {{title}}、{{content}}、{{chat}} 和 {% if chat %} 条件块。
                                         </div>
                                     </div>
+                                    <label class="setting-checkbox-row" for="obsidian-ai-enabled">
+                                        <input id="obsidian-ai-enabled" type="checkbox">
+                                        <span data-i18n="obsidianAiEnabledLabel">启用 AI 摘要、标签、分类</span>
+                                    </label>
+                                    <div class="setting-group">
+                                        <label for="obsidian-ai-model" data-i18n="obsidianAiModelLabel">AI 生成模型</label>
+                                        <select id="obsidian-ai-model" class="setting-select"></select>
+                                    </div>
+                                    <div class="setting-group">
+                                        <label for="obsidian-ai-prompt" data-i18n="obsidianAiPromptLabel">AI 生成提示词</label>
+                                        <textarea id="obsidian-ai-prompt" rows="8"
+                                            class="setting-textarea"
+                                            data-i18n-placeholder="obsidianAiPromptPlaceholder"
+                                            placeholder="返回 JSON：summary、tags、category"></textarea>
+                                        <div class="setting-hint" data-i18n="obsidianAiTemplateHint">
+                                            生成结果可在模板中使用 {{aiSummary}}、{{aiTags}}、{{aiCategory}}。
+                                        </div>
+                                    </div>
                                     <label class="setting-checkbox-row" for="obsidian-silent-open">
                                         <input id="obsidian-silent-open" type="checkbox">
                                         <span data-i18n="obsidianSilentOpenLabel">静默打开</span>
                                     </label>
-                                    <div class="setting-card-actions">
-                                        <button id="export-to-obsidian" class="setting-action-btn">
-                                            <span data-i18n="obsidianExportButton">导出到 Obsidian</span>
-                                        </button>
-                                    </div>
                                 </div>
                             </div>
                         </div>
@@ -1170,6 +1183,9 @@
                 <button id="context-preview-select-area" class="dialog-secondary" type="button"
                     data-i18n="contextPreviewSelectArea">选择区域</button>
                 <button id="context-preview-copy" class="dialog-confirm" type="button" data-i18n="copyButton">复制</button>
+                <button id="export-to-obsidian" class="dialog-confirm" type="button">
+                    <span data-i18n="obsidianExportButton">导出到 Obsidian</span>
+                </button>
             </div>
         </div>
     </div>

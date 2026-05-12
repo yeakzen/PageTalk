@@ -2,67 +2,149 @@ import { tr as _ } from './utils/i18n.js';
 import { buildChatMarkdown } from './export-utils.js';
 import { getPageContextStatus, getPageContextTextForPrompt } from './context-state.js';
 
+const LEGACY_DEFAULT_FRONTMATTER_TEMPLATE = [
+    'title: {{title|yaml}}',
+    '{% if url %}source: {{url|yaml}}{% endif %}',
+    'created: {{isoDatetime|yaml}}',
+    'tool: PageTalk',
+    'tags:',
+    '  - pagetalk',
+    '  - pagetalk-export'
+].join('\n');
+
+const DEFAULT_FRONTMATTER_TEMPLATE = [
+    'title: {{title|yaml}}',
+    '{% if url %}source: {{url|yaml}}{% endif %}',
+    '{% if author %}author: {{author|yaml}}{% endif %}',
+    '{% if published %}published: {{published|yaml}}{% endif %}',
+    'created: {{isoDatetime|yaml}}',
+    'tool: PageTalk',
+    '{% if aiCategory %}category: {{aiCategory|yaml}}{% endif %}',
+    'tags:',
+    '  - pagetalk',
+    '  - pagetalk-export',
+    '{% for tag in aiTags %}  - {{tag|yaml}}',
+    '{% endfor %}'
+].join('\n');
+
+const LEGACY_DEFAULT_BODY_TEMPLATE = [
+    '{{content}}',
+    '{% if comments %}',
+    '',
+    '## Comments / Replies',
+    '',
+    '{{comments}}',
+    '{% endif %}',
+    '{% if manualArea %}',
+    '',
+    '## Manually Selected Page Area',
+    '',
+    '{{manualArea}}',
+    '{% endif %}',
+    '{% if not context %}',
+    '{{contextFallback}}',
+    '{% endif %}',
+    '{% if chat %}',
+    '',
+    '# Chat',
+    '',
+    '{{chat}}',
+    '{% endif %}'
+].join('\n');
+
+const DEFAULT_BODY_TEMPLATE = [
+    '{% if aiSummary %}',
+    '# AI Summary',
+    '',
+    '{{aiSummary}}',
+    '',
+    '{% endif %}',
+    '{{content}}',
+    '{% if comments %}',
+    '',
+    '## Comments / Replies',
+    '',
+    '{{comments}}',
+    '{% endif %}',
+    '{% if manualArea %}',
+    '',
+    '## Manually Selected Page Area',
+    '',
+    '{{manualArea}}',
+    '{% endif %}',
+    '{% if not context %}',
+    '{{contextFallback}}',
+    '{% endif %}',
+    '{% if chat %}',
+    '',
+    '# Chat',
+    '',
+    '{{chat}}',
+    '{% endif %}'
+].join('\n');
+
+const DEFAULT_OBSIDIAN_AI_PROMPT = [
+    'You are PageTalk\'s Obsidian note organizer.',
+    'Generate an AI summary, automatic tags, and an automatic category from the exported page context and chat history.',
+    'Return one JSON object only. Do not include Markdown code fences or explanations.',
+    'Schema: {"summary":"...","tags":["tag-one","tag-two"],"category":"..."}',
+    'The summary must be one concise plain-text sentence. Do not use Markdown.',
+    'Tags must not include "#"; keep them short; use hyphens instead of spaces; return at most 8 tags.',
+    'The category should be a short topic or path, for example "AI/Agents" or "Reading/Product".'
+].join('\n');
+
+const OBSIDIAN_AI_MAX_SECTION_CHARS = 16000;
+
 export const DEFAULT_OBSIDIAN_EXPORT_SETTINGS = Object.freeze({
     vault: '',
     folder: 'PageTalk',
     noteNameTemplate: 'PageTalk - {{title|safe_name}} - {{date}}',
-    frontmatterTemplate: [
-        'title: {{title|yaml}}',
-        '{% if url %}source: {{url|yaml}}{% endif %}',
-        'created: {{isoDatetime|yaml}}',
-        'tool: PageTalk',
-        'tags:',
-        '  - pagetalk',
-        '  - pagetalk-export'
-    ].join('\n'),
-    bodyTemplate: [
-        '{{content}}',
-        '{% if comments %}',
-        '',
-        '## Comments / Replies',
-        '',
-        '{{comments}}',
-        '{% endif %}',
-        '{% if manualArea %}',
-        '',
-        '## Manually Selected Page Area',
-        '',
-        '{{manualArea}}',
-        '{% endif %}',
-        '{% if not context %}',
-        '{{contextFallback}}',
-        '{% endif %}',
-        '{% if chat %}',
-        '',
-        '# Chat',
-        '',
-        '{{chat}}',
-        '{% endif %}'
-    ].join('\n'),
-    silentOpen: false
+    frontmatterTemplate: DEFAULT_FRONTMATTER_TEMPLATE,
+    bodyTemplate: DEFAULT_BODY_TEMPLATE,
+    silentOpen: false,
+    aiEnabled: false,
+    aiModel: '',
+    aiPrompt: ''
 });
 
 const CONTENT_URI_FALLBACK_LIMIT = 1800;
 
-export function normalizeObsidianExportSettings(rawSettings = {}) {
+export function getDefaultObsidianAiPrompt(currentTranslations = {}) {
+    return currentTranslations?.obsidianAiSystemPrompt || DEFAULT_OBSIDIAN_AI_PROMPT;
+}
+
+export function normalizeObsidianExportSettings(rawSettings = {}, currentTranslations = {}) {
+    const sourceSettings = rawSettings && typeof rawSettings === 'object' ? rawSettings : {};
+    const hasFrontmatterTemplate = typeof sourceSettings.frontmatterTemplate === 'string';
+    const hasBodyTemplate = typeof sourceSettings.bodyTemplate === 'string';
+    const rawFrontmatterTemplate = hasFrontmatterTemplate ? sourceSettings.frontmatterTemplate : DEFAULT_OBSIDIAN_EXPORT_SETTINGS.frontmatterTemplate;
+    const rawBodyTemplate = hasBodyTemplate ? sourceSettings.bodyTemplate : DEFAULT_OBSIDIAN_EXPORT_SETTINGS.bodyTemplate;
+    const frontmatterTemplate = hasFrontmatterTemplate && rawFrontmatterTemplate === LEGACY_DEFAULT_FRONTMATTER_TEMPLATE
+        ? DEFAULT_OBSIDIAN_EXPORT_SETTINGS.frontmatterTemplate
+        : rawFrontmatterTemplate;
+    const bodyTemplate = hasBodyTemplate && rawBodyTemplate === LEGACY_DEFAULT_BODY_TEMPLATE
+        ? DEFAULT_OBSIDIAN_EXPORT_SETTINGS.bodyTemplate
+        : rawBodyTemplate;
+
     return {
-        vault: typeof rawSettings.vault === 'string' ? rawSettings.vault : DEFAULT_OBSIDIAN_EXPORT_SETTINGS.vault,
-        folder: typeof rawSettings.folder === 'string' ? rawSettings.folder : DEFAULT_OBSIDIAN_EXPORT_SETTINGS.folder,
-        noteNameTemplate: typeof rawSettings.noteNameTemplate === 'string' && rawSettings.noteNameTemplate.trim()
-            ? rawSettings.noteNameTemplate
+        vault: typeof sourceSettings.vault === 'string' ? sourceSettings.vault : DEFAULT_OBSIDIAN_EXPORT_SETTINGS.vault,
+        folder: typeof sourceSettings.folder === 'string' ? sourceSettings.folder : DEFAULT_OBSIDIAN_EXPORT_SETTINGS.folder,
+        noteNameTemplate: typeof sourceSettings.noteNameTemplate === 'string' && sourceSettings.noteNameTemplate.trim()
+            ? sourceSettings.noteNameTemplate
             : DEFAULT_OBSIDIAN_EXPORT_SETTINGS.noteNameTemplate,
-        frontmatterTemplate: typeof rawSettings.frontmatterTemplate === 'string'
-            ? rawSettings.frontmatterTemplate
-            : DEFAULT_OBSIDIAN_EXPORT_SETTINGS.frontmatterTemplate,
-        bodyTemplate: typeof rawSettings.bodyTemplate === 'string'
-            ? rawSettings.bodyTemplate
-            : DEFAULT_OBSIDIAN_EXPORT_SETTINGS.bodyTemplate,
-        silentOpen: rawSettings.silentOpen === true
+        frontmatterTemplate,
+        bodyTemplate,
+        silentOpen: sourceSettings.silentOpen === true,
+        aiEnabled: sourceSettings.aiEnabled === true,
+        aiModel: typeof sourceSettings.aiModel === 'string' ? sourceSettings.aiModel : DEFAULT_OBSIDIAN_EXPORT_SETTINGS.aiModel,
+        aiPrompt: typeof sourceSettings.aiPrompt === 'string' && sourceSettings.aiPrompt.trim()
+            ? sourceSettings.aiPrompt
+            : getDefaultObsidianAiPrompt(currentTranslations)
     };
 }
 
 export async function handleExportToObsidian(state, elements, showToastCallback, currentTranslations) {
-    const settings = readObsidianExportSettingsFromElements(elements, state);
+    const settings = readObsidianExportSettingsFromElements(elements, state, currentTranslations);
     state.obsidianExportSettings = settings;
 
     try {
@@ -71,7 +153,23 @@ export async function handleExportToObsidian(state, elements, showToastCallback,
             return;
         }
 
-        const variables = buildObsidianTemplateVariables(state, elements, currentTranslations);
+        let variables = buildObsidianTemplateVariables(state, elements, currentTranslations);
+        if (!variables.context && !variables.chat && getPageContextStatus(state.pageContext) !== 'failed') {
+            showToastCallback(_('obsidianExportEmptyError', {}, currentTranslations), 'error');
+            return;
+        }
+
+        if (settings.aiEnabled) {
+            if (!settings.aiModel) {
+                throw new Error(_('obsidianAiMissingModel', {}, currentTranslations));
+            }
+            showToastCallback(_('obsidianAiGenerating', {}, currentTranslations), 'info');
+            variables = {
+                ...variables,
+                ...await generateObsidianAiMetadata(settings, variables, currentTranslations)
+            };
+        }
+
         const markdown = buildObsidianExportMarkdown(state, elements, currentTranslations, settings, variables);
 
         if (!markdown.trim()) {
@@ -152,16 +250,19 @@ export function sanitizeObsidianFolder(folder) {
         .join('/');
 }
 
-export function readObsidianExportSettingsFromElements(elements, state) {
-    const existing = normalizeObsidianExportSettings(state.obsidianExportSettings);
+export function readObsidianExportSettingsFromElements(elements, state, currentTranslations = {}) {
+    const existing = normalizeObsidianExportSettings(state.obsidianExportSettings, currentTranslations);
     return normalizeObsidianExportSettings({
         vault: elements.obsidianVaultInput?.value?.trim() ?? existing.vault,
         folder: elements.obsidianFolderInput?.value?.trim() ?? existing.folder,
         noteNameTemplate: elements.obsidianNoteNameInput?.value?.trim() ?? existing.noteNameTemplate,
         frontmatterTemplate: elements.obsidianFrontmatterTemplateTextarea?.value ?? existing.frontmatterTemplate,
         bodyTemplate: elements.obsidianBodyTemplateTextarea?.value ?? existing.bodyTemplate,
-        silentOpen: elements.obsidianSilentOpenToggle?.checked ?? existing.silentOpen
-    });
+        silentOpen: elements.obsidianSilentOpenToggle?.checked ?? existing.silentOpen,
+        aiEnabled: elements.obsidianAiEnabledToggle?.checked ?? existing.aiEnabled,
+        aiModel: elements.obsidianAiModelSelect?.value?.trim() ?? existing.aiModel,
+        aiPrompt: elements.obsidianAiPromptTextarea?.value ?? existing.aiPrompt
+    }, currentTranslations);
 }
 
 export function applyObsidianExportSettingsToElements(settings, elements) {
@@ -172,6 +273,9 @@ export function applyObsidianExportSettingsToElements(settings, elements) {
     if (elements.obsidianFrontmatterTemplateTextarea) elements.obsidianFrontmatterTemplateTextarea.value = normalized.frontmatterTemplate;
     if (elements.obsidianBodyTemplateTextarea) elements.obsidianBodyTemplateTextarea.value = normalized.bodyTemplate;
     if (elements.obsidianSilentOpenToggle) elements.obsidianSilentOpenToggle.checked = normalized.silentOpen;
+    if (elements.obsidianAiEnabledToggle) elements.obsidianAiEnabledToggle.checked = normalized.aiEnabled;
+    if (elements.obsidianAiModelSelect) elements.obsidianAiModelSelect.value = normalized.aiModel;
+    if (elements.obsidianAiPromptTextarea) elements.obsidianAiPromptTextarea.value = normalized.aiPrompt;
 }
 
 export function saveObsidianExportSettings(settings) {
@@ -287,10 +391,15 @@ export function buildObsidianTemplateVariables(state, elements, currentTranslati
     const contextFallback = contextStatus === 'failed' ? _tr('obsidianContextFailed') : _tr('obsidianNoContext');
     const selectedTabs = collectSelectedTabs(state.chatHistory || []);
     const selectedTabsMarkdown = buildSelectedTabsMarkdown(selectedTabs);
+    const pageMeta = state.pageContextMeta && typeof state.pageContextMeta === 'object' ? state.pageContextMeta : {};
+    const author = normalizeTemplateMetadataText(pageMeta.author);
+    const published = normalizePublishedDateMetadata(pageMeta.published);
 
     return {
         title: pageTitle,
         url: pageUrl,
+        author,
+        published,
         domain: getUrlDomain(pageUrl),
         site: getUrlDomain(pageUrl),
         date: formatDateToken(now),
@@ -310,8 +419,209 @@ export function buildObsidianTemplateVariables(state, elements, currentTranslati
         contextTabs: selectedTabs,
         tabCount: selectedTabs.length,
         words: countWords(contextText),
-        contextLinks: state.removeContextWebLinks === false ? 'preserved' : 'removed'
+        contextLinks: state.removeContextWebLinks === false ? 'preserved' : 'removed',
+        aiSummary: '',
+        aiTags: [],
+        aiTagsText: '',
+        aiCategory: '',
+        aiGeneratedAt: ''
     };
+}
+
+export async function generateObsidianAiMetadata(settings, variables, currentTranslations = {}) {
+    if (!window.PageTalkAPI?.callApi) {
+        throw new Error(_('unifiedApiNotAvailable', {}, currentTranslations));
+    }
+
+    const prompt = String(settings.aiPrompt || getDefaultObsidianAiPrompt(currentTranslations)).trim();
+    if (!prompt) {
+        throw new Error(_('obsidianAiMissingPrompt', {}, currentTranslations));
+    }
+
+    const messages = [
+        {
+            role: 'system',
+            content: prompt
+        },
+        {
+            role: 'user',
+            content: buildObsidianAiPromptPayload(variables, currentTranslations)
+        }
+    ];
+
+    const rawResponse = await callObsidianTextModelOnce(settings.aiModel, messages);
+    const parsed = parseObsidianAiMetadata(rawResponse);
+
+    return {
+        aiSummary: parsed.summary,
+        aiTags: parsed.tags,
+        aiTagsText: parsed.tags.join(', '),
+        aiCategory: parsed.category,
+        aiGeneratedAt: new Date().toISOString()
+    };
+}
+
+export function parseObsidianAiMetadata(rawResponse) {
+    const responseText = String(rawResponse || '').trim();
+    const jsonCandidate = extractJsonObject(responseText);
+
+    if (jsonCandidate) {
+        try {
+            const parsed = JSON.parse(jsonCandidate);
+            return normalizeObsidianAiMetadata(parsed, responseText);
+        } catch (error) {
+            console.warn('[ObsidianExport] Failed to parse AI JSON response:', error);
+        }
+    }
+
+    return normalizeObsidianAiMetadata({ summary: responseText }, responseText);
+}
+
+function normalizeObsidianAiMetadata(parsed, fallbackSummary = '') {
+    const summary = normalizeAiSummary(parsed?.summary || parsed?.aiSummary || fallbackSummary);
+    const tags = normalizeAiTags(parsed?.tags || parsed?.aiTags || parsed?.tag);
+    const category = normalizeAiCategory(parsed?.category || parsed?.classification || parsed?.folder || parsed?.aiCategory);
+
+    return { summary, tags, category };
+}
+
+function normalizeAiSummary(value) {
+    return stripMarkdownForAiSummary(String(value || '').trim());
+}
+
+function normalizeAiTags(value) {
+    const rawTags = Array.isArray(value)
+        ? value
+        : String(value || '').split(/[,，\n]/);
+
+    const tags = [];
+    const seen = new Set();
+
+    rawTags.forEach(tag => {
+        const normalized = normalizeAiTag(tag);
+        if (!normalized || seen.has(normalized)) return;
+        seen.add(normalized);
+        tags.push(normalized);
+    });
+
+    return tags.slice(0, 8);
+}
+
+function normalizeAiTag(tag) {
+    const normalized = String(tag || '')
+        .replace(/^#+/, '')
+        .trim()
+        .replace(/\s+/g, '-')
+        .replace(/[,[\]{}"'`]/g, '')
+        .replace(/^-+|-+$/g, '');
+    return normalized.slice(0, 48);
+}
+
+function normalizeAiCategory(value) {
+    return String(value || '')
+        .trim()
+        .replace(/^#+/, '')
+        .replace(/\s*\/\s*/g, '/')
+        .replace(/[\n\r\t]/g, ' ')
+        .replace(/\s+/g, ' ')
+        .slice(0, 120);
+}
+
+function stripMarkdownForAiSummary(markdown) {
+    return String(markdown || '')
+        .replace(/^#{1,6}\s+/gm, '')
+        .replace(/[*_`>#-]+/g, '')
+        .replace(/\s+/g, ' ')
+        .trim();
+}
+
+function extractJsonObject(text) {
+    const cleanText = String(text || '').trim()
+        .replace(/^```(?:json)?\s*/i, '')
+        .replace(/\s*```$/i, '')
+        .trim();
+
+    if (!cleanText) return '';
+    if (cleanText.startsWith('{') && cleanText.endsWith('}')) return cleanText;
+
+    const start = cleanText.indexOf('{');
+    const end = cleanText.lastIndexOf('}');
+    if (start === -1 || end === -1 || end <= start) return '';
+
+    return cleanText.slice(start, end + 1);
+}
+
+function buildObsidianAiPromptPayload(variables, currentTranslations) {
+    const selectedTabs = Array.isArray(variables.contextTabs)
+        ? variables.contextTabs.map((tab, index) => {
+            const title = tab.title || tab.url || tab.id || `Tab ${index + 1}`;
+            return `${index + 1}. ${title}${tab.url ? `\n   ${tab.url}` : ''}`;
+        }).join('\n')
+        : '';
+
+    return [
+        `Language: ${currentTranslations?.htmlLang || 'en'}`,
+        '',
+        '# Page Metadata',
+        `Title: ${variables.title || ''}`,
+        `URL: ${variables.url || ''}`,
+        `Domain: ${variables.domain || ''}`,
+        `Author: ${variables.author || ''}`,
+        `Published: ${variables.published || ''}`,
+        '',
+        '# Page Content',
+        truncateForAiPrompt(variables.content),
+        '',
+        '# Comments / Replies',
+        truncateForAiPrompt(variables.comments),
+        '',
+        '# Manually Selected Page Area',
+        truncateForAiPrompt(variables.manualArea),
+        '',
+        '# Selected Context Tabs',
+        selectedTabs || '(none)',
+        '',
+        '# Chat',
+        truncateForAiPrompt(variables.chat),
+        '',
+        'Return JSON only with keys: summary, tags, category.'
+    ].join('\n');
+}
+
+function truncateForAiPrompt(value) {
+    const text = String(value || '').trim();
+    if (text.length <= OBSIDIAN_AI_MAX_SECTION_CHARS) return text || '(empty)';
+    return `${text.slice(0, OBSIDIAN_AI_MAX_SECTION_CHARS).trim()}\n\n...(truncated)`;
+}
+
+function normalizeTemplateMetadataText(value) {
+    return String(value || '').replace(/\s+/g, ' ').trim();
+}
+
+function normalizePublishedDateMetadata(value) {
+    const text = normalizeTemplateMetadataText(value);
+    if (!text) return '';
+
+    const isoLikeMatch = text.match(/^(\d{4}-\d{2}-\d{2})/);
+    if (isoLikeMatch) return isoLikeMatch[1];
+
+    if (typeof dayjs !== 'undefined') {
+        const parsed = dayjs(text);
+        if (parsed.isValid()) return parsed.format('YYYY-MM-DD');
+    }
+
+    const date = new Date(text);
+    if (!Number.isNaN(date.getTime())) return formatDateToken(date);
+
+    return text;
+}
+
+async function callObsidianTextModelOnce(modelId, messages) {
+    let accumulatedText = '';
+    await window.PageTalkAPI.callApi(modelId, messages, (chunk) => {
+        accumulatedText += chunk;
+    }, {});
+    return accumulatedText.trim();
 }
 
 export function compileObsidianTemplate(template, variables = {}) {

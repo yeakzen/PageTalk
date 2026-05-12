@@ -793,8 +793,8 @@ export function updateUIElementsWithTranslations(currentTranslations) {
     setText('#copy-chat-history span[data-i18n="copyButton"]', 'copyButton');
 
     // Obsidian export setting card
-    setText('.setting-card-title[data-i18n="obsidianExportLabel"]', 'obsidianExportLabel');
-    setText('.setting-card-description[data-i18n="obsidianExportDescription"]', 'obsidianExportDescription');
+    setText('.setting-card-title[data-i18n="obsidianExportSettingsLabel"]', 'obsidianExportSettingsLabel');
+    setText('.setting-card-description[data-i18n="obsidianExportSettingsDescription"]', 'obsidianExportSettingsDescription');
     setText('label[for="obsidian-vault-input"]', 'obsidianVaultLabel');
     setText('label[for="obsidian-folder-input"]', 'obsidianFolderLabel');
     setText('label[for="obsidian-note-name-input"]', 'obsidianNoteNameLabel');

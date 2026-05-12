@@ -86,26 +86,26 @@ function getDefaultMermaidOverviewSettings(currentTranslations) {
     };
 }
 
-function createMermaidOverviewModelLabel(modelValue) {
+function createModelSelectLabel(modelValue) {
     if (!modelValue) return '';
     const [, modelName = modelValue] = modelValue.split('::');
     return modelName;
 }
 
-function renderCurrentMermaidOverviewModelOption(selectElement, modelValue) {
+function renderCurrentModelOption(selectElement, modelValue) {
     if (!selectElement) return;
     selectElement.innerHTML = '';
 
     const optionElement = document.createElement('option');
     optionElement.value = modelValue || '';
-    optionElement.textContent = createMermaidOverviewModelLabel(modelValue) || '';
+    optionElement.textContent = createModelSelectLabel(modelValue) || '';
     optionElement.selected = true;
     selectElement.appendChild(optionElement);
     selectElement.value = modelValue || '';
     selectElement.dataset.modelsLoaded = 'false';
 }
 
-function populateMermaidOverviewModelSelectOptions(selectElement, modelOptions, selectedValue, state) {
+function populateGroupedModelSelectOptions(selectElement, modelOptions, selectedValue, onFallbackSelect) {
     if (!selectElement) return;
     selectElement.innerHTML = '';
 
@@ -153,12 +153,37 @@ function populateMermaidOverviewModelSelectOptions(selectElement, modelOptions, 
         selectElement.value = selectedValue;
     } else if (modelOptions.length > 0) {
         selectElement.value = modelOptions[0].value;
-        if (state) {
-            state.mermaidOverviewModel = modelOptions[0].value;
+        if (typeof onFallbackSelect === 'function') {
+            onFallbackSelect(modelOptions[0].value);
         }
     }
 
     selectElement.dataset.modelsLoaded = 'true';
+}
+
+function renderCurrentMermaidOverviewModelOption(selectElement, modelValue) {
+    renderCurrentModelOption(selectElement, modelValue);
+}
+
+function renderCurrentObsidianAiModelOption(selectElement, modelValue) {
+    renderCurrentModelOption(selectElement, modelValue);
+}
+
+function populateMermaidOverviewModelSelectOptions(selectElement, modelOptions, selectedValue, state) {
+    populateGroupedModelSelectOptions(selectElement, modelOptions, selectedValue, (value) => {
+        if (state) state.mermaidOverviewModel = value;
+    });
+}
+
+function populateObsidianAiModelSelectOptions(selectElement, modelOptions, selectedValue, state) {
+    populateGroupedModelSelectOptions(selectElement, modelOptions, selectedValue, (value) => {
+        if (state) {
+            state.obsidianExportSettings = normalizeObsidianExportSettings({
+                ...state.obsidianExportSettings,
+                aiModel: value
+            });
+        }
+    });
 }
 
 export function applyBotBoldHighlightColor(colorValue = DEFAULT_BOT_BOLD_HIGHLIGHT_COLOR) {
@@ -299,8 +324,14 @@ export function loadSettings(state, elements, updateConnectionIndicatorCallback,
         }
         if (elements.proxyAddressInput) elements.proxyAddressInput.value = state.proxyAddress;
 
-        state.obsidianExportSettings = normalizeObsidianExportSettings(syncResult.obsidianExportSettings);
+        const translationsForDefaults = window.translations && window.translations[state.language]
+            ? window.translations[state.language]
+            : {};
+        state.obsidianExportSettings = normalizeObsidianExportSettings(syncResult.obsidianExportSettings, translationsForDefaults);
         applyObsidianExportSettingsToElements(state.obsidianExportSettings, elements);
+        if (elements.obsidianAiModelSelect) {
+            renderCurrentObsidianAiModelOption(elements.obsidianAiModelSelect, state.obsidianExportSettings.aiModel);
+        }
 
         state.botBoldHighlightColor = normalizeBotBoldHighlightColor(syncResult.botBoldHighlightColor);
         applyBotBoldHighlightColor(state.botBoldHighlightColor);
@@ -308,9 +339,6 @@ export function loadSettings(state, elements, updateConnectionIndicatorCallback,
             elements.botBoldHighlightColorSelect.value = state.botBoldHighlightColor;
         }
 
-        const translationsForDefaults = window.translations && window.translations[state.language]
-            ? window.translations[state.language]
-            : {};
         const defaultMermaidSettings = getDefaultMermaidOverviewSettings(translationsForDefaults);
         const storedMermaidSettings = normalizeMermaidOverviewSettings(syncResult.mermaidOverviewSettings);
         state.mermaidOverviewModel = storedMermaidSettings.model || defaultMermaidSettings.model;
@@ -343,7 +371,7 @@ export function loadSettings(state, elements, updateConnectionIndicatorCallback,
 
 export async function handleObsidianSettingsChange(state, elements, showToastCallback, currentTranslations) {
     try {
-        const settings = readObsidianExportSettingsFromElements(elements, state);
+        const settings = readObsidianExportSettingsFromElements(elements, state, currentTranslations);
         state.obsidianExportSettings = settings;
         await saveObsidianExportSettings(settings);
     } catch (error) {
@@ -729,6 +757,7 @@ export async function initModelSelection(state, elements) {
     // 获取用户可用的模型选项
     const modelOptions = modelManager.getModelOptionsForUI();
     const mermaidOverviewSelect = elements.mermaidOverviewModelSelect;
+    const obsidianAiSelect = elements.obsidianAiModelSelect;
 
     // 填充选择器的通用函数 - 按提供商分组
     const populateSelect = (selectElement) => {
@@ -799,6 +828,17 @@ export async function initModelSelection(state, elements) {
         renderCurrentMermaidOverviewModelOption(mermaidOverviewSelect, state.mermaidOverviewModel);
     }
 
+    if (obsidianAiSelect) {
+        const obsidianSettings = normalizeObsidianExportSettings(state.obsidianExportSettings);
+        if (!obsidianSettings.aiModel && modelOptions.length > 0) {
+            state.obsidianExportSettings = normalizeObsidianExportSettings({
+                ...obsidianSettings,
+                aiModel: modelOptions[0].value
+            });
+        }
+        renderCurrentObsidianAiModelOption(obsidianAiSelect, state.obsidianExportSettings?.aiModel || '');
+    }
+
     // 更新模型卡片显示
     updateModelCardsDisplay();
 
@@ -818,6 +858,26 @@ export async function initModelSelection(state, elements) {
                 );
             } catch (error) {
                 console.error('[Settings] Failed to populate Mermaid overview model select:', error);
+            }
+        };
+    }
+
+    if (obsidianAiSelect) {
+        obsidianAiSelect.dataset.modelsLoaded = 'false';
+        obsidianAiSelect.onfocus = async () => {
+            if (obsidianAiSelect.dataset.modelsLoaded === 'true') return;
+
+            try {
+                await modelManager.initialize();
+                const latestModelOptions = modelManager.getModelOptionsForUI();
+                populateObsidianAiModelSelectOptions(
+                    obsidianAiSelect,
+                    latestModelOptions,
+                    state.obsidianExportSettings?.aiModel || '',
+                    state
+                );
+            } catch (error) {
+                console.error('[Settings] Failed to populate Obsidian AI model select:', error);
             }
         };
     }
@@ -1165,6 +1225,7 @@ async function removeModelFromSelection(modelKey) {
         const modelOptions = modelManager.getModelOptionsForUI();
 
         const mermaidOverviewModelSelect = document.getElementById('mermaid-overview-model');
+        const obsidianAiModelSelect = document.getElementById('obsidian-ai-model');
 
         [modelSelection, chatModelSelection].forEach(selectElement => {
             if (!selectElement) return;
@@ -1227,6 +1288,18 @@ async function removeModelFromSelection(modelKey) {
                 window.state.mermaidOverviewModel = modelOptions[0]?.value || '';
             }
             renderCurrentMermaidOverviewModelOption(mermaidOverviewModelSelect, window.state.mermaidOverviewModel);
+        }
+
+        if (obsidianAiModelSelect && window.state) {
+            const obsidianSettings = normalizeObsidianExportSettings(window.state.obsidianExportSettings);
+            const nextAiModel = obsidianSettings.aiModel && modelOptions.some(o => o.value === obsidianSettings.aiModel)
+                ? obsidianSettings.aiModel
+                : (modelOptions[0]?.value || '');
+            window.state.obsidianExportSettings = normalizeObsidianExportSettings({
+                ...obsidianSettings,
+                aiModel: nextAiModel
+            });
+            renderCurrentObsidianAiModelOption(obsidianAiModelSelect, nextAiModel);
         }
     }
 
