@@ -798,6 +798,8 @@ export function updateUIElementsWithTranslations(currentTranslations) {
     setText('label[for="obsidian-vault-input"]', 'obsidianVaultLabel');
     setText('label[for="obsidian-folder-input"]', 'obsidianFolderLabel');
     setText('label[for="obsidian-note-name-input"]', 'obsidianNoteNameLabel');
+    setText('label[for="obsidian-frontmatter-template"]', 'obsidianFrontmatterTemplateLabel');
+    setText('label[for="obsidian-body-template"]', 'obsidianBodyTemplateLabel');
     setText('label[for="obsidian-silent-open"] span[data-i18n="obsidianSilentOpenLabel"]', 'obsidianSilentOpenLabel');
     setText('#export-to-obsidian span[data-i18n="obsidianExportButton"]', 'obsidianExportButton');
 

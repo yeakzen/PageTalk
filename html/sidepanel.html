@@ -572,7 +572,24 @@
                                         <label for="obsidian-note-name-input" data-i18n="obsidianNoteNameLabel">笔记名</label>
                                         <input type="text" id="obsidian-note-name-input" class="setting-input"
                                             data-i18n-placeholder="obsidianNoteNamePlaceholder"
-                                            placeholder="PageTalk - {title} - {date}">
+                                            placeholder="PageTalk - {{title|safe_name}} - {{date}}">
+                                    </div>
+                                    <div class="setting-group">
+                                        <label for="obsidian-frontmatter-template" data-i18n="obsidianFrontmatterTemplateLabel">Frontmatter 模板</label>
+                                        <textarea id="obsidian-frontmatter-template" rows="7"
+                                            class="setting-textarea"
+                                            data-i18n-placeholder="obsidianFrontmatterTemplatePlaceholder"
+                                            placeholder="title: {{title|yaml}}"></textarea>
+                                    </div>
+                                    <div class="setting-group">
+                                        <label for="obsidian-body-template" data-i18n="obsidianBodyTemplateLabel">正文模板</label>
+                                        <textarea id="obsidian-body-template" rows="12"
+                                            class="setting-textarea"
+                                            data-i18n-placeholder="obsidianBodyTemplatePlaceholder"
+                                            placeholder="{{content}}"></textarea>
+                                        <div class="setting-hint" data-i18n="obsidianTemplateHint">
+                                            支持 {{title}}、{{content}}、{{chat}} 和 {% if chat %} 条件块。
+                                        </div>
                                     </div>
                                     <label class="setting-checkbox-row" for="obsidian-silent-open">
                                         <input id="obsidian-silent-open" type="checkbox">

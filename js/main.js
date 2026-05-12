@@ -244,6 +244,8 @@ const elements = {
     obsidianVaultInput: document.getElementById('obsidian-vault-input'),
     obsidianFolderInput: document.getElementById('obsidian-folder-input'),
     obsidianNoteNameInput: document.getElementById('obsidian-note-name-input'),
+    obsidianFrontmatterTemplateTextarea: document.getElementById('obsidian-frontmatter-template'),
+    obsidianBodyTemplateTextarea: document.getElementById('obsidian-body-template'),
     obsidianSilentOpenToggle: document.getElementById('obsidian-silent-open'),
     exportToObsidianBtn: document.getElementById('export-to-obsidian'),
     // Unified Import/Export
@@ -812,12 +814,14 @@ function setupEventListeners() {
     [
         elements.obsidianVaultInput,
         elements.obsidianFolderInput,
-        elements.obsidianNoteNameInput
+        elements.obsidianNoteNameInput,
+        elements.obsidianFrontmatterTemplateTextarea,
+        elements.obsidianBodyTemplateTextarea
     ].forEach(input => {
         if (!input) return;
         input.addEventListener('blur', () => handleObsidianSettingsChange(state, elements, showToastUI, currentTranslations));
         input.addEventListener('keydown', (e) => {
-            if (e.key === 'Enter') {
+            if (e.key === 'Enter' && input.tagName !== 'TEXTAREA') {
                 e.preventDefault();
                 input.blur();
             }

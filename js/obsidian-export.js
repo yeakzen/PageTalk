@@ -5,7 +5,40 @@ import { getPageContextStatus, getPageContextTextForPrompt } from './context-sta
 export const DEFAULT_OBSIDIAN_EXPORT_SETTINGS = Object.freeze({
     vault: '',
     folder: 'PageTalk',
-    noteNameTemplate: 'PageTalk - {title} - {date}',
+    noteNameTemplate: 'PageTalk - {{title|safe_name}} - {{date}}',
+    frontmatterTemplate: [
+        'title: {{title|yaml}}',
+        '{% if url %}source: {{url|yaml}}{% endif %}',
+        'created: {{isoDatetime|yaml}}',
+        'tool: PageTalk',
+        'tags:',
+        '  - pagetalk',
+        '  - pagetalk-export'
+    ].join('\n'),
+    bodyTemplate: [
+        '{{content}}',
+        '{% if comments %}',
+        '',
+        '## Comments / Replies',
+        '',
+        '{{comments}}',
+        '{% endif %}',
+        '{% if manualArea %}',
+        '',
+        '## Manually Selected Page Area',
+        '',
+        '{{manualArea}}',
+        '{% endif %}',
+        '{% if not context %}',
+        '{{contextFallback}}',
+        '{% endif %}',
+        '{% if chat %}',
+        '',
+        '# Chat',
+        '',
+        '{{chat}}',
+        '{% endif %}'
+    ].join('\n'),
     silentOpen: false
 });
 
@@ -18,6 +51,12 @@ export function normalizeObsidianExportSettings(rawSettings = {}) {
         noteNameTemplate: typeof rawSettings.noteNameTemplate === 'string' && rawSettings.noteNameTemplate.trim()
             ? rawSettings.noteNameTemplate
             : DEFAULT_OBSIDIAN_EXPORT_SETTINGS.noteNameTemplate,
+        frontmatterTemplate: typeof rawSettings.frontmatterTemplate === 'string'
+            ? rawSettings.frontmatterTemplate
+            : DEFAULT_OBSIDIAN_EXPORT_SETTINGS.frontmatterTemplate,
+        bodyTemplate: typeof rawSettings.bodyTemplate === 'string'
+            ? rawSettings.bodyTemplate
+            : DEFAULT_OBSIDIAN_EXPORT_SETTINGS.bodyTemplate,
         silentOpen: rawSettings.silentOpen === true
     };
 }
@@ -32,7 +71,8 @@ export async function handleExportToObsidian(state, elements, showToastCallback,
             return;
         }
 
-        const markdown = buildObsidianExportMarkdown(state, elements, currentTranslations, settings);
+        const variables = buildObsidianTemplateVariables(state, elements, currentTranslations);
+        const markdown = buildObsidianExportMarkdown(state, elements, currentTranslations, settings, variables);
 
         if (!markdown.trim()) {
             showToastCallback(_('obsidianExportEmptyError', {}, currentTranslations), 'error');
@@ -43,7 +83,7 @@ export async function handleExportToObsidian(state, elements, showToastCallback,
             console.warn('[ObsidianExport] Failed to save settings before export:', error);
         });
 
-        const noteName = renderNoteNameTemplate(settings.noteNameTemplate, state);
+        const noteName = renderNoteNameTemplate(settings.noteNameTemplate, state, variables);
         await exportMarkdownToObsidian(markdown, {
             noteName,
             folder: settings.folder,
@@ -58,59 +98,23 @@ export async function handleExportToObsidian(state, elements, showToastCallback,
     }
 }
 
-export function buildObsidianExportMarkdown(state, elements, currentTranslations, settings = DEFAULT_OBSIDIAN_EXPORT_SETTINGS) {
-    const _tr = (key, rep = {}) => _(key, rep, currentTranslations);
-    const pageTitle = state.pageTitle || _tr('untitledPage');
-    const pageUrl = state.pageUrl || '';
-    const now = new Date();
-    const isoDatetime = now.toISOString();
-    const localDatetime = formatLocalDateTime(now, state.language);
+export function buildObsidianExportMarkdown(state, elements, currentTranslations, settings = DEFAULT_OBSIDIAN_EXPORT_SETTINGS, templateVariables = null) {
     const contextStatus = getPageContextStatus(state.pageContext);
-    const contextText = getPageContextTextForPrompt(state);
-    const contextSections = splitContextSections(contextText);
-    const chatMarkdown = buildChatMarkdown(state, elements, currentTranslations, { headingOffset: 0 }).trim();
+    const variables = templateVariables || buildObsidianTemplateVariables(state, elements, currentTranslations);
 
-    const hasContext = Object.values(contextSections).some(section => section.trim());
-    const hasChat = !!chatMarkdown;
-
-    if (!hasContext && !hasChat && contextStatus !== 'failed') {
+    if (!variables.context && !variables.chat && contextStatus !== 'failed') {
         return '';
     }
 
-    const title = pageTitle;
-    const lines = [
-        '---',
-        `title: ${yamlString(title)}`
-    ];
-    if (pageUrl) lines.push(`source: ${yamlString(pageUrl)}`);
-    lines.push(
-        `created: ${yamlString(isoDatetime)}`,
-        'tool: PageTalk',
-        'tags:',
-        '  - pagetalk',
-        '  - pagetalk-export',
-        '---',
-        ''
-    );
-
-    if (contextSections.article.trim()) {
-        lines.push(contextSections.article.trim(), '');
+    const frontmatter = compileObsidianTemplate(settings.frontmatterTemplate, variables).trim();
+    const body = compileObsidianTemplate(settings.bodyTemplate, variables).trim();
+    const parts = [];
+    if (frontmatter) {
+        parts.push('---', frontmatter, '---');
     }
+    if (body) parts.push(body);
 
-    appendContextSection(lines, 'Comments / Replies', contextSections.comments, 2);
-    appendContextSection(lines, 'Manually Selected Page Area', contextSections.manual, 2);
-
-    if (!hasContext) {
-        const fallbackKey = contextStatus === 'failed' ? 'obsidianContextFailed' : 'obsidianNoContext';
-        lines.push(`_${_tr(fallbackKey)}_`, '');
-    }
-
-    if (chatMarkdown) {
-        lines.push('# Chat', '');
-        lines.push(chatMarkdown, '');
-    }
-
-    return `${lines.join('\n').replace(/\n{4,}/g, '\n\n\n').trim()}\n`;
+    return `${parts.join('\n').replace(/\n{4,}/g, '\n\n\n').trim()}\n`;
 }
 
 export function buildObsidianUrl(options) {
@@ -154,6 +158,8 @@ export function readObsidianExportSettingsFromElements(elements, state) {
         vault: elements.obsidianVaultInput?.value?.trim() ?? existing.vault,
         folder: elements.obsidianFolderInput?.value?.trim() ?? existing.folder,
         noteNameTemplate: elements.obsidianNoteNameInput?.value?.trim() ?? existing.noteNameTemplate,
+        frontmatterTemplate: elements.obsidianFrontmatterTemplateTextarea?.value ?? existing.frontmatterTemplate,
+        bodyTemplate: elements.obsidianBodyTemplateTextarea?.value ?? existing.bodyTemplate,
         silentOpen: elements.obsidianSilentOpenToggle?.checked ?? existing.silentOpen
     });
 }
@@ -163,6 +169,8 @@ export function applyObsidianExportSettingsToElements(settings, elements) {
     if (elements.obsidianVaultInput) elements.obsidianVaultInput.value = normalized.vault;
     if (elements.obsidianFolderInput) elements.obsidianFolderInput.value = normalized.folder;
     if (elements.obsidianNoteNameInput) elements.obsidianNoteNameInput.value = normalized.noteNameTemplate;
+    if (elements.obsidianFrontmatterTemplateTextarea) elements.obsidianFrontmatterTemplateTextarea.value = normalized.frontmatterTemplate;
+    if (elements.obsidianBodyTemplateTextarea) elements.obsidianBodyTemplateTextarea.value = normalized.bodyTemplate;
     if (elements.obsidianSilentOpenToggle) elements.obsidianSilentOpenToggle.checked = normalized.silentOpen;
 }
 
@@ -266,6 +274,772 @@ function splitContextSections(pageContext) {
     return sections;
 }
 
+export function buildObsidianTemplateVariables(state, elements, currentTranslations) {
+    const _tr = (key, rep = {}) => _(key, rep, currentTranslations);
+    const now = new Date();
+    const pageTitle = state.pageTitle || _tr('untitledPage');
+    const pageUrl = state.pageUrl || '';
+    const contextStatus = getPageContextStatus(state.pageContext);
+    const contextText = getPageContextTextForPrompt(state);
+    const contextSections = splitContextSections(contextText);
+    const chatMarkdown = buildChatMarkdown(state, elements, currentTranslations, { headingOffset: 0 }).trim();
+    const hasContext = Object.values(contextSections).some(section => section.trim());
+    const contextFallback = contextStatus === 'failed' ? _tr('obsidianContextFailed') : _tr('obsidianNoContext');
+    const selectedTabs = collectSelectedTabs(state.chatHistory || []);
+    const selectedTabsMarkdown = buildSelectedTabsMarkdown(selectedTabs);
+
+    return {
+        title: pageTitle,
+        url: pageUrl,
+        domain: getUrlDomain(pageUrl),
+        site: getUrlDomain(pageUrl),
+        date: formatDateToken(now),
+        time: formatTimeToken(now),
+        datetime: formatDateTimeToken(now),
+        isoDatetime: now.toISOString(),
+        localDatetime: formatLocalDateTime(now, state.language),
+        noteName: sanitizeObsidianFileName(pageTitle),
+        content: contextSections.article.trim(),
+        comments: contextSections.comments.trim(),
+        manualArea: contextSections.manual.trim(),
+        context: hasContext ? contextText.trim() : '',
+        contextFallback: `_${contextFallback}_`,
+        chat: chatMarkdown,
+        selectedTabs: selectedTabsMarkdown,
+        selectedTabsMarkdown,
+        contextTabs: selectedTabs,
+        tabCount: selectedTabs.length,
+        words: countWords(contextText),
+        contextLinks: state.removeContextWebLinks === false ? 'preserved' : 'removed'
+    };
+}
+
+export function compileObsidianTemplate(template, variables = {}) {
+    let output = String(template || '');
+
+    output = renderTwigLogicBlocks(output, variables);
+    output = renderMustacheSections(output, variables);
+    output = renderTemplateVariables(output, variables);
+
+    return output.replace(/[ \t]+\n/g, '\n').replace(/\n{4,}/g, '\n\n\n');
+}
+
+function isTruthyTemplateValue(value) {
+    if (Array.isArray(value)) return value.length > 0;
+    if (typeof value === 'boolean') return value;
+    if (typeof value === 'number') return value !== 0;
+    return value != null && String(value).trim() !== '';
+}
+
+function collectSelectedTabs(chatHistory) {
+    const tabs = [];
+    const seen = new Set();
+    chatHistory.forEach(message => {
+        (message.sentContextTabsInfo || []).forEach(tab => {
+            const key = tab.url || tab.id || tab.title;
+            if (!key || seen.has(key)) return;
+            seen.add(key);
+            tabs.push(tab);
+        });
+    });
+
+    return tabs;
+}
+
+function buildSelectedTabsMarkdown(tabs) {
+    return tabs.map((tab, index) => {
+        const title = tab.title || tab.url || tab.id || `Tab ${index + 1}`;
+        return `${index + 1}. ${tab.url ? `[${title}](${tab.url})` : title}`;
+    }).join('\n');
+}
+
+function renderTwigLogicBlocks(template, variables) {
+    let output = '';
+    let cursor = 0;
+
+    while (cursor < template.length) {
+        const startTag = findNextTwigBlockStart(template, cursor);
+        if (!startTag) {
+            output += template.slice(cursor);
+            break;
+        }
+
+        output += template.slice(cursor, startTag.index);
+
+        if (startTag.keyword === 'if') {
+            const block = findTwigBlock(template, startTag.end, 'if', 'endif', ['elseif', 'else']);
+            if (!block) {
+                output += startTag.raw;
+                cursor = startTag.end;
+                continue;
+            }
+            block.segments[0].condition = startTag.expression;
+            output += renderIfSegments(block.segments, variables);
+            cursor = block.end;
+        } else if (startTag.keyword === 'for') {
+            const block = findTwigBlock(template, startTag.end, 'for', 'endfor', []);
+            if (!block) {
+                output += startTag.raw;
+                cursor = startTag.end;
+                continue;
+            }
+            output += renderForSegment(startTag.expression, block.segments[0]?.body || '', variables);
+            cursor = block.end;
+        }
+    }
+
+    return output;
+}
+
+function findNextTwigBlockStart(template, startIndex) {
+    const tagRegex = /{%-?\s*([\s\S]*?)\s*-?%}/g;
+    tagRegex.lastIndex = startIndex;
+
+    let match;
+    while ((match = tagRegex.exec(template)) !== null) {
+        const content = match[1].trim();
+        const keyword = getTwigKeyword(content);
+        if (keyword === 'if' || keyword === 'for') {
+            return {
+                raw: match[0],
+                keyword,
+                expression: content.slice(keyword.length).trim(),
+                index: match.index,
+                end: tagRegex.lastIndex
+            };
+        }
+    }
+
+    return null;
+}
+
+function findTwigBlock(template, startIndex, openKeyword, closeKeyword, branchKeywords) {
+    const tagRegex = /{%-?\s*([\s\S]*?)\s*-?%}/g;
+    tagRegex.lastIndex = startIndex;
+
+    const segments = [{ keyword: openKeyword, condition: '', body: '' }];
+    let bodyStart = startIndex;
+    let depth = 1;
+    let match;
+
+    while ((match = tagRegex.exec(template)) !== null) {
+        const content = match[1].trim();
+        const keyword = getTwigKeyword(content);
+
+        if (keyword === openKeyword) {
+            depth += 1;
+        } else if (keyword === closeKeyword) {
+            depth -= 1;
+            if (depth === 0) {
+                segments[segments.length - 1].body = template.slice(bodyStart, match.index);
+                return {
+                    segments,
+                    end: tagRegex.lastIndex
+                };
+            }
+        } else if (depth === 1 && branchKeywords.includes(keyword)) {
+            segments[segments.length - 1].body = template.slice(bodyStart, match.index);
+            segments.push({
+                keyword,
+                condition: keyword === 'else' ? '' : content.slice(keyword.length).trim(),
+                body: ''
+            });
+            bodyStart = tagRegex.lastIndex;
+        }
+    }
+
+    return null;
+}
+
+function getTwigKeyword(content) {
+    const match = String(content || '').trim().match(/^([A-Za-z_][\w-]*)\b/);
+    return match ? match[1] : '';
+}
+
+function renderIfSegments(segments, variables) {
+    for (const segment of segments) {
+        if (segment.keyword === 'else' || evaluateTemplateCondition(segment.condition, variables)) {
+            return compileObsidianTemplate(segment.body, variables);
+        }
+    }
+
+    return '';
+}
+
+function renderForSegment(expression, body, variables) {
+    const match = String(expression || '').trim().match(/^([A-Za-z_]\w*)\s+in\s+([\s\S]+)$/);
+    if (!match) return '';
+
+    const iterator = match[1];
+    const iterableValue = evaluateTemplateValue(match[2], variables);
+    const items = normalizeIterable(iterableValue);
+
+    return items.map((item, index) => {
+        const loopVariables = {
+            ...variables,
+            [iterator]: item,
+            [`${iterator}_index`]: index,
+            loop: {
+                index: index + 1,
+                index0: index,
+                first: index === 0,
+                last: index === items.length - 1,
+                length: items.length
+            }
+        };
+        return compileObsidianTemplate(body, loopVariables);
+    }).join('');
+}
+
+function normalizeIterable(value) {
+    if (Array.isArray(value)) return value;
+    if (value && typeof value === 'object') {
+        return Object.entries(value).map(([key, item]) => {
+            if (item && typeof item === 'object' && !Array.isArray(item)) {
+                return { key, ...item };
+            }
+            return { key, value: item };
+        });
+    }
+    if (typeof value === 'string' && value.trim()) return value.split('\n').filter(Boolean);
+    return [];
+}
+
+function renderMustacheSections(template, variables) {
+    let output = String(template || '');
+
+    output = output.replace(/{{#\s*([\w.]+)\s*}}([\s\S]*?){{\/\s*\1\s*}}/g, (match, key, body) => {
+        return isTruthyTemplateValue(resolveTemplatePath(key, variables)) ? compileObsidianTemplate(body, variables) : '';
+    });
+    output = output.replace(/{{\^\s*([\w.]+)\s*}}([\s\S]*?){{\/\s*\1\s*}}/g, (match, key, body) => {
+        return isTruthyTemplateValue(resolveTemplatePath(key, variables)) ? '' : compileObsidianTemplate(body, variables);
+    });
+
+    return output;
+}
+
+function renderTemplateVariables(template, variables) {
+    return String(template || '').replace(/{{-?\s*([\s\S]*?)\s*-?}}/g, (match, expression) => {
+        const value = evaluateTemplateValue(expression, variables);
+        return valueToTemplateString(value);
+    });
+}
+
+function evaluateTemplateCondition(expression, variables) {
+    const expr = stripOuterParentheses(String(expression || '').trim());
+    if (!expr) return false;
+
+    const orParts = splitTopLevelLogical(expr, ['or', '||']);
+    if (orParts.length > 1) {
+        return orParts.some(part => evaluateTemplateCondition(part, variables));
+    }
+
+    const andParts = splitTopLevelLogical(expr, ['and', '&&']);
+    if (andParts.length > 1) {
+        return andParts.every(part => evaluateTemplateCondition(part, variables));
+    }
+
+    if (/^not\s+/i.test(expr)) {
+        return !evaluateTemplateCondition(expr.replace(/^not\s+/i, ''), variables);
+    }
+    if (expr.startsWith('!')) {
+        return !evaluateTemplateCondition(expr.slice(1), variables);
+    }
+
+    const containsParts = splitTopLevelContains(expr);
+    if (containsParts) {
+        const left = evaluateTemplateValue(containsParts.left, variables);
+        const right = evaluateTemplateValue(containsParts.right, variables);
+        if (Array.isArray(left)) return left.some(item => String(item) === String(right));
+        return String(left || '').includes(String(right || ''));
+    }
+
+    const comparison = findTopLevelComparison(expr);
+    if (comparison) {
+        const left = evaluateTemplateValue(comparison.left, variables);
+        const right = evaluateTemplateValue(comparison.right, variables);
+        return compareTemplateValues(left, right, comparison.operator);
+    }
+
+    return isTruthyTemplateValue(evaluateTemplateValue(expr, variables));
+}
+
+function evaluateTemplateValue(expression, variables) {
+    const expr = String(expression || '').trim();
+    if (!expr) return '';
+
+    const fallbackParts = splitTopLevelOperator(expr, '??');
+    if (fallbackParts.length > 1) {
+        for (const part of fallbackParts) {
+            const value = evaluateTemplateValue(part, variables);
+            if (isTruthyTemplateValue(value)) return value;
+        }
+        return '';
+    }
+
+    const filterParts = splitTopLevelOperator(expr, '|');
+    const baseExpression = filterParts.shift();
+    let value = evaluateTemplateAtom(baseExpression, variables);
+
+    filterParts.forEach(filterExpression => {
+        value = applyTemplateFilter(value, filterExpression, variables);
+    });
+
+    return value;
+}
+
+function evaluateTemplateAtom(expression, variables) {
+    const expr = stripOuterParentheses(String(expression || '').trim());
+
+    if ((expr.startsWith('"') && expr.endsWith('"')) || (expr.startsWith("'") && expr.endsWith("'"))) {
+        return unquoteTemplateString(expr);
+    }
+    if (/^-?\d+(\.\d+)?$/.test(expr)) return Number(expr);
+    if (/^true$/i.test(expr)) return true;
+    if (/^false$/i.test(expr)) return false;
+    if (/^null$/i.test(expr) || /^undefined$/i.test(expr)) return '';
+
+    return resolveTemplatePath(expr, variables);
+}
+
+function applyTemplateFilter(value, filterExpression, variables) {
+    const { name, args } = parseTemplateFilter(filterExpression, variables);
+
+    switch (name) {
+        case 'trim':
+            return String(value ?? '').trim();
+        case 'lower':
+            return String(value ?? '').toLowerCase();
+        case 'upper':
+            return String(value ?? '').toUpperCase();
+        case 'capitalize':
+            return capitalizeText(String(value ?? ''));
+        case 'title':
+            return titleCase(String(value ?? ''));
+        case 'safe_name':
+        case 'safeName':
+            return sanitizeObsidianFileName(value);
+        case 'yaml':
+            return formatYamlValue(value);
+        case 'json':
+            return JSON.stringify(value ?? '');
+        case 'date':
+            return formatDateFilter(value, args[0]);
+        case 'replace':
+            return replaceFilter(value, args[0], args[1]);
+        case 'length':
+            return getTemplateLength(value);
+        case 'join':
+            return Array.isArray(value) ? value.map(valueToTemplateString).join(args[0] ?? ', ') : String(value ?? '');
+        case 'split':
+            return String(value ?? '').split(args[0] ?? ',');
+        case 'first':
+            return Array.isArray(value) ? (value[0] ?? '') : String(value ?? '').charAt(0);
+        case 'last':
+            return Array.isArray(value) ? (value[value.length - 1] ?? '') : String(value ?? '').charAt(String(value ?? '').length - 1);
+        case 'blockquote':
+            return String(value ?? '').split('\n').map(line => line ? `> ${line}` : '>').join('\n');
+        case 'list':
+            return listFilter(value, args[0]);
+        case 'link':
+            return linkFilter(value, args[0]);
+        case 'wikilink':
+            return wikilinkFilter(value, args[0]);
+        case 'default':
+            return isTruthyTemplateValue(value) ? value : (args[0] ?? '');
+        default:
+            return value;
+    }
+}
+
+function parseTemplateFilter(filterExpression, variables) {
+    const spec = String(filterExpression || '').trim();
+    const separatorIndex = findTopLevelChar(spec, ':');
+    if (separatorIndex === -1) {
+        return { name: spec, args: [] };
+    }
+
+    const name = spec.slice(0, separatorIndex).trim();
+    const argString = spec.slice(separatorIndex + 1).trim();
+    const args = splitTopLevelArguments(argString)
+        .map(arg => evaluateTemplateValue(arg, variables));
+    return { name, args };
+}
+
+function resolveTemplatePath(path, variables) {
+    const cleanPath = String(path || '').trim();
+    if (!cleanPath) return '';
+    if (Object.prototype.hasOwnProperty.call(variables, cleanPath)) return variables[cleanPath];
+
+    const tokens = tokenizeTemplatePath(cleanPath);
+    if (tokens.length === 0) return '';
+
+    let current = variables;
+    for (const token of tokens) {
+        if (current == null) return '';
+        current = current[token];
+    }
+
+    return current == null ? '' : current;
+}
+
+function tokenizeTemplatePath(path) {
+    const tokens = [];
+    const tokenRegex = /([A-Za-z_]\w*)|\[(?:"([^"]+)"|'([^']+)'|(\d+)|([A-Za-z_]\w*))\]/g;
+    let match;
+    while ((match = tokenRegex.exec(path)) !== null) {
+        tokens.push(match[1] ?? match[2] ?? match[3] ?? match[4] ?? match[5]);
+    }
+    return tokens;
+}
+
+function valueToTemplateString(value) {
+    if (value == null) return '';
+    if (Array.isArray(value)) return value.map(valueToTemplateString).join('\n');
+    if (typeof value === 'object') return value.title || value.url || value.value || JSON.stringify(value);
+    return String(value);
+}
+
+function splitTopLevelLogical(expression, operators) {
+    for (const operator of operators) {
+        const parts = splitTopLevelWordOrSymbol(expression, operator);
+        if (parts.length > 1) return parts;
+    }
+    return [expression];
+}
+
+function splitTopLevelContains(expression) {
+    const parts = splitTopLevelWordOrSymbol(expression, 'contains');
+    if (parts.length !== 2) return null;
+    return { left: parts[0], right: parts[1] };
+}
+
+function splitTopLevelWordOrSymbol(expression, operator) {
+    const expr = String(expression || '');
+    const parts = [];
+    let cursor = 0;
+    let quote = '';
+    let depth = 0;
+
+    for (let index = 0; index < expr.length; index += 1) {
+        const char = expr[index];
+        const prev = expr[index - 1];
+        if (quote) {
+            if (char === quote && prev !== '\\') quote = '';
+            continue;
+        }
+        if (char === '"' || char === "'") {
+            quote = char;
+            continue;
+        }
+        if (char === '(' || char === '[' || char === '{') {
+            depth += 1;
+            continue;
+        }
+        if (char === ')' || char === ']' || char === '}') {
+            depth = Math.max(0, depth - 1);
+            continue;
+        }
+        if (depth !== 0) continue;
+
+        if (operator === '&&' || operator === '||') {
+            if (expr.slice(index, index + operator.length) === operator) {
+                parts.push(expr.slice(cursor, index).trim());
+                cursor = index + operator.length;
+                index = cursor - 1;
+            }
+            continue;
+        }
+
+        if (isWordOperatorAt(expr, index, operator)) {
+            parts.push(expr.slice(cursor, index).trim());
+            cursor = index + operator.length;
+            index = cursor - 1;
+        }
+    }
+
+    if (parts.length === 0) return [expression];
+    parts.push(expr.slice(cursor).trim());
+    return parts.filter(part => part !== '');
+}
+
+function splitTopLevelOperator(expression, operator) {
+    const expr = String(expression || '');
+    const parts = [];
+    let cursor = 0;
+    let quote = '';
+    let depth = 0;
+
+    for (let index = 0; index < expr.length; index += 1) {
+        const char = expr[index];
+        const prev = expr[index - 1];
+        if (quote) {
+            if (char === quote && prev !== '\\') quote = '';
+            continue;
+        }
+        if (char === '"' || char === "'") {
+            quote = char;
+            continue;
+        }
+        if (char === '(' || char === '[' || char === '{') {
+            depth += 1;
+            continue;
+        }
+        if (char === ')' || char === ']' || char === '}') {
+            depth = Math.max(0, depth - 1);
+            continue;
+        }
+        if (depth === 0 && expr.slice(index, index + operator.length) === operator) {
+            parts.push(expr.slice(cursor, index).trim());
+            cursor = index + operator.length;
+            index = cursor - 1;
+        }
+    }
+
+    if (parts.length === 0) return [expression];
+    parts.push(expr.slice(cursor).trim());
+    return parts;
+}
+
+function splitTopLevelArguments(args) {
+    const commaParts = splitTopLevelOperator(args, ',');
+    if (commaParts.length > 1) return commaParts;
+
+    const colonIndex = findTopLevelChar(args, ':');
+    if (colonIndex === -1) return args ? [args] : [];
+    return [
+        args.slice(0, colonIndex).trim(),
+        args.slice(colonIndex + 1).trim()
+    ];
+}
+
+function findTopLevelChar(expression, charToFind) {
+    const expr = String(expression || '');
+    let quote = '';
+    let depth = 0;
+
+    for (let index = 0; index < expr.length; index += 1) {
+        const char = expr[index];
+        const prev = expr[index - 1];
+        if (quote) {
+            if (char === quote && prev !== '\\') quote = '';
+            continue;
+        }
+        if (char === '"' || char === "'") {
+            quote = char;
+            continue;
+        }
+        if (char === '(' || char === '[' || char === '{') {
+            depth += 1;
+            continue;
+        }
+        if (char === ')' || char === ']' || char === '}') {
+            depth = Math.max(0, depth - 1);
+            continue;
+        }
+        if (depth === 0 && char === charToFind) return index;
+    }
+
+    return -1;
+}
+
+function findTopLevelComparison(expression) {
+    const operators = ['==', '!=', '>=', '<=', '>', '<'];
+    const expr = String(expression || '');
+    let quote = '';
+    let depth = 0;
+
+    for (let index = 0; index < expr.length; index += 1) {
+        const char = expr[index];
+        const prev = expr[index - 1];
+        if (quote) {
+            if (char === quote && prev !== '\\') quote = '';
+            continue;
+        }
+        if (char === '"' || char === "'") {
+            quote = char;
+            continue;
+        }
+        if (char === '(' || char === '[' || char === '{') {
+            depth += 1;
+            continue;
+        }
+        if (char === ')' || char === ']' || char === '}') {
+            depth = Math.max(0, depth - 1);
+            continue;
+        }
+        if (depth !== 0) continue;
+
+        const operator = operators.find(op => expr.slice(index, index + op.length) === op);
+        if (operator) {
+            return {
+                left: expr.slice(0, index).trim(),
+                operator,
+                right: expr.slice(index + operator.length).trim()
+            };
+        }
+    }
+
+    return null;
+}
+
+function compareTemplateValues(left, right, operator) {
+    if (operator === '==' || operator === '!=') {
+        const equal = String(left ?? '') === String(right ?? '');
+        return operator === '==' ? equal : !equal;
+    }
+
+    const leftNumber = Number(left);
+    const rightNumber = Number(right);
+    const useNumbers = !Number.isNaN(leftNumber) && !Number.isNaN(rightNumber);
+    const a = useNumbers ? leftNumber : String(left ?? '');
+    const b = useNumbers ? rightNumber : String(right ?? '');
+
+    if (operator === '>') return a > b;
+    if (operator === '<') return a < b;
+    if (operator === '>=') return a >= b;
+    if (operator === '<=') return a <= b;
+    return false;
+}
+
+function isWordOperatorAt(expression, index, operator) {
+    const before = expression[index - 1];
+    const after = expression[index + operator.length];
+    return expression.slice(index, index + operator.length).toLowerCase() === operator.toLowerCase()
+        && (!before || /\s|\(/.test(before))
+        && (!after || /\s|\)/.test(after));
+}
+
+function stripOuterParentheses(expression) {
+    let expr = String(expression || '').trim();
+    while (expr.startsWith('(') && expr.endsWith(')') && hasBalancedOuterParentheses(expr)) {
+        expr = expr.slice(1, -1).trim();
+    }
+    return expr;
+}
+
+function hasBalancedOuterParentheses(expression) {
+    let quote = '';
+    let depth = 0;
+    for (let index = 0; index < expression.length; index += 1) {
+        const char = expression[index];
+        const prev = expression[index - 1];
+        if (quote) {
+            if (char === quote && prev !== '\\') quote = '';
+            continue;
+        }
+        if (char === '"' || char === "'") {
+            quote = char;
+            continue;
+        }
+        if (char === '(') depth += 1;
+        if (char === ')') depth -= 1;
+        if (depth === 0 && index < expression.length - 1) return false;
+    }
+    return depth === 0;
+}
+
+function unquoteTemplateString(value) {
+    const quote = value[0];
+    return value.slice(1, -1)
+        .replace(new RegExp(`\\\\${quote}`, 'g'), quote)
+        .replace(/\\n/g, '\n')
+        .replace(/\\t/g, '\t')
+        .replace(/\\\\/g, '\\');
+}
+
+function formatYamlValue(value) {
+    if (Array.isArray(value)) {
+        if (value.length === 0) return '[]';
+        return `\n${value.map(item => `  - ${JSON.stringify(String(item ?? ''))}`).join('\n')}`;
+    }
+    if (typeof value === 'number' || typeof value === 'boolean') return String(value);
+    if (value == null || value === '') return '""';
+    return JSON.stringify(String(value));
+}
+
+function formatDateFilter(value, format = 'YYYY-MM-DD') {
+    const source = value || new Date();
+    if (typeof dayjs !== 'undefined') {
+        const parsed = dayjs(source);
+        return parsed.isValid() ? parsed.format(format) : String(value ?? '');
+    }
+    const date = source instanceof Date ? source : new Date(source);
+    if (Number.isNaN(date.getTime())) return String(value ?? '');
+    if (format === 'YYYY-MM-DD') return formatDateToken(date);
+    if (format === 'HH:mm:ss') return `${formatTimeToken(date)}:${String(date.getSeconds()).padStart(2, '0')}`;
+    return date.toISOString();
+}
+
+function replaceFilter(value, searchValue = '', replacement = '') {
+    const source = String(value ?? '');
+    const search = String(searchValue ?? '');
+    const replaceWith = String(replacement ?? '');
+    if (!search) return source;
+    const regexMatch = search.match(/^\/([\s\S]+)\/([gimsuy]*)$/);
+    if (regexMatch) {
+        try {
+            return source.replace(new RegExp(regexMatch[1], regexMatch[2]), replaceWith);
+        } catch (_) {
+            return source;
+        }
+    }
+    return source.split(search).join(replaceWith);
+}
+
+function listFilter(value, mode = '') {
+    const items = Array.isArray(value) ? value : String(value ?? '').split('\n').filter(Boolean);
+    const numbered = String(mode || '').includes('numbered');
+    const task = String(mode || '').includes('task');
+    return items.map((item, index) => {
+        const prefix = numbered ? `${index + 1}.` : '-';
+        const checkbox = task ? ' [ ]' : '';
+        return `${prefix}${checkbox} ${valueToTemplateString(item)}`;
+    }).join('\n');
+}
+
+function linkFilter(value, label = '') {
+    const url = String(value ?? '').trim();
+    if (!url) return '';
+    return `[${label || url}](${url})`;
+}
+
+function wikilinkFilter(value, alias = '') {
+    const page = String(value ?? '').trim();
+    if (!page) return '';
+    return alias ? `[[${page}|${alias}]]` : `[[${page}]]`;
+}
+
+function getTemplateLength(value) {
+    if (Array.isArray(value) || typeof value === 'string') return value.length;
+    if (value && typeof value === 'object') return Object.keys(value).length;
+    return 0;
+}
+
+function capitalizeText(value) {
+    return value ? value.charAt(0).toUpperCase() + value.slice(1).toLowerCase() : '';
+}
+
+function titleCase(value) {
+    return value.replace(/\S+/g, word => capitalizeText(word));
+}
+
+function countWords(text) {
+    const value = String(text || '').trim();
+    if (!value) return 0;
+    const cjkMatches = value.match(/[\u4e00-\u9fff]/g) || [];
+    const wordMatches = value.replace(/[\u4e00-\u9fff]/g, ' ').match(/[A-Za-z0-9_]+/g) || [];
+    return cjkMatches.length + wordMatches.length;
+}
+
+function getUrlDomain(url) {
+    try {
+        return url ? new URL(url).hostname.replace(/^www\./i, '') : '';
+    } catch (_) {
+        return '';
+    }
+}
+
 function stripSectionDecorators(text) {
     return String(text || '')
         .replace(/^\s*---\s*$/gm, '')
@@ -287,25 +1061,44 @@ function appendSectionText(existing, next) {
     return existing ? `${existing}\n\n---\n\n${cleanNext}` : cleanNext;
 }
 
-function appendContextSection(lines, title, content, level = 3) {
-    const cleanContent = String(content || '').trim();
-    if (!cleanContent) return;
-    const safeLevel = Math.min(Math.max(Number(level) || 1, 1), 6);
-    lines.push(`${'#'.repeat(safeLevel)} ${title}`, '', cleanContent, '');
-}
-
-function renderNoteNameTemplate(template, state) {
+function renderNoteNameTemplate(template, state, variables = null) {
     const now = new Date();
     const title = state.pageTitle || 'Untitled';
     const url = state.pageUrl || '';
+    const noteVariables = variables || {
+        title,
+        url,
+        domain: getUrlDomain(url),
+        site: getUrlDomain(url),
+        date: formatDateToken(now),
+        time: formatTimeToken(now),
+        datetime: formatDateTimeToken(now),
+        isoDatetime: now.toISOString(),
+        localDatetime: formatLocalDateTime(now, state.language),
+        noteName: sanitizeObsidianFileName(title)
+    };
+    const rawTemplate = String(template || DEFAULT_OBSIDIAN_EXPORT_SETTINGS.noteNameTemplate);
+    const legacyCompatibleTemplate = replaceLegacyNoteNameTokens(rawTemplate, {
+        title,
+        date: formatDateToken(now),
+        time: formatTimeToken(now),
+        datetime: formatDateTimeToken(now),
+        url
+    });
+    const rendered = rawTemplate.includes('{{') || rawTemplate.includes('{%')
+        ? compileObsidianTemplate(legacyCompatibleTemplate, noteVariables)
+        : legacyCompatibleTemplate;
 
-    return sanitizeObsidianFileName(
-        String(template || DEFAULT_OBSIDIAN_EXPORT_SETTINGS.noteNameTemplate)
-            .replace(/\{title\}/g, title)
-            .replace(/\{date\}/g, formatDateToken(now))
-            .replace(/\{datetime\}/g, formatDateTimeToken(now))
-            .replace(/\{url\}/g, url)
-    );
+    return sanitizeObsidianFileName(rendered);
+}
+
+function replaceLegacyNoteNameTokens(template, values) {
+    let output = String(template || '');
+    Object.entries(values).forEach(([key, value]) => {
+        const pattern = new RegExp(`(^|[^\\{])\\{${key}\\}(?!\\})`, 'g');
+        output = output.replace(pattern, (match, prefix) => `${prefix}${value}`);
+    });
+    return output;
 }
 
 function formatDateToken(date) {
@@ -318,6 +1111,10 @@ function formatDateToken(date) {
 
 function formatDateTimeToken(date) {
     return `${formatDateToken(date)} ${String(date.getHours()).padStart(2, '0')}-${String(date.getMinutes()).padStart(2, '0')}`;
+}
+
+function formatTimeToken(date) {
+    return `${String(date.getHours()).padStart(2, '0')}-${String(date.getMinutes()).padStart(2, '0')}`;
 }
 
 function formatLocalDateTime(date, language) {
