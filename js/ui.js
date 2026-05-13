@@ -700,6 +700,7 @@ export function updateUIElementsWithTranslations(currentTranslations) {
     setAttr('#chat-model-selection', 'aria-label', 'modelSelectLabel');
     setText('label[for="chat-agent-selection"]', 'agentLabel');
     setAttr('#chat-agent-selection', 'aria-label', 'agentSelectLabel');
+    setTitle('#export-chat-to-obsidian', 'obsidianExportButton');
     setTitle('#clear-context', 'clearContextTitle');
     setTitle('#close-panel', 'closePanelTitle');
     // Welcome message updated dynamically

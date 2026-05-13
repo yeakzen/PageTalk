@@ -489,6 +489,12 @@ async function sendMultiModelMessage(
                         if (userMessageForHistory?.id && typeof window.refreshMessageActionButtonsByMessageId === 'function') {
                             window.refreshMessageActionButtonsByMessageId(userMessageForHistory.id);
                         }
+                        if (typeof window.generateFollowUpQuestionsForResponse === 'function') {
+                            window.generateFollowUpQuestionsForResponse({
+                                userMessageId: userMessageForHistory?.id || '',
+                                responseMessageId: container.dataset.messageId
+                            });
+                        }
                     }
                 },
                 showToast: showToastCallback,
@@ -532,6 +538,12 @@ async function sendMultiModelMessage(
                             });
                             if (userMessageForHistory?.id && typeof window.refreshMessageActionButtonsByMessageId === 'function') {
                                 window.refreshMessageActionButtonsByMessageId(userMessageForHistory.id);
+                            }
+                            if (typeof window.generateFollowUpQuestionsForResponse === 'function') {
+                                window.generateFollowUpQuestionsForResponse({
+                                    userMessageId: userMessageForHistory?.id || '',
+                                    responseMessageId: container.dataset.messageId
+                                });
                             }
                         }
                     }
@@ -611,7 +623,8 @@ async function regenerateMultiModelMessage(
     currentTranslations,
     addMessageToChatCallback,
     showToastCallback,
-    restoreSendButtonAndInputCallback
+    restoreSendButtonAndInputCallback,
+    oldResponseMessageIds = []
 ) {
     // 获取模型信息
     let modelInfos = selectedModels
@@ -806,6 +819,12 @@ async function regenerateMultiModelMessage(
                         if (userMessageElement?.dataset?.messageId && typeof window.refreshMessageActionButtonsByMessageId === 'function') {
                             window.refreshMessageActionButtonsByMessageId(userMessageElement.dataset.messageId);
                         }
+                        if (typeof window.rebindFollowUpQuestionsForResponse === 'function') {
+                            window.rebindFollowUpQuestionsForResponse({
+                                oldResponseMessageIds,
+                                newResponseMessageId: container.dataset.messageId
+                            });
+                        }
                     }
                 },
                 showToast: showToastCallback,
@@ -849,6 +868,12 @@ async function regenerateMultiModelMessage(
                             });
                             if (userMessageElement?.dataset?.messageId && typeof window.refreshMessageActionButtonsByMessageId === 'function') {
                                 window.refreshMessageActionButtonsByMessageId(userMessageElement.dataset.messageId);
+                            }
+                            if (typeof window.rebindFollowUpQuestionsForResponse === 'function') {
+                                window.rebindFollowUpQuestionsForResponse({
+                                    oldResponseMessageIds,
+                                    newResponseMessageId: container.dataset.messageId
+                                });
                             }
                         }
                     }
@@ -1374,9 +1399,13 @@ export async function regenerateMessage(messageId, state, elements, currentTrans
     const historyForApi = state.chatHistory.slice(0, userIndex);
 
     // Remove old AI response(s) following the user message
+    const removedAIMessageIds = [];
     let removedAICount = 0;
     while (state.chatHistory[userIndex + 1]?.role === 'model') {
         const oldAiMessageId = state.chatHistory[userIndex + 1].id;
+        if (oldAiMessageId) {
+            removedAIMessageIds.push(oldAiMessageId);
+        }
         // 尝试移除单模型响应
         const oldAiElement = document.querySelector(`.message[data-message-id="${oldAiMessageId}"]`);
         if (oldAiElement) oldAiElement.remove();
@@ -1469,7 +1498,8 @@ export async function regenerateMessage(messageId, state, elements, currentTrans
             currentTranslations,
             addMessageToChatCallback,
             showToastCallback,
-            restoreSendButtonAndInputCallback
+            restoreSendButtonAndInputCallback,
+            removedAIMessageIds
         );
     } else {
         // ========== 单模型重新生成（保持原有逻辑） ==========
@@ -1486,7 +1516,13 @@ export async function regenerateMessage(messageId, state, elements, currentTrans
                 // These now call the wrappers on `window` (defined in main.js) which use live isUserNearBottom from main.js
                 updateStreamingMessage: (el, content) => window.updateStreamingMessage(el, content),
                 finalizeBotMessage: (el, content) => {
-                    window.finalizeBotMessage(el, content);
+                    window.finalizeBotMessage(el, content, { suppressFollowUp: true });
+                    if (typeof window.rebindFollowUpQuestionsForResponse === 'function') {
+                        window.rebindFollowUpQuestionsForResponse({
+                            oldResponseMessageIds: removedAIMessageIds,
+                            newResponseMessageId: el?.dataset?.messageId || ''
+                        });
+                    }
                     // 此处不再需要处理 selectedContextTabs 的逻辑，已提前处理
                 },
                 clearImages: () => { }, // Don't clear images on regenerate

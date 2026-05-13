@@ -11,6 +11,14 @@ import {
     readObsidianExportSettingsFromElements,
     saveObsidianExportSettings
 } from './obsidian-export.js';
+import {
+    normalizeFollowUpQuestionSettings,
+    applyFollowUpQuestionSettingsToElements,
+    readFollowUpQuestionSettingsFromElements,
+    saveFollowUpQuestionSettings,
+    renderCurrentFollowUpModelOption,
+    populateFollowUpModelSelectOptions
+} from './follow-up-questions.js';
 
 const DEFAULT_BOT_BOLD_HIGHLIGHT_COLOR = 'none';
 const DEFAULT_MERMAID_OVERVIEW_SETTINGS = Object.freeze({
@@ -252,7 +260,7 @@ export function loadSettings(state, elements, updateConnectionIndicatorCallback,
         console.log('[Settings] Updated manual add button for language:', newLanguage);
     });
 
-    chrome.storage.sync.get(['apiKey', 'model', 'selectedModels', 'language', 'proxyAddress', 'providerSettings', 'botBoldHighlightColor', 'mermaidOverviewSettings', 'obsidianExportSettings'], async (syncResult) => {
+    chrome.storage.sync.get(['apiKey', 'model', 'selectedModels', 'language', 'proxyAddress', 'providerSettings', 'botBoldHighlightColor', 'mermaidOverviewSettings', 'obsidianExportSettings', 'followUpQuestionSettings'], async (syncResult) => {
         // 初始化 ModelManager
         if (window.ModelManager?.instance) {
             try {
@@ -333,6 +341,13 @@ export function loadSettings(state, elements, updateConnectionIndicatorCallback,
             renderCurrentObsidianAiModelOption(elements.obsidianAiModelSelect, state.obsidianExportSettings.aiModel);
         }
 
+        const loadedFollowUpSettings = normalizeFollowUpQuestionSettings(syncResult.followUpQuestionSettings, translationsForDefaults);
+        state.followUpQuestionSettings = normalizeFollowUpQuestionSettings({
+            ...loadedFollowUpSettings,
+            model: loadedFollowUpSettings.model || state.model
+        }, translationsForDefaults);
+        applyFollowUpQuestionSettingsToElements(state.followUpQuestionSettings, elements);
+
         state.botBoldHighlightColor = normalizeBotBoldHighlightColor(syncResult.botBoldHighlightColor);
         applyBotBoldHighlightColor(state.botBoldHighlightColor);
         if (elements.botBoldHighlightColorSelect) {
@@ -377,6 +392,20 @@ export async function handleObsidianSettingsChange(state, elements, showToastCal
     } catch (error) {
         console.error('[Settings] Failed to save Obsidian export settings:', error);
         showToastCallback(_('obsidianSettingsSaveError', { error: error.message }, currentTranslations), 'error');
+    }
+}
+
+export async function handleFollowUpQuestionSettingsChange(state, elements, showToastCallback, currentTranslations) {
+    try {
+        const settings = readFollowUpQuestionSettingsFromElements(elements, currentTranslations);
+        state.followUpQuestionSettings = settings;
+        if (elements.followUpQuestionsModelSelect) {
+            renderCurrentFollowUpModelOption(elements.followUpQuestionsModelSelect, settings.model);
+        }
+        await saveFollowUpQuestionSettings(settings);
+    } catch (error) {
+        console.error('[Settings] Failed to save follow-up question settings:', error);
+        showToastCallback(_('followUpQuestionsSettingsSaveError', { error: error.message }, currentTranslations), 'error');
     }
 }
 
@@ -758,6 +787,7 @@ export async function initModelSelection(state, elements) {
     const modelOptions = modelManager.getModelOptionsForUI();
     const mermaidOverviewSelect = elements.mermaidOverviewModelSelect;
     const obsidianAiSelect = elements.obsidianAiModelSelect;
+    const followUpSelect = elements.followUpQuestionsModelSelect;
 
     // 填充选择器的通用函数 - 按提供商分组
     const populateSelect = (selectElement) => {
@@ -839,6 +869,17 @@ export async function initModelSelection(state, elements) {
         renderCurrentObsidianAiModelOption(obsidianAiSelect, state.obsidianExportSettings?.aiModel || '');
     }
 
+    if (followUpSelect) {
+        const followUpSettings = normalizeFollowUpQuestionSettings(state.followUpQuestionSettings);
+        if (!followUpSettings.model && modelOptions.length > 0) {
+            state.followUpQuestionSettings = normalizeFollowUpQuestionSettings({
+                ...followUpSettings,
+                model: modelOptions[0].value
+            });
+        }
+        renderCurrentFollowUpModelOption(followUpSelect, state.followUpQuestionSettings?.model || '');
+    }
+
     // 更新模型卡片显示
     updateModelCardsDisplay();
 
@@ -878,6 +919,26 @@ export async function initModelSelection(state, elements) {
                 );
             } catch (error) {
                 console.error('[Settings] Failed to populate Obsidian AI model select:', error);
+            }
+        };
+    }
+
+    if (followUpSelect) {
+        followUpSelect.dataset.modelsLoaded = 'false';
+        followUpSelect.onfocus = async () => {
+            if (followUpSelect.dataset.modelsLoaded === 'true') return;
+
+            try {
+                await modelManager.initialize();
+                const latestModelOptions = modelManager.getModelOptionsForUI();
+                populateFollowUpModelSelectOptions(
+                    followUpSelect,
+                    latestModelOptions,
+                    state.followUpQuestionSettings?.model || '',
+                    state
+                );
+            } catch (error) {
+                console.error('[Settings] Failed to populate follow-up question model select:', error);
             }
         };
     }
@@ -1226,6 +1287,7 @@ async function removeModelFromSelection(modelKey) {
 
         const mermaidOverviewModelSelect = document.getElementById('mermaid-overview-model');
         const obsidianAiModelSelect = document.getElementById('obsidian-ai-model');
+        const followUpQuestionsModelSelect = document.getElementById('follow-up-questions-model');
 
         [modelSelection, chatModelSelection].forEach(selectElement => {
             if (!selectElement) return;
@@ -1300,6 +1362,18 @@ async function removeModelFromSelection(modelKey) {
                 aiModel: nextAiModel
             });
             renderCurrentObsidianAiModelOption(obsidianAiModelSelect, nextAiModel);
+        }
+
+        if (followUpQuestionsModelSelect && window.state) {
+            const followUpSettings = normalizeFollowUpQuestionSettings(window.state.followUpQuestionSettings);
+            const nextFollowUpModel = followUpSettings.model && modelOptions.some(o => o.value === followUpSettings.model)
+                ? followUpSettings.model
+                : (modelOptions[0]?.value || '');
+            window.state.followUpQuestionSettings = normalizeFollowUpQuestionSettings({
+                ...followUpSettings,
+                model: nextFollowUpModel
+            });
+            renderCurrentFollowUpModelOption(followUpQuestionsModelSelect, nextFollowUpModel);
         }
     }
 

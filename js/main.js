@@ -24,9 +24,16 @@ import {
     loadCurrentAgentSettingsIntoState,
     autoSaveAgentSettings as autoSaveAgentSettingsFromAgent // Alias the import
 } from './agent.js';
-import { loadSettings as loadAppSettings, handleLanguageChange, handleBotBoldHighlightColorChange, saveMermaidOverviewSettings, handleExportChat, handleCopyChat, handleObsidianSettingsChange, initModelSelection, updateModelCardsDisplay, handleProxyAddressChange, handleProxyTest, setupProviderEventListeners, initQuickActionsSettings, renderQuickActionsList } from './settings.js';
+import { loadSettings as loadAppSettings, handleLanguageChange, handleBotBoldHighlightColorChange, saveMermaidOverviewSettings, handleExportChat, handleCopyChat, handleObsidianSettingsChange, handleFollowUpQuestionSettingsChange, initModelSelection, updateModelCardsDisplay, handleProxyAddressChange, handleProxyTest, setupProviderEventListeners, initQuickActionsSettings, renderQuickActionsList } from './settings.js';
 import { handleExportToObsidian } from './obsidian-export.js';
 import { parseChatMarkdown } from './export-utils.js';
+import {
+    initFollowUpQuestionState,
+    clearFollowUpQuestions,
+    removeFollowUpQuestionsForMessageIds,
+    rebindFollowUpQuestionsForResponse,
+    generateFollowUpQuestionsForResponse as generateFollowUpQuestionsForResponseAction
+} from './follow-up-questions.js';
 import * as QuickActionsManager from './quick-actions-manager.js';
 import { initTextSelectionHelperSettings, isTextSelectionHelperEnabled } from './text-selection-helper-settings.js';
 import { sendUserMessage as sendUserMessageAction, clearContext as clearContextAction, deleteMessage as deleteMessageAction, regenerateMessage as regenerateMessageAction, abortStreaming as abortStreamingAction, handleRemoveSentTabContext as handleRemoveSentTabContextAction, createWelcomeMessage } from './chat.js';
@@ -103,6 +110,8 @@ const state = {
     mermaidOverviewModel: '',
     mermaidOverviewSummaryPrompt: '',
     mermaidOverviewDiagramPrompt: '',
+    followUpQuestionSettings: null,
+    followUpQuestionsByResponseId: {},
     obsidianExportSettings: null,
     isStreaming: false,
     userScrolledUpDuringStream: false, // 新增：跟踪用户在流式传输期间是否已向上滚动
@@ -192,6 +201,7 @@ const elements = {
     clearContextBtn: document.getElementById('clear-context'),
     saveChatSessionBtn: document.getElementById('save-chat-session'),
     chatHistoryBtn: document.getElementById('chat-history-btn'),
+    exportChatToObsidianBtn: document.getElementById('export-chat-to-obsidian'),
     savedSessionsPopup: document.getElementById('saved-sessions-popup'),
     savedSessionsList: document.getElementById('saved-sessions-list'),
     savedSessionsEmpty: document.getElementById('saved-sessions-empty'),
@@ -235,6 +245,9 @@ const elements = {
     mermaidOverviewModelSelect: document.getElementById('mermaid-overview-model'),
     mermaidOverviewSummaryPromptTextarea: document.getElementById('mermaid-overview-summary-prompt'),
     mermaidOverviewDiagramPromptTextarea: document.getElementById('mermaid-overview-diagram-prompt'),
+    followUpQuestionsEnabledToggle: document.getElementById('follow-up-questions-enabled'),
+    followUpQuestionsModelSelect: document.getElementById('follow-up-questions-model'),
+    followUpQuestionsPromptTextarea: document.getElementById('follow-up-questions-prompt'),
     proxyAddressInput: document.getElementById('proxy-address-input'),
     testProxyBtn: document.getElementById('test-proxy-btn'),
     themeToggleBtnSettings: document.getElementById('theme-toggle-btn'), // Draggable button
@@ -358,6 +371,7 @@ function setupChatMessagesObserver() {
 // --- Initialization ---
 async function init() {
     console.log("Pagetalk Initializing...");
+    initFollowUpQuestionState(state);
 
     // Listen for content script messages early to avoid missing initial theme updates.
     window.addEventListener('message', handleContentScriptMessages);
@@ -502,12 +516,16 @@ async function init() {
     };
 
     // Wrapper for ui.js's finalizeBotMessage
-    window.finalizeBotMessage = (messageElement, finalContent) => {
+    window.finalizeBotMessage = (messageElement, finalContent, options = {}) => {
         // `elements`, `addCopyButtonToCodeBlockUI`,
         // `addMessageActionButtonsUI`, `restoreSendButtonAndInputUI`
         // are all live from main.js's scope
         const shouldScroll = state.isStreaming ? !state.userScrolledUpDuringStream : isUserNearBottom; // Similar logic for finalize
         uiFinalizeBotMessage(messageElement, finalContent, addCopyButtonToCodeBlockUI, addMessageActionButtonsUI, restoreSendButtonAndInputUI, shouldScroll, elements);
+        if (!options.suppressFollowUp) {
+            const responseMessageId = messageElement?.dataset?.messageId || '';
+            setTimeout(() => triggerFollowUpQuestionsForResponse(responseMessageId), 0);
+        }
     };
 
     // 确保在所有初始化完成后，输入框获得焦点
@@ -518,6 +536,21 @@ async function init() {
     // Expose the handler on the window object so ui.js can call it
     window.handleRemoveSentTabContext = (messageId, tabId) => {
         handleRemoveSentTabContextAction(messageId, tabId, state);
+    };
+
+    window.generateFollowUpQuestionsForResponse = ({ userMessageId = '', responseMessageId = '', force = false } = {}) => {
+        triggerFollowUpQuestionsForResponse(responseMessageId, userMessageId, force);
+    };
+
+    window.rebindFollowUpQuestionsForResponse = ({ oldResponseMessageIds = [], newResponseMessageId = '' } = {}) => {
+        rebindFollowUpQuestionsForResponse({
+            oldResponseMessageIds,
+            newResponseMessageId,
+            state,
+            elements,
+            currentTranslations,
+            sendMessage: sendFollowUpQuestionText
+        });
     };
 
     // Expose text selection helper functions to global scope
@@ -579,6 +612,7 @@ function setupEventListeners() {
     }
     elements.clearContextBtn.addEventListener('click', async () => {
         await clearContextAction(state, elements, clearImagesUI, clearVideosUI, showToastUI, currentTranslations);
+        clearFollowUpQuestions(state, elements);
         // Also clear the UI for selected tabs
         state.selectedContextTabs = [];
         updateSelectedTabsBarFromMain();
@@ -596,6 +630,12 @@ function setupEventListeners() {
         elements.chatHistoryBtn.addEventListener('click', (e) => {
             e.stopPropagation();
             toggleSavedSessionsPopup();
+        });
+    }
+
+    if (elements.exportChatToObsidianBtn) {
+        elements.exportChatToObsidianBtn.addEventListener('click', () => {
+            handleExportToObsidian(state, elements, showToastUI, currentTranslations);
         });
     }
 
@@ -809,6 +849,21 @@ function setupEventListeners() {
     if (elements.mermaidOverviewDiagramPromptTextarea) {
         elements.mermaidOverviewDiagramPromptTextarea.addEventListener('blur', () => {
             saveMermaidOverviewSettings(state, elements, showToastUI, currentTranslations);
+        });
+    }
+    if (elements.followUpQuestionsEnabledToggle) {
+        elements.followUpQuestionsEnabledToggle.addEventListener('change', () => {
+            handleFollowUpQuestionSettingsChange(state, elements, showToastUI, currentTranslations);
+        });
+    }
+    if (elements.followUpQuestionsModelSelect) {
+        elements.followUpQuestionsModelSelect.addEventListener('change', () => {
+            handleFollowUpQuestionSettingsChange(state, elements, showToastUI, currentTranslations);
+        });
+    }
+    if (elements.followUpQuestionsPromptTextarea) {
+        elements.followUpQuestionsPromptTextarea.addEventListener('blur', () => {
+            handleFollowUpQuestionSettingsChange(state, elements, showToastUI, currentTranslations);
         });
     }
     if (elements.importChatHistoryBtn && elements.importChatHistoryInput) {
@@ -1910,6 +1965,7 @@ async function restoreImportedChatHistory(chatHistory) {
     elements.chatMessages.innerHTML = '';
     state.chatHistory = chatHistory;
     state.locallyIgnoredTabs = {};
+    clearFollowUpQuestions(state, elements);
     state.selectedContextTabs = [];
     clearImagesUI();
     clearVideosUI();
@@ -2427,9 +2483,56 @@ function regenerateMessageUI(messageId) {
     );
 }
 
+function triggerFollowUpQuestionsForResponse(responseMessageId, sourceUserMessageId = '', force = false) {
+    if (!responseMessageId) return;
+    generateFollowUpQuestionsForResponseAction({
+        state,
+        elements,
+        currentTranslations,
+        responseMessageId,
+        sourceUserMessageId,
+        sendMessage: sendFollowUpQuestionText,
+        force
+    });
+}
+
+function sendFollowUpQuestionText(questionText) {
+    const text = String(questionText || '').trim();
+    if (!text) return;
+    if (state.isStreaming) {
+        showToastUI(_('streamingInProgress', {}, currentTranslations), 'warning');
+        return;
+    }
+
+    elements.userInput.value = text;
+    resizeTextarea(elements);
+    if (window.updateCometCaret) window.updateCometCaret();
+    sendUserMessageTrigger();
+}
+
 // Wrapper function for deleteMessage
 function deleteMessageUI(messageId) {
+    const messageIndex = state.chatHistory.findIndex(msg => msg.id === messageId);
+    const idsToRemove = [];
+    const botMessageElement = document.querySelector(`.bot-message[data-message-id="${messageId}"]`);
+    const multiModelContainer = botMessageElement?.closest('.multi-model-response-container');
+    if (multiModelContainer && multiModelContainer.querySelectorAll('.bot-message-column').length <= 1) {
+        idsToRemove.push(multiModelContainer.dataset.messageId);
+    }
+
+    if (messageIndex !== -1 && state.chatHistory[messageIndex]?.role === 'user') {
+        idsToRemove.push(state.chatHistory[messageIndex].id);
+        let nextIndex = messageIndex + 1;
+        while (nextIndex < state.chatHistory.length && state.chatHistory[nextIndex]?.role === 'model') {
+            idsToRemove.push(state.chatHistory[nextIndex].id);
+            nextIndex += 1;
+        }
+    } else if (messageId) {
+        idsToRemove.push(messageId);
+    }
+
     deleteMessageAction(messageId, state);
+    removeFollowUpQuestionsForMessageIds(idsToRemove, state, elements);
     syncChatInputVisibility();
 }
 
@@ -3708,6 +3811,7 @@ async function collectAllSettingsData() {
                             language: syncResult.language || 'zh-CN',
                             proxyAddress: syncResult.proxyAddress || '',
                             model: syncResult.model || null,
+                            followUpQuestionSettings: syncResult.followUpQuestionSettings || null,
                             // 自定义供应商
                             customProviders: syncResult.customProviders || []
                         },
@@ -4307,6 +4411,7 @@ async function restoreChatSession(sessionId) {
         // 恢复状态
         state.chatHistory = session.chatHistory;
         state.locallyIgnoredTabs = {};
+        clearFollowUpQuestions(state, elements);
 
         // 重建聊天 UI
         await renderChatHistoryFromSession(session);

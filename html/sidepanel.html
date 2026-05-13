@@ -102,6 +102,16 @@
                         </div>
                         <!-- 操作按钮组 -->
                         <div class="chat-header-actions">
+                            <!-- 导出到 Obsidian 按钮 -->
+                            <button id="export-chat-to-obsidian" data-i18n-title="obsidianExportButton"
+                                title="导出到 Obsidian" class="action-button">
+                                <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="none"
+                                    stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24">
+                                    <path d="M12 3 4.5 8.25 12 21l7.5-12.75L12 3Z" />
+                                    <path d="m4.5 8.25 7.5 3 7.5-3" />
+                                    <path d="M12 11.25V21" />
+                                </svg>
+                            </button>
                             <!-- 保存对话按钮 -->
                             <button id="save-chat-session" data-i18n-title="saveChatSessionTitle" title="保存当前对话"
                                 class="action-button">
@@ -460,6 +470,46 @@
                                             class="setting-textarea"
                                             data-i18n-placeholder="mermaidOverviewDiagramPromptPlaceholder"
                                             placeholder="根据问题、回答和总结生成 Mermaid 图，仅返回 Mermaid 代码。"></textarea>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- 追问选项设置卡片 -->
+                        <div class="setting-group">
+                            <div class="setting-card">
+                                <div class="setting-card-header">
+                                    <div class="setting-card-icon">
+                                        <svg width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.5"
+                                            viewBox="0 0 24 24">
+                                            <path d="M21 15a4 4 0 0 1-4 4H8l-5 3V7a4 4 0 0 1 4-4h10a4 4 0 0 1 4 4z"></path>
+                                            <path d="M8 9h8"></path>
+                                            <path d="M8 13h5"></path>
+                                        </svg>
+                                    </div>
+                                    <h3 class="setting-card-title" data-i18n="followUpQuestionsSettingsLabel">追问选项</h3>
+                                </div>
+                                <p class="setting-card-description" data-i18n="followUpQuestionsSettingsDescription">
+                                    模型回答后，根据网页上下文和完整会话生成可点击的追问问题。
+                                </p>
+                                <div class="setting-card-content">
+                                    <label class="setting-checkbox-row" for="follow-up-questions-enabled">
+                                        <input id="follow-up-questions-enabled" type="checkbox">
+                                        <span data-i18n="followUpQuestionsEnabledLabel">启用自动追问</span>
+                                    </label>
+                                    <div class="setting-group">
+                                        <label for="follow-up-questions-model" data-i18n="followUpQuestionsModelLabel">追问生成模型</label>
+                                        <select id="follow-up-questions-model" class="setting-select"></select>
+                                    </div>
+                                    <div class="setting-group">
+                                        <label for="follow-up-questions-prompt" data-i18n="followUpQuestionsPromptLabel">追问生成提示词</label>
+                                        <textarea id="follow-up-questions-prompt" rows="8"
+                                            class="setting-textarea"
+                                            data-i18n-placeholder="followUpQuestionsPromptPlaceholder"
+                                            placeholder="返回 JSON：{&quot;questions&quot;:[&quot;...&quot;]}"></textarea>
+                                        <div class="setting-hint" data-i18n="followUpQuestionsPromptHint">
+                                            生成时会发送当前网页上下文和完整聊天历史；问题数量由提示词控制。
+                                        </div>
                                     </div>
                                 </div>
                             </div>

@@ -94,6 +94,8 @@ const DEFAULT_OBSIDIAN_AI_PROMPT = [
 ].join('\n');
 
 const OBSIDIAN_AI_MAX_SECTION_CHARS = 16000;
+const OBSIDIAN_FILE_NAME_MAX_LENGTH = 120;
+const OBSIDIAN_TEMPLATE_TITLE_MAX_LENGTH = 80;
 
 export const DEFAULT_OBSIDIAN_EXPORT_SETTINGS = Object.freeze({
     vault: '',
@@ -235,11 +237,44 @@ export function buildObsidianUrl(options) {
 }
 
 export function sanitizeObsidianFileName(name) {
-    const sanitized = String(name || '')
+    const sanitized = truncateObsidianFileName(String(name || '')
         .replace(/[\/\\?%*:|"<>+]/g, '-')
         .replace(/\s+/g, ' ')
-        .trim();
+        .trim(), { sentenceEnd: false });
     return sanitized || `PageTalk Export ${formatDateToken(new Date())}`;
+}
+
+function formatObsidianFileNameTitle(title) {
+    const value = String(title || '').replace(/\s+/g, ' ').trim();
+    if (!value) return '';
+
+    const sentenceCut = findFileNameSentenceCutIndex(value);
+    const titleBeforeSentenceEnd = sentenceCut !== -1
+        ? value.slice(0, sentenceCut).trim()
+        : value;
+
+    return truncateObsidianFileName(titleBeforeSentenceEnd || value, {
+        sentenceEnd: false,
+        maxLength: OBSIDIAN_TEMPLATE_TITLE_MAX_LENGTH
+    });
+}
+
+function truncateObsidianFileName(fileName, { sentenceEnd = true, maxLength = OBSIDIAN_FILE_NAME_MAX_LENGTH } = {}) {
+    const value = String(fileName || '').trim();
+    if (value.length <= maxLength) return value;
+
+    const sentenceCut = sentenceEnd ? findFileNameSentenceCutIndex(value) : -1;
+    if (sentenceCut !== -1) {
+        return value.slice(0, sentenceCut).trim();
+    }
+
+    return value.slice(0, maxLength).trim();
+}
+
+function findFileNameSentenceCutIndex(fileName) {
+    const sentenceEndPattern = /[.。]/g;
+    const match = sentenceEndPattern.exec(String(fileName || ''));
+    return match ? match.index : -1;
 }
 
 export function sanitizeObsidianFolder(folder) {
@@ -1373,10 +1408,11 @@ function appendSectionText(existing, next) {
 
 function renderNoteNameTemplate(template, state, variables = null) {
     const now = new Date();
-    const title = state.pageTitle || 'Untitled';
+    const rawTitle = state.pageTitle || 'Untitled';
+    const title = formatObsidianFileNameTitle(rawTitle) || rawTitle;
     const url = state.pageUrl || '';
-    const noteVariables = variables || {
-        title,
+    const baseVariables = variables || {
+        title: rawTitle,
         url,
         domain: getUrlDomain(url),
         site: getUrlDomain(url),
@@ -1385,6 +1421,11 @@ function renderNoteNameTemplate(template, state, variables = null) {
         datetime: formatDateTimeToken(now),
         isoDatetime: now.toISOString(),
         localDatetime: formatLocalDateTime(now, state.language),
+        noteName: sanitizeObsidianFileName(rawTitle)
+    };
+    const noteVariables = {
+        ...baseVariables,
+        title,
         noteName: sanitizeObsidianFileName(title)
     };
     const rawTemplate = String(template || DEFAULT_OBSIDIAN_EXPORT_SETTINGS.noteNameTemplate);
