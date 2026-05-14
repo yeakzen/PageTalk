@@ -142,6 +142,7 @@ const THEME_READY_TIMEOUT_MS = 800;
 let themeReadyTimeoutId = null;
 let activeMermaidOverviewMessageId = null;
 let expandedSavedSessionTopicKey = null;
+let isSavingChatSession = false;
 let contextPreviewSearchState = {
     query: '',
     matches: [],
@@ -620,8 +621,20 @@ function setupEventListeners() {
 
     // 保存对话按钮事件
     if (elements.saveChatSessionBtn) {
-        elements.saveChatSessionBtn.addEventListener('click', () => {
-            saveChatSession(state, currentTranslations, showToastUI);
+        elements.saveChatSessionBtn.addEventListener('click', async () => {
+            if (isSavingChatSession) return;
+
+            isSavingChatSession = true;
+            elements.saveChatSessionBtn.disabled = true;
+            elements.saveChatSessionBtn.setAttribute('aria-busy', 'true');
+
+            try {
+                await saveChatSession(state, currentTranslations, showToastUI);
+            } finally {
+                isSavingChatSession = false;
+                elements.saveChatSessionBtn.disabled = false;
+                elements.saveChatSessionBtn.removeAttribute('aria-busy');
+            }
         });
     }
 
