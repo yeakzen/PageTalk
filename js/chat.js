@@ -24,6 +24,128 @@ const providerIconMap = {
     'Vercel': 'vercel.svg'
 };
 
+function normalizeTabId(tabId) {
+    if (tabId === undefined || tabId === null || tabId === '') return null;
+    const numericId = Number(tabId);
+    return Number.isFinite(numericId) ? numericId : tabId;
+}
+
+function normalizeUrlForCompare(url) {
+    if (!url || typeof url !== 'string') return '';
+    try {
+        const parsedUrl = new URL(url);
+        parsedUrl.hash = '';
+        return parsedUrl.href;
+    } catch (_) {
+        return url.split('#')[0];
+    }
+}
+
+function isRestrictedTabUrl(url) {
+    if (!url || typeof url !== 'string') return true;
+    return url.startsWith('chrome://')
+        || url.startsWith('about:')
+        || url.startsWith('edge://')
+        || url.startsWith(`chrome-extension://${chrome.runtime.id}`);
+}
+
+function sendRuntimeMessage(message) {
+    return new Promise((resolve) => {
+        chrome.runtime.sendMessage(message, (response) => {
+            if (chrome.runtime.lastError) {
+                resolve({ error: chrome.runtime.lastError.message });
+                return;
+            }
+            resolve(response || {});
+        });
+    });
+}
+
+async function findOpenTabForSavedContext(savedTab) {
+    const savedTabId = normalizeTabId(savedTab?.id);
+    if (savedTabId !== null) {
+        try {
+            const tab = await chrome.tabs.get(savedTabId);
+            if (tab?.id && !isRestrictedTabUrl(tab.url)) {
+                return tab;
+            }
+        } catch (_) {
+            // original tab may be gone, fall back to URL match
+        }
+    }
+
+    const targetUrl = normalizeUrlForCompare(savedTab?.url);
+    if (!targetUrl) return null;
+
+    try {
+        const tabs = await chrome.tabs.query({});
+        return tabs.find(tab => (
+            tab?.id
+            && !isRestrictedTabUrl(tab.url)
+            && normalizeUrlForCompare(tab.url) === targetUrl
+        )) || null;
+    } catch (error) {
+        console.warn('[ContextHydration] Failed to query tabs:', error);
+        return null;
+    }
+}
+
+async function extractContextFromTab(tabId) {
+    const response = await sendRuntimeMessage({ action: 'extractTabContent', tabId });
+    if (response?.content && !response.error) {
+        return response;
+    }
+    return null;
+}
+
+async function hydrateContextTabsForApi(contextTabs, showToastCallback, currentTranslations) {
+    if (!Array.isArray(contextTabs) || contextTabs.length === 0) {
+        return [];
+    }
+
+    const hydrateOneContextTab = async (tab) => {
+        if (tab?.content) {
+            return { tab, failed: false };
+        }
+
+        const openTab = await findOpenTabForSavedContext(tab);
+        if (!openTab?.id) {
+            console.warn('[ContextHydration] Could not find open tab for saved context:', tab);
+            return { tab: null, failed: true };
+        }
+
+        const extracted = await extractContextFromTab(openTab.id);
+        if (!extracted?.content) {
+            console.warn('[ContextHydration] Could not extract context from tab:', openTab.id, extracted);
+            return { tab: null, failed: true };
+        }
+
+        return {
+            failed: false,
+            tab: {
+                ...tab,
+                id: openTab.id,
+                title: tab.title || extracted.pageTitle || openTab.title || '',
+                url: tab.url || extracted.pageUrl || openTab.url || '',
+                favIconUrl: tab.favIconUrl || openTab.favIconUrl || '',
+                content: extracted.content
+            }
+        };
+    };
+
+    const results = await Promise.all(contextTabs.map(hydrateOneContextTab));
+    const hydratedTabs = results
+        .map(result => result.tab)
+        .filter(Boolean);
+    const failedCount = results.filter(result => result.failed).length;
+
+    if (failedCount > 0 && typeof showToastCallback === 'function') {
+        showToastCallback(`有 ${failedCount} 个历史 @ 页面未打开或无法重新读取，将跳过这些上下文。`, 'warning');
+    }
+
+    return hydratedTabs;
+}
+
 /**
  * 获取模型信息
  * @param {string} modelValue - 模型值
@@ -970,8 +1092,12 @@ async function regenerateSingleModelInContainer(
     }
     const { text: userMessageText, images: userImages, videos: userVideos } = extractPartsFromMessage(userMessageData);
 
-    // 提取上下文标签页
-    const contextTabsForApi = userMessageData.sentContextTabsInfo || [];
+    // 提取上下文标签页；保存的历史记录可能只保留元信息，重生前再按 id/url 重新读取正文。
+    const contextTabsForApi = await hydrateContextTabsForApi(
+        userMessageData.sentContextTabsInfo || [],
+        showToastCallback,
+        currentTranslations
+    );
 
     // 准备历史记录（不包括当前轮次）
     const historyForApi = state.chatHistory.slice(0, userIndex);
@@ -1463,6 +1589,11 @@ export async function regenerateMessage(messageId, state, elements, currentTrans
             }
         }
     }
+    contextTabsForApiRegen = await hydrateContextTabsForApi(
+        contextTabsForApiRegen,
+        showToastCallback,
+        currentTranslations
+    );
     // --- 结束处理标签页逻辑 ---
 
     // --- Start Streaming State ---

@@ -3899,6 +3899,52 @@ async function importAllSettingsData(importData) {
 
 // ========== 聊天记录保存与恢复功能 ==========
 
+function cloneJsonSerializableValue(value) {
+    if (value === undefined) return undefined;
+    return JSON.parse(JSON.stringify(value));
+}
+
+function createSavedContextTabSnapshot(tab) {
+    if (!tab || typeof tab !== 'object') return null;
+
+    const snapshot = {};
+    ['id', 'title', 'url', 'favIconUrl'].forEach(key => {
+        if (tab[key] !== undefined && tab[key] !== null) {
+            snapshot[key] = tab[key];
+        }
+    });
+    return snapshot;
+}
+
+function createSavedChatMessageSnapshot(message) {
+    if (!message || typeof message !== 'object') return message;
+
+    const snapshot = {};
+    Object.entries(message).forEach(([key, value]) => {
+        if (key === 'sentContextTabsInfo') {
+            const slimTabs = Array.isArray(value)
+                ? value.map(createSavedContextTabSnapshot).filter(Boolean)
+                : [];
+            if (slimTabs.length > 0) {
+                snapshot.sentContextTabsInfo = slimTabs;
+            }
+            return;
+        }
+
+        const clonedValue = cloneJsonSerializableValue(value);
+        if (clonedValue !== undefined) {
+            snapshot[key] = clonedValue;
+        }
+    });
+
+    return snapshot;
+}
+
+function createSavedChatHistorySnapshot(chatHistory) {
+    if (!Array.isArray(chatHistory)) return [];
+    return chatHistory.map(createSavedChatMessageSnapshot);
+}
+
 /**
  * 保存当前对话到 chrome.storage.local
  */
@@ -3927,7 +3973,7 @@ async function saveChatSession(state, currentTranslations, showToastCallback) {
         id: generateUniqueId(),
         title: title,
         savedAt: Date.now(),
-        chatHistory: JSON.parse(JSON.stringify(state.chatHistory)), // 深拷贝
+        chatHistory: createSavedChatHistorySnapshot(state.chatHistory),
         agentId: state.currentAgentId,
         model: state.model,
         selectedModels: state.selectedModels ? [...state.selectedModels] : []

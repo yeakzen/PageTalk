@@ -9,6 +9,109 @@ import { makeApiRequest } from './utils/proxyRequest.js';
 import { providers } from './providerManager.js';
 import { getHealthCheckEndpoints, getHealthCheckEndpointsAsync } from './utils/proxyHealth.js';
 
+const TAB_CONTENT_RELOAD_TIMEOUT_MS = 20000;
+const TAB_CONTENT_READY_DELAY_MS = 500;
+
+function delay(ms) {
+    return new Promise(resolve => setTimeout(resolve, ms));
+}
+
+function isRestrictedUrl(url) {
+    return !!(url && (
+        url.startsWith('chrome://')
+        || url.startsWith('about://')
+        || url.startsWith('edge://')
+    ));
+}
+
+function getTabById(tabId) {
+    return new Promise((resolve, reject) => {
+        chrome.tabs.get(tabId, (tab) => {
+            if (chrome.runtime.lastError) {
+                reject(new Error(chrome.runtime.lastError.message));
+                return;
+            }
+            resolve(tab);
+        });
+    });
+}
+
+function requestFullPageContentFromTab(tabId) {
+    return new Promise((resolve, reject) => {
+        chrome.tabs.sendMessage(tabId, { action: "getFullPageContentRequest" }, (responseFromContentScript) => {
+            if (chrome.runtime.lastError) {
+                reject(new Error(chrome.runtime.lastError.message));
+                return;
+            }
+            resolve(responseFromContentScript || null);
+        });
+    });
+}
+
+function isMeaningfulContentResponse(response) {
+    if (!response || typeof response !== 'object') return false;
+    return Object.prototype.hasOwnProperty.call(response, 'content')
+        || Object.prototype.hasOwnProperty.call(response, 'error');
+}
+
+function waitForTabLoadComplete(tabId, timeoutMs = TAB_CONTENT_RELOAD_TIMEOUT_MS) {
+    return new Promise((resolve, reject) => {
+        let settled = false;
+        const cleanup = () => {
+            chrome.tabs.onUpdated.removeListener(onUpdated);
+            clearTimeout(timer);
+        };
+        const finish = () => {
+            if (settled) return;
+            settled = true;
+            cleanup();
+            resolve();
+        };
+        const fail = () => {
+            if (settled) return;
+            settled = true;
+            cleanup();
+            reject(new Error('Timed out waiting for tab reload'));
+        };
+        const onUpdated = (updatedTabId, changeInfo) => {
+            if (updatedTabId === tabId && changeInfo.status === 'complete') {
+                finish();
+            }
+        };
+        const timer = setTimeout(fail, timeoutMs);
+
+        chrome.tabs.onUpdated.addListener(onUpdated);
+    });
+}
+
+async function reloadTabAndWait(tabId) {
+    const waitForLoad = waitForTabLoadComplete(tabId);
+    await chrome.tabs.reload(tabId);
+    await waitForLoad;
+    await delay(TAB_CONTENT_READY_DELAY_MS);
+}
+
+async function extractTabContentWithReloadFallback(tabId) {
+    try {
+        const firstResponse = await requestFullPageContentFromTab(tabId);
+        if (isMeaningfulContentResponse(firstResponse)) {
+            return firstResponse;
+        }
+        console.warn("Background: Empty content script response in tab " + tabId + ", reloading tab before retry.");
+    } catch (error) {
+        console.warn("Background: Error requesting content from tab " + tabId + ", reloading tab before retry:", error.message);
+    }
+
+    await reloadTabAndWait(tabId);
+
+    const retryResponse = await requestFullPageContentFromTab(tabId);
+    if (isMeaningfulContentResponse(retryResponse)) {
+        return retryResponse;
+    }
+
+    throw new Error("No response from content script after reloading the target tab.");
+}
+
 // 当安装或更新扩展时初始化
 chrome.runtime.onInstalled.addListener(() => {
     // onInstalled 事件触发
@@ -129,35 +232,23 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
             return true;
         }
 
-        chrome.tabs.get(targetTabId, (tab) => {
-            if (chrome.runtime.lastError) {
-                console.error("Background: Error getting tab info:", chrome.runtime.lastError.message);
-                sendResponse({ error: chrome.runtime.lastError.message });
-                return;
-            }
+        (async () => {
+            try {
+                const tab = await getTabById(targetTabId);
 
-            if (tab.url && (tab.url.startsWith('chrome://') || tab.url.startsWith('about://') || tab.url.startsWith('edge://'))) {
-                console.warn(`Background: Cannot access restricted URL: ${tab.url}`);
-                sendResponse({ error: `Cannot access restricted URL: ${tab.url}` });
-                return;
-            }
-
-            // 向目标标签页的 content.js 发送请求
-            chrome.tabs.sendMessage(targetTabId, { action: "getFullPageContentRequest" }, (responseFromContentScript) => {
-                if (chrome.runtime.lastError) {
-                    // 捕获 sendMessage 可能发生的错误，例如目标标签页没有监听器，或标签页已关闭
-                    console.error("Background: Error sending 'getFullPageContentRequest' to tab " + targetTabId, chrome.runtime.lastError.message);
-                    sendResponse({ error: "Failed to communicate with the tab: " + chrome.runtime.lastError.message });
-                } else if (responseFromContentScript) {
-                    // 将 content.js 的响应转发回 main.js
-                    sendResponse(responseFromContentScript);
-                } else {
-                    // responseFromContentScript可能是undefined如果content script没有正确sendResponse
-                    console.error("Background: No response or empty response from content script in tab " + targetTabId);
-                    sendResponse({ error: "No response from content script in the target tab." });
+                if (isRestrictedUrl(tab.url)) {
+                    console.warn(`Background: Cannot access restricted URL: ${tab.url}`);
+                    sendResponse({ error: `Cannot access restricted URL: ${tab.url}` });
+                    return;
                 }
-            });
-        });
+
+                const response = await extractTabContentWithReloadFallback(targetTabId);
+                sendResponse(response);
+            } catch (error) {
+                console.error("Background: Failed to extract content from tab " + targetTabId, error);
+                sendResponse({ error: error.message || "Failed to extract tab content" });
+            }
+        })();
         return true; // 必须返回 true 以表明 sendResponse 将会异步调用
     }
     else if (message.action === "openObsidianUrl") {
