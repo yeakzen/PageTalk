@@ -655,7 +655,10 @@ body.dark-mode .sent-tab-item:hover {
     padding: 14px 16px;
     padding-bottom: 36px;
     max-width: 90%;
+    min-width: 0;
     overflow: visible;
+    overflow-wrap: anywhere;
+    word-break: break-word;
     line-height: 1.5;
     position: relative;
     /* 多层阴影营造深度感 */
@@ -733,12 +736,21 @@ body.dark-mode .bot-message {
     color: var(--bot-heading-color) !important;
 }
 
+.bot-message .markdown-rendered {
+    min-width: 0;
+    max-width: 100%;
+    overflow-wrap: anywhere;
+    word-break: break-word;
+}
+
 .bot-message .markdown-rendered strong,
 .bot-message .markdown-rendered b {
     color: var(--bot-bold-highlight-text, inherit);
     background: var(--bot-bold-highlight-bg, transparent);
     border-radius: var(--bot-bold-highlight-radius, 0);
     padding: var(--bot-bold-highlight-padding, 0);
+    overflow-wrap: anywhere;
+    word-break: break-word;
     box-decoration-break: clone;
     -webkit-box-decoration-break: clone;
 }
