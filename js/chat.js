@@ -7,6 +7,8 @@ import { resetBotMessageHeadingColors, updateBotMessageTopHeading, postProcessBo
 
 // 使用 utils/i18n.js 提供的 tr 作为翻译函数
 
+const MULTI_MODEL_STREAM_RENDER_INTERVAL_MS = 120;
+
 // 供应商图标映射
 const providerIconMap = {
     'Google': 'Gemini.svg',
@@ -23,6 +25,135 @@ const providerIconMap = {
     'ModelScope': 'modelscope.svg',
     'Vercel': 'vercel.svg'
 };
+
+function isMultiModelRenderDebugEnabled() {
+    return typeof window !== 'undefined' && window.PageTalkDebugMultiModelRender === true;
+}
+
+function getPerformanceNow() {
+    return typeof performance !== 'undefined' && typeof performance.now === 'function'
+        ? performance.now()
+        : Date.now();
+}
+
+function logMultiModelRenderMetric(label, details) {
+    if (!isMultiModelRenderDebugEnabled()) return;
+    const suffix = Object.entries(details)
+        .map(([key, value]) => `${key}=${value}`)
+        .join(' ');
+    console.debug(`[${label}] ${suffix}`);
+}
+
+function createMultiModelStreamRenderScheduler({ modelId, messageContent, elements, state, label }) {
+    let pendingContent = null;
+    let lastRenderedContent = null;
+    let lastRenderAt = 0;
+    let timeoutId = null;
+    let animationFrameId = null;
+    let renderCount = 0;
+    let totalDuration = 0;
+    let disposed = false;
+
+    function clearScheduledRender() {
+        if (timeoutId !== null) {
+            clearTimeout(timeoutId);
+            timeoutId = null;
+        }
+        if (animationFrameId !== null && typeof cancelAnimationFrame === 'function') {
+            cancelAnimationFrame(animationFrameId);
+            animationFrameId = null;
+        }
+    }
+
+    function scrollIfNeeded() {
+        if (!state.userScrolledUpDuringStream) {
+            elements.chatMessages.scrollTop = elements.chatMessages.scrollHeight;
+        }
+    }
+
+    function renderContent(content, phase) {
+        if (disposed || content === null || content === undefined) return;
+        if (content === lastRenderedContent && phase !== 'final') return;
+
+        const start = getPerformanceNow();
+        const formattedContent = window.MarkdownRenderer.render(content);
+        messageContent.innerHTML = formattedContent;
+        updateBotMessageTopHeading(messageContent);
+        scrollIfNeeded();
+
+        const duration = getPerformanceNow() - start;
+        renderCount++;
+        totalDuration += duration;
+        lastRenderAt = getPerformanceNow();
+        lastRenderedContent = content;
+        pendingContent = null;
+
+        logMultiModelRenderMetric(label, {
+            modelId,
+            phase,
+            renderCount,
+            duration: duration.toFixed(1),
+            totalDuration: totalDuration.toFixed(1),
+            chars: content.length
+        });
+    }
+
+    function renderPending(phase) {
+        const content = pendingContent;
+        if (content === null || content === undefined) return;
+        renderContent(content, phase);
+    }
+
+    function scheduleTimer(delay) {
+        if (timeoutId !== null || animationFrameId !== null) return;
+        timeoutId = setTimeout(() => {
+            timeoutId = null;
+            if (typeof requestAnimationFrame === 'function') {
+                animationFrameId = requestAnimationFrame(() => {
+                    animationFrameId = null;
+                    renderPending('stream');
+                });
+            } else {
+                renderPending('stream');
+            }
+        }, delay);
+    }
+
+    return {
+        schedule(content) {
+            if (disposed) return;
+            pendingContent = content;
+
+            if (!lastRenderAt) {
+                renderPending('stream');
+                return;
+            }
+
+            const elapsed = getPerformanceNow() - lastRenderAt;
+            const delay = Math.max(0, MULTI_MODEL_STREAM_RENDER_INTERVAL_MS - elapsed);
+            scheduleTimer(delay);
+        },
+        flush(content, phase = 'final') {
+            if (disposed) return;
+            if (content !== undefined && content !== '') {
+                pendingContent = content;
+            }
+            clearScheduledRender();
+            renderPending(phase);
+        },
+        cancel() {
+            clearScheduledRender();
+            pendingContent = null;
+            disposed = true;
+            logMultiModelRenderMetric(label, {
+                modelId,
+                phase: 'cancel',
+                renderCount,
+                totalDuration: totalDuration.toFixed(1)
+            });
+        }
+    };
+}
 
 function normalizeTabId(tabId) {
     if (tabId === undefined || tabId === null || tabId === '') return null;
@@ -514,6 +645,7 @@ async function sendMultiModelMessage(
     // 并行调用所有模型
     const promises = modelInfos.map(async (modelInfo, modelIndex) => {
         const modelId = modelInfo.modelId;
+        let renderScheduler = null;
 
         try {
             // 创建临时状态，使用当前模型
@@ -540,6 +672,14 @@ async function sendMultiModelMessage(
             // 累积的响应内容
             let accumulatedContent = '';
             let hasReceivedFirstChunk = false;
+            let modelSettled = false;
+            renderScheduler = createMultiModelStreamRenderScheduler({
+                modelId,
+                messageContent,
+                elements,
+                state,
+                label: 'MultiModelRender'
+            });
 
             // 创建针对该模型的 UI 回调
             const modelUiCallbacks = {
@@ -556,28 +696,18 @@ async function sendMultiModelMessage(
                         showContainer(); // 显示容器，移除统一的 thinking 动画
                     }
 
-                    // 使用 MarkdownRenderer 渲染内容
-                    const formattedContent = window.MarkdownRenderer.render(content);
-                    messageContent.innerHTML = formattedContent;
-                    updateBotMessageTopHeading(messageContent);
-
-                    // 滚动
-                    if (!state.userScrolledUpDuringStream) {
-                        elements.chatMessages.scrollTop = elements.chatMessages.scrollHeight;
-                    }
+                    renderScheduler.schedule(content);
                 },
                 finalizeBotMessage: (el, content) => {
+                    if (modelSettled) return;
+                    modelSettled = true;
                     accumulatedContent = content || accumulatedContent;
                     modelResponses[modelId] = accumulatedContent;
 
                     // 确保容器已显示
                     showContainer();
 
-                    // 渲染最终内容
-                    if (accumulatedContent) {
-                        const formattedContent = window.MarkdownRenderer.render(accumulatedContent);
-                        messageContent.innerHTML = formattedContent;
-                    }
+                    renderScheduler.flush(accumulatedContent, 'final');
 
                     // 添加消息操作按钮（复制、重新生成、删除）
                     if (window.addMessageActionButtons) {
@@ -621,7 +751,10 @@ async function sendMultiModelMessage(
                 },
                 showToast: showToastCallback,
                 restoreSendButtonAndInput: () => {
+                    if (modelSettled) return;
+                    modelSettled = true;
                     // API 层面发生错误时会调用这个回调
+                    renderScheduler.flush(accumulatedContent, 'restore');
                     // 增加完成计数并检查是否所有模型都完成
                     completedCount++;
                     console.log(`[MultiModel] ${modelId} failed/aborted (${completedCount}/${totalModels})`);
@@ -685,6 +818,9 @@ async function sendMultiModelMessage(
             );
 
         } catch (error) {
+            if (renderScheduler) {
+                renderScheduler.cancel();
+            }
             console.error(`[MultiModel] Error calling ${modelId}:`, error);
 
             // 确保容器已显示
@@ -844,6 +980,7 @@ async function regenerateMultiModelMessage(
     // 并行调用所有模型
     const promises = modelInfos.map(async (modelInfo, modelIndex) => {
         const modelId = modelInfo.modelId;
+        let renderScheduler = null;
 
         try {
             // 创建临时状态，使用当前模型和提供的历史记录
@@ -870,6 +1007,14 @@ async function regenerateMultiModelMessage(
             // 累积的响应内容
             let accumulatedContent = '';
             let hasReceivedFirstChunk = false;
+            let modelSettled = false;
+            renderScheduler = createMultiModelStreamRenderScheduler({
+                modelId,
+                messageContent,
+                elements,
+                state,
+                label: 'MultiModelRegenRender'
+            });
 
             // 创建针对该模型的 UI 回调
             const modelUiCallbacks = {
@@ -886,28 +1031,18 @@ async function regenerateMultiModelMessage(
                         showContainer();
                     }
 
-                    // 使用 MarkdownRenderer 渲染内容
-                    const formattedContent = window.MarkdownRenderer.render(content);
-                    messageContent.innerHTML = formattedContent;
-                    updateBotMessageTopHeading(messageContent);
-
-                    // 滚动
-                    if (!state.userScrolledUpDuringStream) {
-                        elements.chatMessages.scrollTop = elements.chatMessages.scrollHeight;
-                    }
+                    renderScheduler.schedule(content);
                 },
                 finalizeBotMessage: (el, content) => {
+                    if (modelSettled) return;
+                    modelSettled = true;
                     accumulatedContent = content || accumulatedContent;
                     modelResponses[modelId] = accumulatedContent;
 
                     // 确保容器已显示
                     showContainer();
 
-                    // 渲染最终内容
-                    if (accumulatedContent) {
-                        const formattedContent = window.MarkdownRenderer.render(accumulatedContent);
-                        messageContent.innerHTML = formattedContent;
-                    }
+                    renderScheduler.flush(accumulatedContent, 'final');
 
                     // 添加消息操作按钮（复制、重新生成、删除）
                     if (window.addMessageActionButtons) {
@@ -951,7 +1086,10 @@ async function regenerateMultiModelMessage(
                 },
                 showToast: showToastCallback,
                 restoreSendButtonAndInput: () => {
+                    if (modelSettled) return;
+                    modelSettled = true;
                     // API 层面发生错误时会调用这个回调
+                    renderScheduler.flush(accumulatedContent, 'restore');
                     // 增加完成计数并检查是否所有模型都完成
                     completedCount++;
                     console.log(`[MultiModel Regen] ${modelId} failed/aborted (${completedCount}/${totalModels})`);
@@ -1015,6 +1153,9 @@ async function regenerateMultiModelMessage(
             );
 
         } catch (error) {
+            if (renderScheduler) {
+                renderScheduler.cancel();
+            }
             console.error(`[MultiModel Regen] Error calling ${modelId}:`, error);
 
             // 确保容器已显示
