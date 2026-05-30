@@ -1830,6 +1830,130 @@ function handleWindowResize() {
 }
 
 /**
+ * 复制文本到剪贴板。
+ * Content script 中 navigator.clipboard 在部分页面会被权限或安全上下文拒绝，
+ * 因此优先使用用户点击手势内可同步完成的 textarea + execCommand 方案。
+ */
+async function copyTextToClipboard(text) {
+    const value = text == null ? '' : String(text);
+    if (!value) return false;
+
+    if (copyTextWithTextarea(value)) {
+        return true;
+    }
+
+    if (navigator.clipboard && typeof navigator.clipboard.writeText === 'function') {
+        try {
+            await navigator.clipboard.writeText(value);
+            return true;
+        } catch (error) {
+            console.warn('[TextSelectionHelper] navigator.clipboard.writeText failed:', error);
+        }
+    }
+
+    return false;
+}
+
+function copyTextWithTextarea(text) {
+    const root = document.body || document.documentElement;
+    if (!root) return false;
+
+    const textarea = document.createElement('textarea');
+    textarea.value = text;
+    textarea.setAttribute('readonly', '');
+    textarea.style.cssText = `
+        position: fixed;
+        top: 0;
+        left: 0;
+        width: 1px;
+        height: 1px;
+        opacity: 0;
+        pointer-events: none;
+        z-index: -1;
+    `;
+
+    const activeElement = document.activeElement;
+    const selection = window.getSelection ? window.getSelection() : null;
+    const ranges = [];
+    if (selection && selection.rangeCount) {
+        for (let i = 0; i < selection.rangeCount; i++) {
+            ranges.push(selection.getRangeAt(i).cloneRange());
+        }
+    }
+
+    try {
+        root.appendChild(textarea);
+        textarea.focus();
+        textarea.select();
+        textarea.setSelectionRange(0, textarea.value.length);
+        return document.execCommand('copy');
+    } catch (error) {
+        console.warn('[TextSelectionHelper] execCommand copy failed:', error);
+        return false;
+    } finally {
+        textarea.remove();
+        if (selection) {
+            try {
+                selection.removeAllRanges();
+                ranges.forEach(range => selection.addRange(range));
+            } catch (error) {
+                console.warn('[TextSelectionHelper] Failed to restore selection after copy:', error);
+            }
+        }
+        if (activeElement && typeof activeElement.focus === 'function') {
+            try {
+                activeElement.focus({ preventScroll: true });
+            } catch (_) {
+                activeElement.focus();
+            }
+        }
+    }
+}
+
+function showCopyButtonFeedback(copyBtn, success, restoreHtml = null) {
+    if (!copyBtn) return;
+
+    const copyIcon = copyBtn.querySelector('.copy-icon');
+    const checkIcon = copyBtn.querySelector('.check-icon');
+    const originalColor = copyBtn.style.color;
+
+    if (restoreHtml === null && copyBtn.dataset.copyRestoreHtml === undefined) {
+        copyBtn.dataset.copyRestoreHtml = copyBtn.innerHTML;
+    }
+
+    if (success) {
+        if (copyIcon && checkIcon) {
+            copyIcon.style.display = 'none';
+            checkIcon.style.display = 'inline';
+        } else {
+            copyBtn.innerHTML = `
+                <svg width="14" height="14" fill="currentColor" viewBox="0 0 16 16">
+                    <path d="M13.854 3.646a.5.5 0 0 1 0 .708l-7 7a.5.5 0 0 1-.708 0l-3.5-3.5a.5.5 0 1 1 .708-.708L6.5 10.293l6.646-6.647a.5.5 0 0 1 .708 0z"/>
+                </svg>
+            `;
+        }
+        copyBtn.style.color = '#28a745';
+    } else {
+        copyBtn.style.color = '#dc3545';
+        copyBtn.title = '复制失败';
+    }
+
+    setTimeout(() => {
+        if (!copyBtn.isConnected) return;
+        if (copyIcon && checkIcon) {
+            copyIcon.style.display = 'inline';
+            checkIcon.style.display = 'none';
+        } else {
+            copyBtn.innerHTML = restoreHtml || copyBtn.dataset.copyRestoreHtml || copyBtn.innerHTML;
+        }
+        copyBtn.style.color = originalColor;
+        if (!success) {
+            copyBtn.title = '复制';
+        }
+    }, 2000);
+}
+
+/**
  * 创建功能窗口内容
  */
 async function createFunctionWindowContent(windowElement, optionId) {
@@ -2261,25 +2385,11 @@ function setupResponseActions(windowElement, response, optionId) {
     const regenerateBtn = windowElement.querySelector('.pagetalk-regenerate-btn');
 
     if (copyBtn) {
-        copyBtn.addEventListener('click', (e) => {
+        copyBtn.addEventListener('click', async (e) => {
             e.preventDefault();
             e.stopPropagation();
-            navigator.clipboard.writeText(response);
-
-            // 显示绿色对勾
-            const copyIcon = copyBtn.querySelector('.copy-icon');
-            const checkIcon = copyBtn.querySelector('.check-icon');
-
-            copyIcon.style.display = 'none';
-            checkIcon.style.display = 'inline';
-            copyBtn.style.color = '#28a745';
-
-            // 2秒后恢复
-            setTimeout(() => {
-                copyIcon.style.display = 'inline';
-                checkIcon.style.display = 'none';
-                copyBtn.style.color = '';
-            }, 2000);
+            const success = await copyTextToClipboard(response);
+            showCopyButtonFeedback(copyBtn, success);
         });
     }
 
@@ -2793,25 +2903,11 @@ function setupChatMessageActions(messageElement, message) {
     const regenerateBtn = messageElement.querySelector('.pagetalk-regenerate-btn');
 
     if (copyBtn) {
-        copyBtn.addEventListener('click', (e) => {
+        copyBtn.addEventListener('click', async (e) => {
             e.preventDefault();
             e.stopPropagation();
-            navigator.clipboard.writeText(message);
-
-            // 显示绿色对勾
-            const copyIcon = copyBtn.querySelector('.copy-icon');
-            const checkIcon = copyBtn.querySelector('.check-icon');
-
-            copyIcon.style.display = 'none';
-            checkIcon.style.display = 'inline';
-            copyBtn.style.color = '#28a745';
-
-            // 2秒后恢复
-            setTimeout(() => {
-                copyIcon.style.display = 'inline';
-                checkIcon.style.display = 'none';
-                copyBtn.style.color = '';
-            }, 2000);
+            const success = await copyTextToClipboard(message);
+            showCopyButtonFeedback(copyBtn, success);
         });
     }
 
@@ -3671,31 +3767,16 @@ function addCopyButtonToCodeBlock(codeBlock) {
         z-index: 1;
     `;
 
-    copyButton.addEventListener('click', (e) => {
+    const copyButtonDefaultHtml = copyButton.innerHTML;
+
+    copyButton.addEventListener('click', async (e) => {
         e.preventDefault();
         e.stopPropagation();
         const codeElement = codeBlock.querySelector('code');
         const code = codeElement ? codeElement.textContent : codeBlock.textContent;
 
-        navigator.clipboard.writeText(code).then(() => {
-            // 显示成功反馈
-            copyButton.innerHTML = `
-                <svg width="14" height="14" fill="currentColor" viewBox="0 0 16 16">
-                    <path d="M13.854 3.646a.5.5 0 0 1 0 .708l-7 7a.5.5 0 0 1-.708 0l-3.5-3.5a.5.5 0 1 1 .708-.708L6.5 10.293l6.646-6.647a.5.5 0 0 1 .708 0z"/>
-                </svg>
-            `;
-            copyButton.style.color = '#28a745';
-
-            setTimeout(() => {
-                copyButton.innerHTML = `
-                    <svg width="14" height="14" fill="currentColor" viewBox="0 0 16 16">
-                        <path d="M4 1.5H3a2 2 0 0 0-2 2V14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V3.5a2 2 0 0 0-2-2h-1v1h1a1 1 0 0 1 1 1V14a1 1 0 0 1-1 1H3a1 1 0 0 1-1-1V3.5a1 1 0 0 1 1-1h1v-1z"/>
-                        <path d="M9.5 1a.5.5 0 0 1 .5.5v1a.5.5 0 0 1-.5.5h-3a.5.5 0 0 1-.5-.5v-1a.5.5 0 0 1 .5-.5h3zm-3-1A1.5 1.5 0 0 0 5 1.5v1A1.5 1.5 0 0 0 6.5 4h3A1.5 1.5 0 0 0 11 2.5v-1A1.5 1.5 0 0 0 9.5 0h-3z"/>
-                    </svg>
-                `;
-                copyButton.style.color = '';
-            }, 2000);
-        });
+        const success = await copyTextToClipboard(code);
+        showCopyButtonFeedback(copyButton, success, copyButtonDefaultHtml);
     });
 
     // 设置代码块为相对定位
