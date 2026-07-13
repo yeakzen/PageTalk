@@ -1352,22 +1352,77 @@ function hideOptionsBar() {
     }
 }
 
+function setOptionLoadingState(optionElement) {
+    if (!optionElement) return;
+
+    const optionsBar = optionElement.closest('.pagetalk-options-bar');
+    if (optionsBar) {
+        optionsBar.classList.add('pagetalk-options-bar-loading');
+        optionsBar.querySelectorAll('.pagetalk-option').forEach(option => {
+            if (option !== optionElement) {
+                option.classList.add('pagetalk-option-disabled');
+            }
+        });
+    }
+
+    if (optionElement.dataset.originalHtml === undefined) {
+        optionElement.dataset.originalHtml = optionElement.innerHTML;
+    }
+    optionElement.classList.add('pagetalk-option-loading');
+    optionElement.setAttribute('aria-busy', 'true');
+    optionElement.innerHTML = `
+        <span class="thinking-dots" aria-hidden="true">
+            <span></span>
+            <span></span>
+            <span></span>
+        </span>
+    `;
+}
+
+function restoreOptionLoadingState(optionElement) {
+    if (!optionElement) return;
+
+    const optionsBar = optionElement.closest('.pagetalk-options-bar');
+    if (optionsBar) {
+        optionsBar.classList.remove('pagetalk-options-bar-loading');
+        optionsBar.querySelectorAll('.pagetalk-option-disabled').forEach(option => {
+            option.classList.remove('pagetalk-option-disabled');
+        });
+    }
+
+    optionElement.classList.remove('pagetalk-option-loading');
+    optionElement.removeAttribute('aria-busy');
+    if (optionElement.dataset.originalHtml !== undefined) {
+        optionElement.innerHTML = optionElement.dataset.originalHtml;
+        delete optionElement.dataset.originalHtml;
+    }
+}
+
 /**
  * 处理选项点击
  */
-function handleOptionClick(event) {
+async function handleOptionClick(event) {
     const optionElement = event.target.closest('.pagetalk-option');
     if (!optionElement) return;
+    if (optionElement.classList.contains('pagetalk-option-loading')) return;
 
     const optionId = optionElement.dataset.option;
     console.log('[TextSelectionHelper] Option clicked:', optionId);
 
-    // 隐藏选项栏
-    hideOptionsBar();
+    event.preventDefault();
+    event.stopPropagation();
+
+    setOptionLoadingState(optionElement);
     hideMiniIcon();
 
-    // 显示对应的功能窗口
-    showFunctionWindow(optionId);
+    try {
+        // 显示对应的功能窗口
+        await showFunctionWindow(optionId);
+        hideOptionsBar();
+    } catch (error) {
+        console.error('[TextSelectionHelper] Error opening function window:', error);
+        restoreOptionLoadingState(optionElement);
+    }
 }
 
 /**
@@ -2307,8 +2362,15 @@ async function sendInterpretOrTranslateRequest(windowElement, optionId) {
         const responseArea = windowElement.querySelector('.pagetalk-response-area');
         if (responseArea) {
             responseArea.innerHTML = `
-                <div class="pagetalk-response-content markdown-rendered"></div>
-                <div class="pagetalk-response-actions">
+                <div class="thinking">
+                    <div class="thinking-dots">
+                        <span></span>
+                        <span></span>
+                        <span></span>
+                    </div>
+                </div>
+                <div class="pagetalk-response-content markdown-rendered" hidden></div>
+                <div class="pagetalk-response-actions" hidden>
                     <button class="pagetalk-copy-btn" data-i18n-title="copyAll" title="复制">
                         <svg class="copy-icon" width="14" height="14" fill="currentColor" viewBox="0 0 16 16">
                             <path d="M4 1.5H3a2 2 0 0 0-2 2V14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V3.5a2 2 0 0 0-2-2h-1v1h1a1 1 0 0 1 1 1V14a1 1 0 0 1-1 1H3a1 1 0 0 1-1-1V3.5a1 1 0 0 1 1-1h1v-1z"/>
@@ -2329,12 +2391,22 @@ async function sendInterpretOrTranslateRequest(windowElement, optionId) {
         }
 
         const responseContent = windowElement.querySelector('.pagetalk-response-content');
+        const responseActions = windowElement.querySelector('.pagetalk-response-actions');
+        const responseLoading = windowElement.querySelector('.pagetalk-response-area > .thinking');
         let fullResponse = '';
 
         // 发送到 AI API (流式输出)
         await callAIAPI(messages, optionSettings.model, optionSettings.temperature, (text, isComplete) => {
             fullResponse = text;
             if (responseContent) {
+                if (responseLoading && responseLoading.isConnected) {
+                    responseLoading.remove();
+                }
+                responseContent.hidden = false;
+                if (responseActions) {
+                    responseActions.hidden = false;
+                }
+
                 // 使用主面板相同的 markdown 渲染器
                 let renderedContent = '';
                 if (window.MarkdownRenderer && typeof window.MarkdownRenderer.render === 'function') {
@@ -2367,6 +2439,16 @@ async function sendInterpretOrTranslateRequest(windowElement, optionId) {
                 }
             }
         }, null, null, optionSettings.maxOutputLength);
+
+        if (responseLoading && responseLoading.isConnected) {
+            responseLoading.remove();
+        }
+        if (responseContent) {
+            responseContent.hidden = false;
+        }
+        if (responseActions) {
+            responseActions.hidden = false;
+        }
 
         // 设置按钮事件
         setupResponseActions(windowElement, fullResponse, optionId);

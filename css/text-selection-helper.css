@@ -140,6 +140,60 @@
     transform: translateY(-3px);
 }
 
+.pagetalk-options-bar-loading .pagetalk-option {
+    pointer-events: none;
+}
+
+.pagetalk-option-disabled {
+    opacity: 0.45;
+}
+
+.pagetalk-option-loading {
+    min-width: 56px;
+    justify-content: center;
+    cursor: wait;
+}
+
+.pagetalk-option-loading:hover {
+    transform: none;
+}
+
+.pagetalk-option-loading .thinking-dots,
+.pagetalk-function-window .thinking-dots {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+}
+
+.pagetalk-option-loading .thinking-dots span,
+.pagetalk-function-window .thinking-dots span {
+    display: inline-block;
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+    background: rgba(127, 99, 160, 0.72);
+    opacity: 0.28;
+    box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.34);
+}
+
+.pagetalk-option-loading .thinking-dots span:nth-child(1),
+.pagetalk-function-window .thinking-dots span:nth-child(1) {
+    animation: thinkingPulseMinimal 1.05s infinite ease-in-out;
+    animation-delay: 0s;
+}
+
+.pagetalk-option-loading .thinking-dots span:nth-child(2),
+.pagetalk-function-window .thinking-dots span:nth-child(2) {
+    animation: thinkingPulseMinimal 1.05s infinite ease-in-out;
+    animation-delay: 0.14s;
+}
+
+.pagetalk-option-loading .thinking-dots span:nth-child(3),
+.pagetalk-function-window .thinking-dots span:nth-child(3) {
+    animation: thinkingPulseMinimal 1.05s infinite ease-in-out;
+    animation-delay: 0.28s;
+}
+
 .pagetalk-option-icon {
     display: flex;
     align-items: center;
@@ -634,6 +688,11 @@
     word-wrap: break-word;
 }
 
+.pagetalk-response-content[hidden],
+.pagetalk-response-actions[hidden] {
+    display: none !important;
+}
+
 .pagetalk-response-actions {
     display: flex;
     gap: 8px;
@@ -943,6 +1002,33 @@
     animation-play-state: paused;
 }
 
+.pagetalk-function-window .thinking {
+    display: flex;
+    align-items: center;
+    justify-content: flex-start;
+    padding: 8px 4px 8px 0;
+    min-height: 24px;
+    width: fit-content;
+    max-width: 100%;
+    background: transparent;
+    border: none;
+    border-radius: 0;
+    box-shadow: none;
+    backdrop-filter: none;
+    -webkit-backdrop-filter: none;
+    animation: thinkingAppear 0.4s cubic-bezier(0.4, 0, 0.2, 1) forwards;
+    position: relative;
+    opacity: 1;
+    transform: translateY(0) scale(1);
+}
+
+.pagetalk-function-window .thinking:hover {
+    transform: translateY(0) scale(1);
+    background: transparent;
+    border: none;
+    box-shadow: none;
+}
+
 /* 独立思考动画样式 - 完全复制主面板的样式 */
 .pagetalk-function-window .pagetalk-thinking-message {
     display: flex;
@@ -979,37 +1065,6 @@
         opacity: 1;
         transform: translateY(0) scale(1);
     }
-}
-
-.pagetalk-function-window .thinking-dots {
-    display: flex;
-    align-items: center;
-    gap: 6px;
-}
-
-.pagetalk-function-window .thinking-dots span {
-    display: inline-block;
-    width: 6px;
-    height: 6px;
-    border-radius: 50%;
-    background: rgba(127, 99, 160, 0.72);
-    opacity: 0.28;
-    box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.34);
-}
-
-.pagetalk-function-window .thinking-dots span:nth-child(1) {
-    animation: thinkingPulseMinimal 1.05s infinite ease-in-out;
-    animation-delay: 0s;
-}
-
-.pagetalk-function-window .thinking-dots span:nth-child(2) {
-    animation: thinkingPulseMinimal 1.05s infinite ease-in-out;
-    animation-delay: 0.14s;
-}
-
-.pagetalk-function-window .thinking-dots span:nth-child(3) {
-    animation: thinkingPulseMinimal 1.05s infinite ease-in-out;
-    animation-delay: 0.28s;
 }
 
 @keyframes thinkingPulseMinimal {
