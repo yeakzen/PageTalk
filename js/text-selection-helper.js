@@ -2362,14 +2362,15 @@ async function sendInterpretOrTranslateRequest(windowElement, optionId) {
         const responseArea = windowElement.querySelector('.pagetalk-response-area');
         if (responseArea) {
             responseArea.innerHTML = `
-                <div class="thinking">
-                    <div class="thinking-dots">
-                        <span></span>
-                        <span></span>
-                        <span></span>
+                <div class="pagetalk-response-content markdown-rendered">
+                    <div class="thinking">
+                        <div class="thinking-dots">
+                            <span></span>
+                            <span></span>
+                            <span></span>
+                        </div>
                     </div>
                 </div>
-                <div class="pagetalk-response-content markdown-rendered" hidden></div>
                 <div class="pagetalk-response-actions" hidden>
                     <button class="pagetalk-copy-btn" data-i18n-title="copyAll" title="复制">
                         <svg class="copy-icon" width="14" height="14" fill="currentColor" viewBox="0 0 16 16">
@@ -2392,17 +2393,12 @@ async function sendInterpretOrTranslateRequest(windowElement, optionId) {
 
         const responseContent = windowElement.querySelector('.pagetalk-response-content');
         const responseActions = windowElement.querySelector('.pagetalk-response-actions');
-        const responseLoading = windowElement.querySelector('.pagetalk-response-area > .thinking');
         let fullResponse = '';
 
         // 发送到 AI API (流式输出)
         await callAIAPI(messages, optionSettings.model, optionSettings.temperature, (text, isComplete) => {
             fullResponse = text;
             if (responseContent) {
-                if (responseLoading && responseLoading.isConnected) {
-                    responseLoading.remove();
-                }
-                responseContent.hidden = false;
                 if (responseActions) {
                     responseActions.hidden = false;
                 }
@@ -2440,12 +2436,6 @@ async function sendInterpretOrTranslateRequest(windowElement, optionId) {
             }
         }, null, null, optionSettings.maxOutputLength);
 
-        if (responseLoading && responseLoading.isConnected) {
-            responseLoading.remove();
-        }
-        if (responseContent) {
-            responseContent.hidden = false;
-        }
         if (responseActions) {
             responseActions.hidden = false;
         }

@@ -688,7 +688,6 @@
     word-wrap: break-word;
 }
 
-.pagetalk-response-content[hidden],
 .pagetalk-response-actions[hidden] {
     display: none !important;
 }
