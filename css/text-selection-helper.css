@@ -25,7 +25,11 @@
     cursor: pointer;
     box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
     border: none;
-    transition: all 0.2s ease;
+    transition:
+        transform 0.2s ease,
+        box-shadow 0.2s ease,
+        background 0.2s ease,
+        border-color 0.2s ease;
     user-select: none;
 }
 
@@ -53,7 +57,12 @@
     gap: 8px;
     box-shadow: 0 4px 16px rgba(0, 0, 0, 0.15);
     border: 1px solid rgba(255, 255, 255, 0.2);
-    transition: all 0.3s ease;
+    transition:
+        opacity 0.18s ease,
+        transform 0.18s ease,
+        background 0.18s ease,
+        box-shadow 0.18s ease,
+        border-color 0.18s ease;
     user-select: none;
     width: auto;
     max-width: calc(100vw - 40px); /* 避免超出屏幕，留20px边距 */
@@ -212,15 +221,17 @@
 .pagetalk-function-window {
     position: fixed;
     z-index: 2147483647;
-    background: rgba(255, 255, 255, 0.65);
-    backdrop-filter: blur(15px);
-    border-radius: 16px;
-    box-shadow: 0 8px 32px rgba(0, 0, 0, 0.15);
-    border: 1px solid rgba(255, 255, 255, 0.2);
+    background: var(--glass-panel);
+    backdrop-filter: blur(var(--glass-blur)) saturate(180%);
+    -webkit-backdrop-filter: blur(var(--glass-blur)) saturate(180%);
+    border-radius: 28px;
+    box-shadow: var(--glass-shadow), inset 0 1px 0 var(--glass-border-strong);
+    border: 1px solid var(--glass-border);
     display: flex;
     flex-direction: column;
     font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
     overflow: hidden;
+    isolation: isolate;
     resize: both;
     min-width: 400px; /* 保留最小宽度 */
     min-height: 250px; /* 保留最小高度 */
@@ -228,6 +239,23 @@
     width: 480px; /* 设置默认宽度 */
     height: 300px; /* 设置默认高度，由 JavaScript 动态调整 */
     transition: width 0.3s ease, height 0.3s ease; /* 添加宽度和高度变化动画 */
+}
+
+.pagetalk-function-window::before {
+    content: '';
+    position: absolute;
+    inset: 0;
+    border-radius: inherit;
+    background:
+        radial-gradient(circle at top left, rgba(255, 255, 255, 0.28), transparent 34%),
+        linear-gradient(180deg, var(--glass-highlight), rgba(255, 255, 255, 0.02) 36%, transparent 72%);
+    pointer-events: none;
+    z-index: 0;
+}
+
+.pagetalk-function-window > * {
+    position: relative;
+    z-index: 1;
 }
 
 /* --- Start of Fix: Scoped CSS variables and styles --- */
@@ -238,22 +266,43 @@
  */
 .pagetalk-function-window {
     /* Light Mode Variables (Default) */
-    --primary-color: var(--primary-color);
+    --primary-color: rgba(77, 10, 82, 1);
+    --primary-hover: rgba(60, 8, 64, 1);
+    --secondary-color: rgba(145, 58, 152, 1);
     --text-color: #343a40e5;
     --text-secondary: #868E96;
     --border-color: #E9ECEF;
+    --card-background: #FFFFFF;
+    --input-background: #FFFFFF;
     --code-background: #F1F3F5;
     --code-text-color: #343A40;
     --code-border: #DEE2E6;
     --table-header-bg: #F1F3F5;
     --table-even-row-bg: #F8F9FA;
     --link-color: var(--primary-color);
+    --button-hover-bg: rgba(77, 10, 82, 0.1);
+    --button-secondary-bg: #E9ECEF;
+    --button-secondary-text: #868E96;
+    --scrollbar-thumb: rgba(0, 0, 0, 0.15);
     --blockquote-bg: rgba(175, 184, 193, 0.1);
     --blockquote-text: #6a737d;
     --inline-code-bg: rgba(175, 184, 193, 0.2);
     --inline-code-text: #24292e;
     --inline-code-border: rgba(175, 184, 193, 0.2);
+    --glass-shell: rgba(244, 247, 251, 0.22);
+    --glass-panel: linear-gradient(180deg, rgba(255, 255, 255, 0.52), rgba(255, 255, 255, 0.24));
+    --glass-panel-strong: rgba(255, 255, 255, 0.42);
+    --glass-panel-soft: rgba(255, 255, 255, 0.2);
+    --glass-border: rgba(255, 255, 255, 0.38);
+    --glass-border-strong: rgba(255, 255, 255, 0.68);
+    --glass-highlight: rgba(255, 255, 255, 0.24);
+    --glass-shadow: 0 22px 44px rgba(15, 23, 42, 0.14);
+    --glass-blur: 24px;
     /* 圆角变量 */
+    --radius-sm: 4px;
+    --radius-md: 8px;
+    --radius-lg: 14px;
+    --radius-xl: 20px;
     --radius-full: 9999px;
 }
 
@@ -485,42 +534,57 @@
     display: flex;
     align-items: center;
     justify-content: space-between;
-    padding: 12px 16px;
-    border-bottom: 1px solid rgba(0, 0, 0, 0.1);
-    background: rgba(255, 255, 255, 0.5);
+    min-height: 52px;
+    padding: 10px 72px 10px 16px;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.14);
+    background:
+        linear-gradient(180deg, rgba(255, 255, 255, 0.18), rgba(255, 255, 255, 0.06)),
+        transparent;
     cursor: move;
 }
 
 .pagetalk-window-title {
-    font-size: 16px;
-    font-weight: 600;
-    color: #333;
+    font-size: 15px;
+    font-weight: 700;
+    color: var(--primary-color);
+    line-height: 1.3;
+    letter-spacing: 0;
 }
 
 .pagetalk-window-controls {
     display: flex;
     align-items: center;
-    gap: 8px;
+    gap: 6px;
+    min-width: 0;
 }
 
 .pagetalk-window-controls select {
-    padding: 4px 8px;
-    border: 1px solid rgba(0, 0, 0, 0.2);
-    border-radius: 6px;
-    background: rgba(255, 255, 255, 0.8);
+    width: clamp(88px, 18vw, 150px);
+    max-width: 100%;
+    min-height: 30px;
+    padding: 4px 24px 4px 10px;
+    border: 1px solid rgba(255, 255, 255, 0.42);
+    border-radius: var(--radius-full);
+    background:
+        linear-gradient(180deg, rgba(255, 255, 255, 0.68), rgba(255, 255, 255, 0.28)),
+        rgba(255, 255, 255, 0.18);
+    color: rgba(54, 36, 78, 0.96);
+    box-shadow:
+        0 8px 18px rgba(91, 67, 122, 0.08),
+        inset 0 1px 0 rgba(255, 255, 255, 0.7);
     font-size: 12px;
     font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-    font-weight: normal; /* 确保不是加粗 */
+    font-weight: 600;
     cursor: pointer;
     outline: none;
-    transition: border-color 0.2s ease;
+    transition: border-color 0.18s ease, box-shadow 0.18s ease, background 0.18s ease, color 0.18s ease;
 }
 
 /* 模型选择器分组样式 - 统一样式 */
 .pagetalk-window-controls select optgroup {
     font-weight: bold;
-    color: #333;
-    background-color: transparent;
+    color: var(--text-color);
+    background-color: var(--card-background);
     padding: 2px 4px;
     margin: 1px 0;
     font-size: 11px;
@@ -531,12 +595,20 @@
     padding: 3px 8px;
     font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
     font-size: 12px;
-    color: #333;
-    background-color: rgba(255, 255, 255, 0.9);
+    color: var(--text-color);
+    background-color: var(--card-background);
 }
 
 .pagetalk-window-controls select option:hover {
     background-color: rgba(0, 0, 0, 0.05);
+}
+
+.pagetalk-window-controls select:focus {
+    border-color: rgba(132, 90, 179, 0.34);
+    box-shadow:
+        0 0 0 2px rgba(167, 128, 210, 0.16),
+        0 10px 22px rgba(91, 67, 122, 0.1),
+        inset 0 1px 0 rgba(255, 255, 255, 0.78);
 }
 
 .pagetalk-window-controls button {
@@ -545,18 +617,75 @@
     justify-content: center; /* 水平居中 */
     width: 28px;
     height: 28px;
-    border: none;
-    border-radius: 6px;
-    background: rgba(0, 0, 0, 0.05);
+    border: 1px solid rgba(255, 255, 255, 0.42);
+    border-radius: var(--radius-full);
+    background:
+        linear-gradient(180deg, rgba(255, 255, 255, 0.64), rgba(255, 255, 255, 0.26)),
+        rgba(255, 255, 255, 0.18);
     cursor: pointer;
     transition: all 0.2s ease;
-    color: #666;
+    color: rgba(89, 64, 118, 0.9);
     padding: 0; /* 新增：移除可能导致偏移的内边距 */
+    box-shadow:
+        0 8px 18px rgba(91, 67, 122, 0.08),
+        inset 0 1px 0 rgba(255, 255, 255, 0.65);
+    backdrop-filter: blur(10px) saturate(160%);
+    -webkit-backdrop-filter: blur(10px) saturate(160%);
 }
 
 .pagetalk-window-controls button:hover {
-    background: rgba(0, 0, 0, 0.1);
-    color: #333;
+    background:
+        linear-gradient(180deg, rgba(255, 255, 255, 0.78), rgba(246, 239, 252, 0.5)),
+        rgba(255, 255, 255, 0.24);
+    color: var(--primary-color);
+    transform: translateY(-1px);
+}
+
+.pagetalk-function-window .pagetalk-window-close,
+.pagetalk-function-window .pagetalk-window-maximize {
+    position: absolute;
+    top: 12px;
+    width: 28px;
+    height: 28px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border: 1px solid rgba(255, 255, 255, 0.42);
+    border-radius: var(--radius-full);
+    background:
+        linear-gradient(180deg, rgba(255, 255, 255, 0.64), rgba(255, 255, 255, 0.26)),
+        rgba(255, 255, 255, 0.18);
+    color: rgba(89, 64, 118, 0.9);
+    cursor: pointer;
+    z-index: 10;
+    box-shadow:
+        0 8px 18px rgba(91, 67, 122, 0.08),
+        inset 0 1px 0 rgba(255, 255, 255, 0.65);
+    backdrop-filter: blur(10px) saturate(160%);
+    -webkit-backdrop-filter: blur(10px) saturate(160%);
+    transition: transform 0.18s ease, background 0.18s ease, color 0.18s ease, border-color 0.18s ease, box-shadow 0.18s ease;
+}
+
+.pagetalk-function-window .pagetalk-window-maximize {
+    right: 46px;
+}
+
+.pagetalk-function-window .pagetalk-window-close {
+    right: 12px;
+    font-size: 18px;
+}
+
+.pagetalk-function-window .pagetalk-window-close:hover,
+.pagetalk-function-window .pagetalk-window-maximize:hover {
+    background:
+        linear-gradient(180deg, rgba(255, 255, 255, 0.78), rgba(246, 239, 252, 0.5)),
+        rgba(255, 255, 255, 0.24);
+    border-color: rgba(120, 62, 148, 0.22);
+    color: var(--primary-color);
+    transform: translateY(-1px);
+    box-shadow:
+        0 10px 22px rgba(91, 67, 122, 0.1),
+        inset 0 1px 0 rgba(255, 255, 255, 0.78);
 }
 
 .pagetalk-window-close { /* 确保通用关闭按钮也居中 */
@@ -576,14 +705,16 @@
 /* 引用区域 */
 .pagetalk-quote-area {
     padding: 12px 16px;
-    background: rgba(0, 0, 0, 0.02);
-    border-bottom: 1px solid rgba(0, 0, 0, 0.1);
+    background:
+        linear-gradient(180deg, rgba(255, 255, 255, 0.08), rgba(255, 255, 255, 0.02)),
+        transparent;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.14);
     position: relative;
 }
 
 .pagetalk-quote-text {
     font-style: italic;
-    color: #666;
+    color: var(--text-secondary);
     font-size: 14px;
     line-height: 1.4;
     position: relative;
@@ -609,12 +740,12 @@
     background: linear-gradient(to right,
         transparent 0%,
         transparent 10%,
-        rgba(252, 252, 252, 0.2) 20%,
-        rgba(252, 252, 252, 0.5) 35%,
-        rgba(252, 252, 252, 0.8) 50%,
-        rgba(252, 252, 252, 0.95) 65%,
-        rgba(252, 252, 252, 1) 80%,
-        rgba(252, 252, 252, 1) 100%
+        rgba(248, 249, 250, 0.2) 20%,
+        rgba(248, 249, 250, 0.5) 35%,
+        rgba(248, 249, 250, 0.8) 50%,
+        rgba(248, 249, 250, 0.95) 65%,
+        rgba(248, 249, 250, 1) 80%,
+        rgba(248, 249, 250, 1) 100%
     );
     pointer-events: none; /* 不阻挡点击事件 */
     z-index: 2; /* 提高层级，确保在文字上方 */
@@ -631,7 +762,7 @@
     top: 0;
     bottom: 0;
     width: 3px;
-    background:rgba(77, 10, 82,1);
+    background: var(--primary-color);
     border-radius: 2px;
 }
 
@@ -639,35 +770,36 @@
     position: absolute;
     bottom: 6px;
     right: 10px;
-    background: rgba(0, 122, 255, 0.12);
-    border: 1px solid rgba(0, 122, 255, 0.4);
+    background: rgba(77, 10, 82, 0.08);
+    border: 1px solid rgba(77, 10, 82, 0.18);
     border-radius: 14px;
     padding: 3px 10px;
     font-size: 11px;
     font-weight: 500;
-    color: rgba(77, 10, 82,1);
+    color: var(--primary-color);
     cursor: pointer;
     transition: all 0.2s ease;
     user-select: none;
     z-index: 15; /* 提高层级，确保在渐变遮罩之上 */
-    box-shadow: 0 1px 3px rgba(0, 122, 255, 0.1);
+    box-shadow: 0 8px 18px rgba(91, 67, 122, 0.08);
     backdrop-filter: blur(4px); /* 添加毛玻璃效果 */
 }
 
 .pagetalk-quote-toggle:hover {
-    background: rgba(0, 122, 255, 0.18);
-    border-color: rgba(0, 122, 255, 0.6);
-    box-shadow: 0 2px 6px rgba(0, 122, 255, 0.15);
+    background: rgba(77, 10, 82, 0.12);
+    border-color: rgba(77, 10, 82, 0.26);
+    box-shadow: 0 10px 22px rgba(91, 67, 122, 0.1);
     transform: translateY(-0.5px);
 }
 
 /* 响应区域 */
 .pagetalk-response-area {
     flex: 1;
-    padding: 16px;
+    padding: 14px 16px 18px;
     overflow-y: auto;
     display: flex;
     flex-direction: column;
+    background: linear-gradient(180deg, rgba(255, 255, 255, 0.03), transparent 18%, rgba(255, 255, 255, 0.03));
 }
 
 .pagetalk-loading {
@@ -675,14 +807,14 @@
     align-items: center;
     justify-content: center;
     height: 100%;
-    color: #666;
+    color: var(--text-secondary);
     font-size: 14px;
 }
 
 .pagetalk-response-content {
     flex: 1;
     line-height: 1.5;
-    color: #333;
+    color: var(--text-color);
     font-size: 14px;
     /* 移除 white-space: pre-wrap; 以支持正确的markdown渲染 */
     word-wrap: break-word;
@@ -697,7 +829,7 @@
     gap: 8px;
     margin-top: 12px;
     padding-top: 12px;
-    border-top: 1px solid rgba(0, 0, 0, 0.1);
+    border-top: 1px solid rgba(255, 255, 255, 0.18);
 }
 
 .pagetalk-response-actions button {
@@ -705,18 +837,29 @@
     align-items: center;
     gap: 4px;
     padding: 6px 12px;
-    border: 1px solid rgba(0, 0, 0, 0.2);
-    border-radius: 6px;
-    background: rgba(255, 255, 255, 0.8);
+    border: 1px solid rgba(255, 255, 255, 0.42);
+    border-radius: var(--radius-full);
+    background:
+        linear-gradient(180deg, rgba(255, 255, 255, 0.68), rgba(255, 255, 255, 0.28)),
+        rgba(255, 255, 255, 0.18);
     cursor: pointer;
     transition: all 0.2s ease;
     font-size: 12px;
-    color: #666;
+    font-weight: 600;
+    color: rgba(89, 64, 118, 0.9);
+    box-shadow:
+        0 8px 18px rgba(91, 67, 122, 0.08),
+        inset 0 1px 0 rgba(255, 255, 255, 0.65);
+    backdrop-filter: blur(10px) saturate(160%);
+    -webkit-backdrop-filter: blur(10px) saturate(160%);
 }
 
 .pagetalk-response-actions button:hover {
-    background: rgba(0, 0, 0, 0.05);
-    color: #333;
+    background:
+        linear-gradient(180deg, rgba(255, 255, 255, 0.78), rgba(246, 239, 252, 0.5)),
+        rgba(255, 255, 255, 0.24);
+    color: var(--primary-color);
+    transform: translateY(-1px);
 }
 
 /* 错误样式 */
@@ -738,7 +881,7 @@
 .pagetalk-retry-btn {
     padding: 8px 16px;
     border: 1px solid var(--error-color, #ff4444);
-    border-radius: 6px;
+    border-radius: var(--radius-full);
     background: rgba(255, 68, 68, 0.1);
     color: var(--error-color, #ff4444);
     cursor: pointer;
@@ -757,6 +900,7 @@
     display: flex;
     flex-direction: column;
     gap: 16px; /* 增加消息间距，为用户消息下方的按钮留出更多空间 */
+    background: linear-gradient(180deg, rgba(255, 255, 255, 0.03), transparent 18%, rgba(255, 255, 255, 0.03));
 }
 
 .pagetalk-response-area::-webkit-scrollbar,
@@ -773,15 +917,15 @@
 
 .pagetalk-response-area::-webkit-scrollbar-thumb,
 .pagetalk-chat-messages::-webkit-scrollbar-thumb {
-    background-color: rgba(0, 0, 0, 0.2); /* 滚动条滑块颜色 */
-    border-radius: 4px;
+    background-color: var(--scrollbar-thumb); /* 滚动条滑块颜色 */
+    border-radius: var(--radius-full);
     border: 2px solid transparent;
     background-clip: content-box;
 }
 
 .pagetalk-response-area::-webkit-scrollbar-thumb:hover,
 .pagetalk-chat-messages::-webkit-scrollbar-thumb:hover {
-    background-color: rgba(0, 0, 0, 0.4); /* 悬停时滑块颜色 */
+    background-color: rgba(77, 10, 82, 0.24); /* 悬停时滑块颜色 */
 }
 
 .pagetalk-chat-message {
@@ -802,30 +946,48 @@
 }
 
 .pagetalk-message-content {
-    border-radius: 12px;
+    border-radius: 18px;
     font-size: 14px;
-    line-height: 1.4;
+    line-height: 1.5;
     word-wrap: break-word;
     width: fit-content; /* 让气泡宽度由内容决定 */
     position: relative; /* 为按钮定位提供参考 */
+    letter-spacing: 0;
 }
 
 .pagetalk-chat-message-user .pagetalk-message-content {
-    background: rgba(77, 10, 82,1);
-    color: white;
-    border-bottom-right-radius: 4px;
-    padding: 8px 12px; /* 用户消息保持原有padding */
+    background:
+        linear-gradient(155deg, rgba(245, 236, 255, 0.82), rgba(229, 213, 247, 0.72) 46%, rgba(214, 191, 239, 0.78) 100%),
+        rgba(255, 255, 255, 0.14);
+    color: rgba(49, 33, 68, 0.96);
+    border: 1px solid rgba(255, 255, 255, 0.42);
+    border-bottom-right-radius: 6px;
+    padding: 12px 16px;
+    box-shadow:
+        0 10px 26px rgba(164, 136, 196, 0.18),
+        0 2px 10px rgba(122, 93, 156, 0.1),
+        inset 0 1px 0 rgba(255, 255, 255, 0.62),
+        inset 0 -1px 0 rgba(255, 255, 255, 0.14);
+    backdrop-filter: blur(18px) saturate(170%);
+    -webkit-backdrop-filter: blur(18px) saturate(170%);
 }
 
 .pagetalk-chat-message-assistant .pagetalk-message-content {
-    background: var(--card-background);
+    background: var(--glass-panel-strong);
     color: var(--text-color);
-    border-bottom-left-radius: 4px;
-    border: 1px solid var(--border-color);
-    padding: 12px; /* 标准内边距 */
+    border-bottom-left-radius: 6px;
+    border: 1px solid var(--glass-border);
+    padding: 14px 16px; /* 标准内边距 */
     padding-bottom: 30px; /* 底部增加padding为按钮留出空间 */
     max-width: 95%;
     min-width: 120px; /* 设置最小宽度确保按钮有足够空间 */
+    box-shadow:
+        0 1px 2px rgba(0, 0, 0, 0.04),
+        0 2px 4px rgba(0, 0, 0, 0.04),
+        0 4px 8px rgba(0, 0, 0, 0.02),
+        inset 0 1px 0 rgba(255, 255, 255, 0.18);
+    backdrop-filter: blur(16px) saturate(170%);
+    -webkit-backdrop-filter: blur(16px) saturate(170%);
 }
 
 /* 旧的思考动画样式已移除，现在使用独立的思考动画 */
@@ -862,7 +1024,9 @@
     width: 24px;
     height: 24px;
     border-radius: 50%; /* 完全圆形 */
-    background-color: rgba(0, 0, 0, 0.1); /* 浅色模式背景 */
+    background:
+        linear-gradient(180deg, rgba(255, 255, 255, 0.72), rgba(255, 255, 255, 0.32)),
+        rgba(255, 255, 255, 0.18);
     border: none; /* 确保无边框 */
     display: flex;
     align-items: center;
@@ -870,7 +1034,7 @@
     cursor: pointer;
     transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
     padding: 0;
-    color: #888; /* 默认灰色 */
+    color: rgba(89, 64, 118, 0.78); /* 默认灰色 */
     -webkit-backdrop-filter: blur(8px);
     backdrop-filter: blur(8px);
 }
@@ -878,8 +1042,10 @@
 .pagetalk-message-actions button:hover {
     transform: scale(1.1);
     color: var(--primary-color); /* Default hover to primary color */
-    background-color:transparent;
-    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+    background:
+        linear-gradient(180deg, rgba(255, 255, 255, 0.82), rgba(246, 239, 252, 0.52)),
+        rgba(255, 255, 255, 0.24);
+    box-shadow: 0 8px 18px rgba(91, 67, 122, 0.12);
 }
 
 .pagetalk-message-actions button:active {
@@ -913,58 +1079,117 @@
     display: flex;
     align-items: flex-end;
     gap: 8px;
-    padding: 12px 16px;
-    border-top: 1px solid rgba(0, 0, 0, 0.1);
-    background: rgba(255, 255, 255, 0.5);
+    padding: 12px 14px 16px;
+    border-top: 1px solid rgba(255, 255, 255, 0.14);
+    background:
+        linear-gradient(180deg, rgba(255, 255, 255, 0), rgba(255, 255, 255, 0.08) 58%, rgba(255, 255, 255, 0.12) 100%);
 }
 
 .pagetalk-chat-input textarea {
     flex: 1;
-    height: 36px; /* 固定高度，与发送按钮同高 */
-    min-height: 36px;
-    max-height: 36px; /* 限制最大高度 */
-    padding: 8px 12px;
-    border: 1px solid rgba(0, 0, 0, 0.2);
-    border-radius: 18px; /* 增加圆角，配合发送按钮 */
-    background: rgba(255, 255, 255, 0.8);
+    height: 42px; /* 固定高度，与发送按钮同高 */
+    min-height: 42px;
+    max-height: 42px; /* 限制最大高度 */
+    padding: 10px 14px;
+    border: 1px solid rgba(255, 255, 255, 0.42);
+    border-radius: 22px; /* 增加圆角，配合发送按钮 */
+    background:
+        linear-gradient(155deg, rgba(255, 255, 255, 0.72), rgba(246, 239, 252, 0.58) 42%, rgba(231, 217, 245, 0.66) 100%),
+        var(--glass-panel-soft);
+    box-shadow:
+        0 12px 26px rgba(91, 67, 122, 0.08),
+        inset 0 1px 0 rgba(255, 255, 255, 0.74);
+    color: rgba(54, 36, 78, 0.96);
     font-size: 14px;
     font-family: inherit;
     resize: none;
     outline: none;
-    line-height: 1.2; /* 调整行高 */
+    overflow: hidden;
+    line-height: 1.45;
+    letter-spacing: 0;
+    transition: transform 0.18s ease, border-color 0.18s ease, box-shadow 0.18s ease, background 0.18s ease;
+}
+
+.pagetalk-chat-input textarea::-webkit-scrollbar {
+    display: none;
+}
+
+.pagetalk-chat-input textarea::placeholder {
+    color: rgba(117, 99, 136, 0.72);
 }
 
 .pagetalk-chat-input textarea:focus {
-    border-color: var(--primary-color);
+    border-color: rgba(132, 90, 179, 0.34);
+    background:
+        linear-gradient(155deg, rgba(255, 255, 255, 0.8), rgba(244, 235, 251, 0.68) 42%, rgba(229, 212, 244, 0.72) 100%),
+        var(--glass-panel-strong);
+    box-shadow:
+        0 0 0 2px rgba(167, 128, 210, 0.16),
+        0 16px 30px rgba(91, 67, 122, 0.1),
+        inset 0 1px 0 rgba(255, 255, 255, 0.84);
     transform: translateY(-1px);
 }
 
 .pagetalk-send-btn {
-    background-color: white;
-    width: 34px; /* 按钮尺寸 */
-    height: 34px;
+    --send-ring-color: rgba(77, 10, 82, 0.22);
+    --send-bg: rgba(77, 10, 82, 0.12);
+    --send-bg-hover: rgba(77, 10, 82, 0.18);
+    --send-bg-active: rgba(77, 10, 82, 0.1);
+    --send-border: rgba(77, 10, 82, 0.24);
+    --send-border-hover: rgba(77, 10, 82, 0.34);
+    --send-highlight: linear-gradient(135deg, rgba(255, 255, 255, 0.42), rgba(255, 255, 255, 0));
+    --send-shadow: 0 10px 22px rgba(91, 67, 122, 0.12);
+    --send-shadow-hover: 0 14px 28px rgba(91, 67, 122, 0.16);
+    --send-shadow-active: 0 8px 18px rgba(91, 67, 122, 0.1);
+
+    background-color: var(--send-bg);
+    background-image: var(--send-highlight);
+    width: 38px; /* 按钮尺寸 */
+    height: 38px;
     padding: 0; /* 移除内边距 */
     display: flex;
     align-items: center;
     justify-content: center;
-    border: none;
+    border: 1px solid var(--send-border);
+    border-radius: var(--radius-full);
     cursor: pointer;
     transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
     flex-shrink: 0; /* 防止按钮被压缩 */
+    box-shadow: var(--send-shadow);
+    backdrop-filter: blur(10px) saturate(160%);
+    -webkit-backdrop-filter: blur(10px) saturate(160%);
+    overflow: hidden;
 }
 
 .pagetalk-send-btn img {
-    width: 34px; /* 直接定义图片尺寸，确保小于按钮尺寸 */
-    height: 34px;
+    width: 100%;
+    height: 100%;
     object-fit: contain; /* 确保图片等比缩放 */
+    transition: transform 0.12s ease;
 }
 
 .pagetalk-send-btn:hover {
     transform: scale(1.08);
+    background-color: var(--send-bg-hover);
+    border-color: var(--send-border-hover);
+    box-shadow: var(--send-shadow-hover);
+}
+
+.pagetalk-send-btn:hover img {
+    transform: translateX(1px);
+}
+
+.pagetalk-send-btn:active {
+    transform: scale(0.95);
+    background-color: var(--send-bg-active);
+    box-shadow: var(--send-shadow-active);
 }
 
 .pagetalk-send-btn:disabled {
-    background: #ccc;
+    background: var(--button-secondary-bg);
+    border-color: var(--border-color);
+    color: var(--button-secondary-text);
+    box-shadow: none;
     cursor: not-allowed;
     transform: none;
 }
@@ -994,7 +1219,8 @@
 
 .pagetalk-send-btn.pagetalk-stop-streaming:hover {
     border-radius: 50%;
-    background-color: rgba(234, 67, 53, 0.3); /* 悬停时变成红色 */
+    background-color: rgba(250, 82, 82, 0.18); /* 悬停时变成红色 */
+    border-color: rgba(250, 82, 82, 0.42);
 }
 
 .pagetalk-send-btn.pagetalk-stop-streaming:hover img {
@@ -3251,7 +3477,8 @@ body.dark-mode .pagetalk-function-window .katex-error {
 
 .pagetalk-send-btn.stop-streaming:hover {
     border-radius: 50%;
-    background-color: rgba(234, 67, 53, 0.3);
+    background-color: rgba(250, 82, 82, 0.18);
+    border-color: rgba(250, 82, 82, 0.42);
 }
 
 .pagetalk-send-btn.stop-streaming:hover img {
@@ -3307,18 +3534,32 @@ body.dark-mode .pagetalk-function-window .katex-error {
     --table-header-bg: rgba(227, 124, 235, 0.16);
     --table-even-row-bg: rgba(255, 255, 255, 0.04);
     --button-hover-bg: rgba(227, 124, 235, 0.15);
+    --button-secondary-bg: #343A40;
+    --button-secondary-text: #ADB5BD;
+    --scrollbar-thumb: rgba(255, 255, 255, 0.2);
     --blockquote-bg: rgba(227, 124, 235, 0.1);
     --blockquote-text: #ADB5BD;
     --inline-code-bg: rgba(175, 184, 193, 0.2);
     --inline-code-text: #e9ecef;
     --inline-code-border: rgba(175, 184, 193, 0.2);
-    background: rgba(44, 46, 51, 0.82);
-    border-color: var(--border-color);
-    box-shadow: 0 8px 32px rgba(0, 0, 0, 0.35);
+    --glass-shell: rgba(11, 13, 18, 0.28);
+    --glass-panel: linear-gradient(180deg, rgba(33, 37, 45, 0.62), rgba(17, 19, 26, 0.38));
+    --glass-panel-strong: rgba(31, 35, 43, 0.48);
+    --glass-panel-soft: rgba(18, 21, 28, 0.24);
+    --glass-border: rgba(255, 255, 255, 0.12);
+    --glass-border-strong: rgba(255, 255, 255, 0.22);
+    --glass-highlight: rgba(255, 255, 255, 0.08);
+    --glass-shadow: 0 28px 56px rgba(0, 0, 0, 0.34);
+    --glass-blur: 28px;
+    background: var(--glass-panel);
+    border-color: var(--glass-border);
+    box-shadow: var(--glass-shadow), inset 0 1px 0 var(--glass-border-strong);
 }
 
 .pagetalk-function-window.dark-mode .pagetalk-window-header {
-    background: rgba(255, 255, 255, 0.05);
+    background:
+        linear-gradient(180deg, rgba(255, 255, 255, 0.08), rgba(255, 255, 255, 0.02)),
+        transparent;
     border-bottom-color: rgba(255, 255, 255, 0.08);
 }
 
@@ -3331,20 +3572,43 @@ body.dark-mode .pagetalk-function-window .katex-error {
     color: var(--text-color);
 }
 
+.pagetalk-function-window.dark-mode .pagetalk-window-title {
+    color: var(--primary-color);
+}
+
 .pagetalk-function-window.dark-mode .pagetalk-quote-area {
-    background: rgba(255, 255, 255, 0.04);
+    background:
+        linear-gradient(180deg, rgba(255, 255, 255, 0.05), rgba(255, 255, 255, 0.01)),
+        transparent;
     border-bottom-color: rgba(255, 255, 255, 0.08);
 }
 
+.pagetalk-function-window.dark-mode .pagetalk-quote-text.collapsed::after {
+    background: linear-gradient(to right,
+        transparent 0%,
+        rgba(23, 26, 34, 0.18) 22%,
+        rgba(23, 26, 34, 0.58) 48%,
+        rgba(23, 26, 34, 0.9) 72%,
+        rgba(23, 26, 34, 0.98) 100%
+    );
+}
+
 .pagetalk-function-window.dark-mode .pagetalk-chat-input {
-    background: rgba(255, 255, 255, 0.03);
+    background:
+        linear-gradient(180deg, rgba(255, 255, 255, 0), rgba(255, 255, 255, 0.03) 58%, rgba(255, 255, 255, 0.06) 100%);
     border-top-color: rgba(255, 255, 255, 0.08);
 }
 
 .pagetalk-function-window.dark-mode .pagetalk-chat-input textarea,
 .pagetalk-function-window.dark-mode .pagetalk-window-controls select {
-    background: var(--input-background);
-    border-color: var(--border-color);
+    background:
+        linear-gradient(155deg, rgba(255, 255, 255, 0.1), rgba(255, 255, 255, 0.04)),
+        var(--glass-panel-soft);
+    border-color: var(--glass-border);
+    color: var(--text-color);
+    box-shadow:
+        0 10px 22px rgba(0, 0, 0, 0.22),
+        inset 0 1px 0 rgba(255, 255, 255, 0.12);
 }
 
 .pagetalk-function-window.dark-mode .pagetalk-chat-input textarea::placeholder {
@@ -3363,15 +3627,66 @@ body.dark-mode .pagetalk-function-window .katex-error {
     color: var(--primary-color);
 }
 
-.pagetalk-function-window.dark-mode .pagetalk-chat-message-user .pagetalk-message-content {
-    background: var(--primary-color);
-    color: #fff;
-}
-
-.pagetalk-function-window.dark-mode .pagetalk-chat-message-assistant .pagetalk-message-content,
+.pagetalk-function-window.dark-mode .pagetalk-window-controls button,
+.pagetalk-function-window.dark-mode .pagetalk-window-close,
+.pagetalk-function-window.dark-mode .pagetalk-window-maximize,
 .pagetalk-function-window.dark-mode .pagetalk-response-actions button,
 .pagetalk-function-window.dark-mode .pagetalk-message-actions button {
-    background: var(--card-background);
-    border-color: var(--border-color);
-    color: var(--text-secondary);
+    background:
+        linear-gradient(180deg, rgba(255, 255, 255, 0.1), rgba(255, 255, 255, 0.04)),
+        rgba(24, 20, 34, 0.36);
+    border-color: rgba(255, 255, 255, 0.12);
+    color: #f1d9f7;
+    box-shadow:
+        0 10px 22px rgba(0, 0, 0, 0.22),
+        inset 0 1px 0 rgba(255, 255, 255, 0.14);
+}
+
+.pagetalk-function-window.dark-mode .pagetalk-window-controls button:hover,
+.pagetalk-function-window.dark-mode .pagetalk-window-close:hover,
+.pagetalk-function-window.dark-mode .pagetalk-window-maximize:hover,
+.pagetalk-function-window.dark-mode .pagetalk-response-actions button:hover,
+.pagetalk-function-window.dark-mode .pagetalk-message-actions button:hover {
+    background:
+        linear-gradient(180deg, rgba(255, 255, 255, 0.14), rgba(227, 124, 235, 0.12)),
+        rgba(30, 23, 42, 0.46);
+    border-color: rgba(227, 124, 235, 0.26);
+    color: #fff4ff;
+}
+
+.pagetalk-function-window.dark-mode .pagetalk-chat-message-user .pagetalk-message-content {
+    background:
+        linear-gradient(155deg, rgba(231, 211, 248, 0.78), rgba(207, 180, 235, 0.72) 46%, rgba(182, 145, 220, 0.76) 100%),
+        rgba(255, 255, 255, 0.06);
+    color: rgba(36, 26, 52, 0.96);
+    border-color: rgba(255, 255, 255, 0.22);
+    box-shadow:
+        0 12px 28px rgba(35, 20, 52, 0.22),
+        0 4px 12px rgba(16, 10, 26, 0.14),
+        inset 0 1px 0 rgba(255, 255, 255, 0.36),
+        inset 0 -1px 0 rgba(255, 255, 255, 0.08);
+}
+
+.pagetalk-function-window.dark-mode .pagetalk-chat-message-assistant .pagetalk-message-content {
+    background: var(--glass-panel-strong);
+    border-color: var(--glass-border);
+    color: var(--text-color);
+    box-shadow:
+        0 1px 2px rgba(0, 0, 0, 0.12),
+        0 2px 4px rgba(0, 0, 0, 0.1),
+        0 4px 8px rgba(0, 0, 0, 0.08),
+        0 0 0 1px rgba(255, 255, 255, 0.04) inset;
+}
+
+.pagetalk-function-window.dark-mode .pagetalk-send-btn {
+    --send-ring-color: rgba(227, 124, 235, 0.30);
+    --send-bg: rgba(227, 124, 235, 0.22);
+    --send-bg-hover: rgba(227, 124, 235, 0.28);
+    --send-bg-active: rgba(227, 124, 235, 0.18);
+    --send-border: rgba(227, 124, 235, 0.34);
+    --send-border-hover: rgba(227, 124, 235, 0.44);
+    --send-highlight: linear-gradient(135deg, rgba(255, 255, 255, 0.20), rgba(255, 255, 255, 0));
+    --send-shadow: 0 10px 22px rgba(0, 0, 0, 0.28);
+    --send-shadow-hover: 0 14px 28px rgba(0, 0, 0, 0.32);
+    --send-shadow-active: 0 8px 18px rgba(0, 0, 0, 0.26);
 }

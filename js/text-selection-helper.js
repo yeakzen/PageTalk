@@ -20,7 +20,7 @@ let currentFunctionWindow = null;
 let selectedText = '';
 let selectionContext = '';
 let currentSelectionRange = null; // 新增：存储当前选择的Range对象，作为滚动时的锚点
-let isScrolling = false; // 新增：用于滚动事件的节流
+let scrollUpdateFrame = null; // 滚动时合并到同一帧，并始终使用最新选区位置
 
 // 最近一次指针位置（用于将 mini icon 放在更接近鼠标处，减少鼠标移动距离）
 let lastPointer = null; // { x, y, ts }
@@ -1195,7 +1195,7 @@ async function showOptionsBar(triggerElement) {
             gap: 4px;
             box-shadow: 0 4px 16px rgba(0, 0, 0, 0.15);
             border: none;
-            transition: all 0.3s ease;
+            transition: opacity 0.18s ease, transform 0.18s ease;
             opacity: 0;
             transform: translateY(10px);
         `;
@@ -1297,6 +1297,7 @@ function showDefaultOptionsBar(triggerElement) {
     optionsBar.style.cssText = `
         position: absolute;
         z-index: 2147483647;
+        transition: opacity 0.18s ease, transform 0.18s ease;
         opacity: 0;
         transform: translateY(10px);
     `;
@@ -1462,21 +1463,6 @@ if (isDarkMode) {
     const closeButton = document.createElement('button');
     closeButton.className = 'pagetalk-window-close';
     closeButton.innerHTML = '×';
-    closeButton.style.cssText = `
-        position: absolute;
-        top: 8px;
-        right: 8px;
-        width: 24px;
-        height: 24px;
-        border: none;
-        background: rgba(0, 0, 0, 0.1);
-        border-radius: 50%;
-        cursor: pointer;
-        font-size: 16px;
-        line-height: 1;
-        color: #666;
-        z-index: 10;
-    `;
     closeButton.addEventListener('click', (e) => {
         e.preventDefault();
         e.stopPropagation();
@@ -1490,20 +1476,6 @@ if (isDarkMode) {
     const _tr = getTranslationFunction();
     maximizeButton.setAttribute('aria-label', _tr('maximizeWindow'));
     maximizeButton.title = _tr('maximizeWindow');
-    maximizeButton.style.cssText = `
-        position: absolute;
-        top: 8px;
-        right: 36px; /* 紧挨关闭按钮左侧 */
-        width: 24px;
-        height: 24px;
-        border: none;
-        background: rgba(0, 0, 0, 0.1);
-        border-radius: 50%;
-        cursor: pointer;
-        color: #666;
-        z-index: 10;
-        display: flex; align-items: center; justify-content: center;
-    `;
 
     // 更精致的 SVG 图标
     const ICON_MAXIMIZE = `
@@ -1602,18 +1574,13 @@ if (isDarkMode) {
         z-index: 2147483647;
         width: ${defaultWidth}px;
         height: ${defaultHeight}px;
-        background: rgba(255, 255, 255, 0.95);
-        backdrop-filter: blur(15px);
-        border-radius: 16px;
-        box-shadow: 0 8px 32px rgba(0, 0, 0, 0.15);
-        border: 1px solid rgba(255, 255, 255, 0.2);
         display: flex;
         flex-direction: column;
         opacity: 0;
         transform: scale(0.9);
         transition: opacity 0.3s ease, transform 0.3s ease;
         resize: both;
-        overflow: auto;
+        overflow: hidden;
         min-width: 300px;
         min-height: 200px;
     `;
@@ -1731,12 +1698,21 @@ console.log('[TextSelectionHelper] Module loaded');
  * 新增：处理页面滚动
  */
 function handleScroll() {
-    if (!currentSelectionRange || isScrolling) {
+    if (!currentSelectionRange) {
         return;
     }
 
-    isScrolling = true;
-    requestAnimationFrame(() => {
+    if (scrollUpdateFrame !== null) {
+        return;
+    }
+
+    scrollUpdateFrame = requestAnimationFrame(() => {
+        scrollUpdateFrame = null;
+
+        if (!currentSelectionRange) {
+            return;
+        }
+
         const rect = currentSelectionRange.getBoundingClientRect();
         const isInViewport = rect.bottom > 0 && rect.top < window.innerHeight;
 
@@ -1769,7 +1745,7 @@ function handleScroll() {
         if (currentOptionsBar) {
             if (isInViewport) {
                 currentOptionsBar.style.display = 'flex';
-                // 更新位置
+                // 基于刚刚更新后的 mini icon 位置立即同步选项栏，避免快速滚动时产生视觉拖尾
                 const iconRect = currentMiniIcon ? currentMiniIcon.getBoundingClientRect() : rect;
                 const optionsBarRect = currentOptionsBar.getBoundingClientRect();
 
@@ -1792,10 +1768,6 @@ function handleScroll() {
                 currentOptionsBar.style.display = 'none';
             }
         }
-
-        // 功能窗口的逻辑类似，但通常它打开后用户会交互，可以不强制随滚动更新位置
-
-        isScrolling = false;
     });
 }
 
@@ -2156,7 +2128,7 @@ async function createFunctionWindowContent(windowElement, optionId) {
             </div>
             <div class="pagetalk-chat-messages"></div>
             <div class="pagetalk-chat-input">
-                <textarea placeholder="输入@选择多个页面..." rows="2"></textarea>
+                <textarea placeholder="输入@选择多个页面..." rows="1"></textarea>
                 <button class="pagetalk-send-btn" data-i18n-title="sendMessageTitle" title="${_tr('sendMessageTitle')}" aria-label="${_tr('sendMessageTitle')}">${getMagicSendButtonIconHtml()}</button>
             </div>
         `;
