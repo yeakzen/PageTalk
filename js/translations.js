@@ -352,6 +352,7 @@ if (typeof window.translations === 'undefined') {
       // --- 划词助手相关翻译 ---
       'textSelectionHelper': '划词助手',
       'textSelectionHelperEnabled': '启用划词助手',
+      'textSelectionHelperCloseOnOutsideClick': '点击外部关闭',
       'interpret': '解读',
       'translate': '翻译',
       'chat': '对话',
@@ -1005,6 +1006,7 @@ Format：
       // --- Text Selection Helper Related Translations ---
       'textSelectionHelper': 'Selection Tool',
       'textSelectionHelperEnabled': 'Enable Selection Tool',
+      'textSelectionHelperCloseOnOutsideClick': 'Close on Outside Click',
       'interpret': 'Interpret',
       'translate': 'Translate',
       'chat': 'Chat',

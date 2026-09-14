@@ -46,6 +46,7 @@ function getDefaultSettings(language = 'zh-CN') {
 
     return {
         enabled: true, // 默认启用划词助手
+        closeOnOutsideClick: false, // 默认不允许点击助手外部关闭功能窗口
         interpret: {
             model: 'google::gemini-2.5-flash',
             systemPrompt: interpretPrompt,
@@ -685,6 +686,11 @@ function loadSettingsToUI(elements) {
         enabledToggle.checked = currentSettings.enabled !== false; // 默认为true
     }
 
+    const closeOnOutsideClickToggle = document.getElementById('text-selection-helper-close-on-outside-click');
+    if (closeOnOutsideClickToggle) {
+        closeOnOutsideClickToggle.checked = currentSettings.closeOnOutsideClick === true; // 默认为false
+    }
+
     // 解读设置
     const interpretModel = document.getElementById('interpret-model');
     const interpretPrompt = document.getElementById('interpret-system-prompt');
@@ -805,6 +811,15 @@ function setupEventListeners(elements, translations) {
             currentSettings.enabled = enabledToggle.checked;
             saveSettings();
             console.log('[TextSelectionHelperSettings] Helper enabled state changed:', currentSettings.enabled);
+        });
+    }
+
+    const closeOnOutsideClickToggle = document.getElementById('text-selection-helper-close-on-outside-click');
+    if (closeOnOutsideClickToggle) {
+        closeOnOutsideClickToggle.addEventListener('change', () => {
+            currentSettings.closeOnOutsideClick = closeOnOutsideClickToggle.checked;
+            saveSettings();
+            console.log('[TextSelectionHelperSettings] Close on outside click changed:', currentSettings.closeOnOutsideClick);
         });
     }
 

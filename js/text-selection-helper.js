@@ -392,22 +392,39 @@ function initTextSelectionHelper() {
 
 // 缓存的启用状态
 let cachedEnabledState = true; // 默认启用
+let cachedCloseOnOutsideClick = false; // 默认不点击外部关闭窗口
 
 /**
- * 初始化启用状态缓存
+ * 初始化设置状态缓存
  */
 function initEnabledStateCache() {
     if (chrome && chrome.storage && chrome.storage.local) {
         chrome.storage.local.get(['textSelectionHelperSettings'], (result) => {
-            if (result.textSelectionHelperSettings && typeof result.textSelectionHelperSettings.enabled !== 'undefined') {
-                cachedEnabledState = result.textSelectionHelperSettings.enabled;
-                console.log('[TextSelectionHelper] Enabled state cache initialized:', cachedEnabledState);
+            if (result.textSelectionHelperSettings) {
+                applyTextSelectionHelperSettings(result.textSelectionHelperSettings);
+                console.log('[TextSelectionHelper] Settings cache initialized:', {
+                    enabled: cachedEnabledState,
+                    closeOnOutsideClick: cachedCloseOnOutsideClick
+                });
             } else {
                 cachedEnabledState = true; // 默认启用
-                console.log('[TextSelectionHelper] No saved enabled state, using default: true');
+                cachedCloseOnOutsideClick = false; // 默认关闭
+                console.log('[TextSelectionHelper] No saved settings, using defaults');
             }
         });
     }
+}
+
+function applyTextSelectionHelperSettings(newSettings) {
+    if (!newSettings) {
+        return;
+    }
+
+    if (typeof newSettings.enabled !== 'undefined') {
+        cachedEnabledState = newSettings.enabled;
+    }
+
+    cachedCloseOnOutsideClick = newSettings.closeOnOutsideClick === true;
 }
 
 /**
@@ -425,6 +442,10 @@ function isHelperEnabled() {
     return cachedEnabledState;
 }
 
+function isCloseOnOutsideClickEnabled() {
+    return cachedCloseOnOutsideClick === true;
+}
+
 /**
  * 监听设置变化，更新缓存状态
  */
@@ -434,10 +455,13 @@ function setupSettingsChangeListener() {
             // 监听本地存储中的划词助手设置变化
             if (namespace === 'local' && changes.textSelectionHelperSettings) {
                 const newSettings = changes.textSelectionHelperSettings.newValue;
-                if (newSettings && typeof newSettings.enabled !== 'undefined') {
+                if (newSettings) {
                     const wasEnabled = cachedEnabledState;
-                    cachedEnabledState = newSettings.enabled;
-                    console.log('[TextSelectionHelper] Settings changed, enabled state:', cachedEnabledState);
+                    applyTextSelectionHelperSettings(newSettings);
+                    console.log('[TextSelectionHelper] Settings changed:', {
+                        enabled: cachedEnabledState,
+                        closeOnOutsideClick: cachedCloseOnOutsideClick
+                    });
 
                     // 如果从启用变为禁用，立即隐藏所有UI
                     if (wasEnabled && !cachedEnabledState) {
@@ -1807,8 +1831,8 @@ function handleDocumentClick(event) {
         return;
     }
 
-    // 如果点击的是功能窗口外部，隐藏功能窗口
-    if (currentFunctionWindow) {
+    // 如果启用了外部点击关闭，则点击功能窗口外部时隐藏功能窗口
+    if (currentFunctionWindow && isCloseOnOutsideClickEnabled()) {
         hideFunctionWindow();
     }
 
@@ -3477,6 +3501,7 @@ async function getTextSelectionHelperSettings() {
                     (trTSH('defaultTranslatePrompt') || '翻译一下');
 
                 const defaultSettings = {
+                    closeOnOutsideClick: false,
                     interpret: {
                         model: 'google::gemini-2.5-flash',
                         systemPrompt: interpretPrompt,
@@ -3501,7 +3526,8 @@ async function getTextSelectionHelperSettings() {
                     optionsOrder: ['interpret', 'translate', 'chat']
                 };
 
-                const settings = result.textSelectionHelperSettings || defaultSettings;
+                const settings = { ...defaultSettings, ...(result.textSelectionHelperSettings || {}) };
+                settings.closeOnOutsideClick = settings.closeOnOutsideClick === true;
 
                 // 确保chat配置存在
                 if (!settings.chat) {
@@ -3546,6 +3572,7 @@ async function getTextSelectionHelperSettings() {
                     (trTSH('defaultTranslatePrompt') || '翻译一下');
 
                 const defaultSettings = {
+                    closeOnOutsideClick: false,
                     interpret: {
                         model: 'google::gemini-2.5-flash',
                         systemPrompt: interpretPrompt,
@@ -3573,6 +3600,7 @@ async function getTextSelectionHelperSettings() {
             } catch (langError) {
                 // 最终回退
                 const defaultSettings = {
+                    closeOnOutsideClick: false,
                     interpret: {
                         model: 'google::gemini-2.5-flash',
                         systemPrompt: '请解释一下：',
@@ -4083,6 +4111,17 @@ function adjustWindowHeight(windowElement) {
  */
 window.handleTextSelectionHelperSettingsUpdate = function(newSettings) {
     console.log('[TextSelectionHelper] Handling settings update:', newSettings);
+
+    if (newSettings) {
+        const wasEnabled = cachedEnabledState;
+        applyTextSelectionHelperSettings(newSettings);
+
+        if (wasEnabled && !cachedEnabledState) {
+            hideMiniIcon();
+            hideOptionsBar();
+            hideFunctionWindow();
+        }
+    }
 
     // 如果选项栏正在显示，重新渲染以反映新的选项顺序
     if (currentOptionsBar) {

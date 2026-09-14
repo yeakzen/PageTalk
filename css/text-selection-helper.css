@@ -1345,9 +1345,16 @@
 .text-selection-helper-toggle-container {
     display: flex;
     align-items: center;
+    flex-wrap: wrap;
+    gap: var(--spacing-md);
     padding: var(--spacing-sm) 0;
     margin-bottom: var(--spacing-md);
     border-bottom: 1px solid var(--border-color);
+}
+
+.text-selection-helper-toggle-item {
+    display: flex;
+    align-items: center;
 }
 
 .toggle-label {
