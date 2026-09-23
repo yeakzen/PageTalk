@@ -44,6 +44,36 @@ let abortControllers = new Map(); // 存储每个窗口的中断控制器 {windo
 // 聊天历史记录管理
 let chatHistories = new Map(); // 存储每个聊天窗口的历史记录 {windowId: Array<{role: string, content: string}>}
 
+const AGENTS_STORAGE_KEYS = ['agents', 'currentAgentId', 'agentsUpdatedAt'];
+
+function hasStoredAgents(result) {
+    return Array.isArray(result?.agents) && result.agents.length > 0;
+}
+
+function getStoredAgents() {
+    return new Promise((resolve) => {
+        chrome.storage.local.get(AGENTS_STORAGE_KEYS, (localResult = {}) => {
+            if (chrome.runtime.lastError) {
+                console.warn('[TextSelectionHelper] Failed to load agents from local storage:', chrome.runtime.lastError);
+                localResult = {};
+            }
+
+            chrome.storage.sync.get(AGENTS_STORAGE_KEYS, (syncResult = {}) => {
+                if (chrome.runtime.lastError) {
+                    console.warn('[TextSelectionHelper] Failed to load agents from sync storage:', chrome.runtime.lastError);
+                    syncResult = {};
+                }
+
+                const localUpdatedAt = Number(localResult?.agentsUpdatedAt || 0);
+                const syncUpdatedAt = Number(syncResult?.agentsUpdatedAt || 0);
+                resolve(hasStoredAgents(localResult) && (!hasStoredAgents(syncResult) || localUpdatedAt >= syncUpdatedAt)
+                    ? localResult
+                    : syncResult);
+            });
+        });
+    });
+}
+
 function getMagicSendButtonIconHtml(size = 20) {
     return `<img src="${chrome.runtime.getURL('magic.png')}" alt="PageTalk" width="${size}" height="${size}">`;
 }
@@ -2107,9 +2137,7 @@ async function createFunctionWindowContent(windowElement, optionId) {
         // 构建助手选项
         let agentOptionsHTML = '';
         try {
-            const result = await new Promise(resolve => {
-                chrome.storage.sync.get(['agents', 'currentAgentId'], resolve);
-            });
+            const result = await getStoredAgents();
 
             if (result.agents && Array.isArray(result.agents)) {
                 result.agents.forEach(agent => {
@@ -3645,15 +3673,12 @@ function getCurrentMainPanelModel() {
  * 获取主面板当前的助手设置
  */
 function getCurrentMainPanelAgent() {
-    return new Promise((resolve) => {
-        chrome.storage.sync.get(['agents', 'currentAgentId'], (result) => {
-            if (result.agents && result.currentAgentId) {
-                const currentAgent = result.agents.find(agent => agent.id === result.currentAgentId);
-                resolve(currentAgent || null);
-            } else {
-                resolve(null);
-            }
-        });
+    return getStoredAgents().then((result) => {
+        if (result.agents && result.currentAgentId) {
+            return result.agents.find(agent => agent.id === result.currentAgentId) || null;
+        }
+
+        return null;
     });
 }
 
@@ -3671,7 +3696,7 @@ function getCurrentWindowAgent(windowElement) {
             return;
         }
 
-        chrome.storage.sync.get(['agents'], (result) => {
+        getStoredAgents().then((result) => {
             if (result.agents && Array.isArray(result.agents)) {
                 const selectedAgent = result.agents.find(agent => agent.id === selectedAgentId);
                 resolve(selectedAgent || null);

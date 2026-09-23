@@ -22,6 +22,7 @@ import {
     handleAgentExport,
     handleAgentImport,
     loadCurrentAgentSettingsIntoState,
+    flushPendingAgentSaves,
     autoSaveAgentSettings as autoSaveAgentSettingsFromAgent // Alias the import
 } from './agent.js';
 import { loadSettings as loadAppSettings, handleLanguageChange, handleBotBoldHighlightColorChange, saveMermaidOverviewSettings, handleExportChat, handleCopyChat, handleObsidianSettingsChange, handleFollowUpQuestionSettingsChange, initModelSelection, updateModelCardsDisplay, handleProxyAddressChange, handleProxyTest, setupProviderEventListeners, initQuickActionsSettings, renderQuickActionsList } from './settings.js';
@@ -577,6 +578,7 @@ function setupEventListeners() {
     elements.tabs.forEach(tab => {
         tab.addEventListener('click', () => {
             const tabId = tab.dataset.tab;
+            flushPendingAgentSaves(elements);
             // 新增：在切换标签页前关闭标签页选择弹窗
             closeTabSelectionPopupUIFromMain();
             // 调用 ui.js 中的 switchTab (假设 switchTab 是一个可访问的函数，或者这部分逻辑在 main.js 中)
@@ -600,7 +602,10 @@ function setupEventListeners() {
 
     // Settings Sub-Tabs
     elements.settingsNavBtns.forEach(btn => {
-        btn.addEventListener('click', () => switchSettingsSubTab(btn.dataset.subtab, elements));
+        btn.addEventListener('click', () => {
+            flushPendingAgentSaves(elements);
+            switchSettingsSubTab(btn.dataset.subtab, elements);
+        });
     });
 
     // Chat Actions
@@ -972,6 +977,7 @@ function setupEventListeners() {
     // Panel Closing with smarter Escape handling
     elements.closePanelBtnChat.addEventListener('click', closePanel);
     elements.closePanelBtnSettings.addEventListener('click', closePanel);
+    window.addEventListener('pagehide', () => flushPendingAgentSaves(elements));
     document.addEventListener('keydown', (e) => {
         if (e.key !== 'Escape') return;
         // If any modal/popup is open, close that first and do not close the panel
@@ -3147,6 +3153,7 @@ function requestThemeFromContentScript() {
 }
 
 function closePanel() {
+    flushPendingAgentSaves(elements);
     if (themeReadyTimeoutId) {
         clearTimeout(themeReadyTimeoutId);
         themeReadyTimeoutId = null;
@@ -3803,6 +3810,13 @@ async function collectAllSettingsData() {
                 const userActiveModelsForExport = Array.isArray(localResult.userActiveModels) && localResult.userActiveModels.length > 0
                     ? localResult.userActiveModels
                     : (syncResult.userActiveModels || []);
+                const localHasAgents = Array.isArray(localResult.agents) && localResult.agents.length > 0;
+                const syncHasAgents = Array.isArray(syncResult.agents) && syncResult.agents.length > 0;
+                const useLocalAgents = localHasAgents && (!syncHasAgents || Number(localResult.agentsUpdatedAt || 0) >= Number(syncResult.agentsUpdatedAt || 0));
+                const agentsSourceForExport = useLocalAgents ? localResult : syncResult;
+                const agentsForExport = agentsSourceForExport.agents || [];
+                const currentAgentIdForExport = agentsSourceForExport.currentAgentId || null;
+                const agentsUpdatedAtForExport = agentsSourceForExport.agentsUpdatedAt || null;
 
                 // 构建导出数据结构
                 const exportData = {
@@ -3812,8 +3826,9 @@ async function collectAllSettingsData() {
                     settings: {
                         sync: {
                             // 助手配置
-                            agents: syncResult.agents || [],
-                            currentAgentId: syncResult.currentAgentId || null,
+                            agents: agentsForExport,
+                            currentAgentId: currentAgentIdForExport,
+                            agentsUpdatedAt: agentsUpdatedAtForExport,
                             // 供应商设置（API Keys等）
                             providerSettings: syncResult.providerSettings || {},
                             // 模型管理器相关（与旧版保持兼容，依然放入 sync）
@@ -3834,6 +3849,10 @@ async function collectAllSettingsData() {
                             textSelectionHelperSettingsVersion: localResult.textSelectionHelperSettingsVersion || null,
                             // 快捷操作
                             quickActions: localResult.quickActions || { actions: [] },
+                            // 助手也保留一份 local 备份，避免 sync 配额导致导出不完整
+                            agents: agentsForExport,
+                            currentAgentId: currentAgentIdForExport,
+                            agentsUpdatedAt: agentsUpdatedAtForExport,
                             // 也同时把模型数据放到 local，便于导入时直接写入
                             managedModels: managedModelsForExport,
                             userActiveModels: userActiveModelsForExport
@@ -3886,6 +3905,11 @@ async function importAllSettingsData(importData) {
     return new Promise((resolve, reject) => {
         const syncSettingsToImport = { ...importData.settings.sync };
         delete syncSettingsToImport.botBoldHighlightColor;
+        const localSettingsToImport = { ...importData.settings.local };
+        if (Array.isArray(syncSettingsToImport.agents) && !Array.isArray(localSettingsToImport.agents)) {
+            localSettingsToImport.agents = syncSettingsToImport.agents;
+            localSettingsToImport.currentAgentId = syncSettingsToImport.currentAgentId || null;
+        }
 
         // 导入sync数据
         chrome.storage.sync.set(syncSettingsToImport, () => {
@@ -3896,7 +3920,7 @@ async function importAllSettingsData(importData) {
             }
 
             // 导入local数据
-            chrome.storage.local.set(importData.settings.local, () => {
+            chrome.storage.local.set(localSettingsToImport, () => {
                 if (chrome.runtime.lastError) {
                     console.error('[main.js] Error saving to local storage:', chrome.runtime.lastError);
                     reject(new Error('Failed to save local settings'));

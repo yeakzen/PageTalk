@@ -1,7 +1,7 @@
 /**
  * Pagetalk - Agent Management Functions
  */
-import { generateUniqueId } from './utils.js';
+import { escapeHtml, generateUniqueId } from './utils.js';
 import { tr as _ } from './utils/i18n.js';
 
 // Default settings for new agents
@@ -10,6 +10,48 @@ const defaultAgentSettings = {
     temperature: 0.7,
     maxTokens: '', // 改为空值，让模型使用自己的默认值
 };
+
+const AGENTS_STORAGE_KEYS = ['agents', 'currentAgentId', 'agentsUpdatedAt'];
+
+function hasStoredAgents(result) {
+    return Array.isArray(result?.agents) && result.agents.length > 0;
+}
+
+function loadStoredAgents(callback) {
+    chrome.storage.local.get(AGENTS_STORAGE_KEYS, (localResult = {}) => {
+        if (chrome.runtime.lastError) {
+            console.warn('Error loading agents from local storage:', chrome.runtime.lastError);
+            localResult = {};
+        }
+
+        chrome.storage.sync.get(AGENTS_STORAGE_KEYS, (syncResult = {}) => {
+            if (chrome.runtime.lastError) {
+                console.warn('Error loading agents from sync storage:', chrome.runtime.lastError);
+                syncResult = {};
+            }
+
+            const localUpdatedAt = Number(localResult?.agentsUpdatedAt || 0);
+            const syncUpdatedAt = Number(syncResult?.agentsUpdatedAt || 0);
+            const result = hasStoredAgents(localResult) && (!hasStoredAgents(syncResult) || localUpdatedAt >= syncUpdatedAt)
+                ? localResult
+                : syncResult;
+
+            if (!hasStoredAgents(localResult) && hasStoredAgents(syncResult)) {
+                chrome.storage.local.set({
+                    agents: syncResult.agents,
+                    currentAgentId: syncResult.currentAgentId || null,
+                    agentsUpdatedAt: syncResult.agentsUpdatedAt || Date.now()
+                }, () => {
+                    if (chrome.runtime.lastError) {
+                        console.warn('Error migrating agents to local storage:', chrome.runtime.lastError);
+                    }
+                });
+            }
+
+            callback(result || {});
+        });
+    });
+}
 
 // 使用 utils/i18n.js 提供的 tr 作为翻译函数
 
@@ -22,7 +64,7 @@ const defaultAgentSettings = {
  * @param {object} currentTranslations - Translations object
  */
 export function loadAgents(state, updateAgentsListCallback, updateAgentSelectionInChatCallback, saveCurrentAgentIdCallback, currentTranslations) {
-    chrome.storage.sync.get(['agents', 'currentAgentId'], (result) => {
+    loadStoredAgents((result) => {
         console.log('Storage get result:', result); // Add logging
         if (result.agents && Array.isArray(result.agents) && result.agents.length > 0) {
             state.agents = result.agents;
@@ -66,6 +108,7 @@ export function loadAgents(state, updateAgentsListCallback, updateAgentSelection
  */
 export function updateAgentsListUI(state, elements, currentTranslations, autoSaveAgentSettingsCallback, showDeleteConfirmDialogCallback, switchAgentCallback) {
     if (!elements.agentsList) return;
+    flushPendingAgentSaves(elements);
     elements.agentsList.innerHTML = '';
 
     if (!state.agents || state.agents.length === 0) {
@@ -80,6 +123,7 @@ export function updateAgentsListUI(state, elements, currentTranslations, autoSav
         const agentItem = document.createElement('div');
         agentItem.className = 'agent-item';
         agentItem.dataset.agentId = agent.id; // Use agentId for dataset
+        agentItem._flushAgentSave = () => flushAgentAutoSave(agent.id, agentItem, autoSaveAgentSettingsCallback);
 
         // --- Header ---
         const header = document.createElement('div');
@@ -118,12 +162,9 @@ export function updateAgentsListUI(state, elements, currentTranslations, autoSav
         nameGroup.className = 'setting-group';
         nameGroup.innerHTML = `
             <label for="agent-name-${agent.id}">${_('agentNameLabel', {}, currentTranslations)}</label>
-            <input type="text" id="agent-name-${agent.id}" value="${_(agent.name, {}, currentTranslations)}">
+            <input type="text" id="agent-name-${agent.id}" value="${escapeHtml(_(agent.name, {}, currentTranslations))}">
         `;
-        nameGroup.querySelector('input').addEventListener('input', () => {
-            clearTimeout(agentItem._saveTimeout);
-            agentItem._saveTimeout = setTimeout(() => autoSaveAgentSettingsCallback(agent.id, agentItem), 500);
-        });
+        bindAgentAutoSaveEvents(nameGroup.querySelector('input'), agent.id, agentItem, autoSaveAgentSettingsCallback);
         body.appendChild(nameGroup);
 
         // System Prompt
@@ -131,12 +172,9 @@ export function updateAgentsListUI(state, elements, currentTranslations, autoSav
         promptGroup.className = 'setting-group';
         promptGroup.innerHTML = `
             <label for="system-prompt-${agent.id}">${_('agentSystemPromptLabel', {}, currentTranslations)}</label>
-            <textarea id="system-prompt-${agent.id}" placeholder="${_('agentSystemPromptLabel', {}, currentTranslations)}">${agent.systemPrompt}</textarea>
+            <textarea id="system-prompt-${agent.id}" placeholder="${escapeHtml(_('agentSystemPromptLabel', {}, currentTranslations))}">${escapeHtml(agent.systemPrompt)}</textarea>
         `;
-        promptGroup.querySelector('textarea').addEventListener('input', () => {
-            clearTimeout(agentItem._saveTimeout);
-            agentItem._saveTimeout = setTimeout(() => autoSaveAgentSettingsCallback(agent.id, agentItem), 500);
-        });
+        bindAgentAutoSaveEvents(promptGroup.querySelector('textarea'), agent.id, agentItem, autoSaveAgentSettingsCallback);
         body.appendChild(promptGroup);
 
         // Temperature Slider
@@ -152,10 +190,7 @@ export function updateAgentsListUI(state, elements, currentTranslations, autoSav
             <label for="max-tokens-${agent.id}">${_('agentMaxOutputLabel', {}, currentTranslations)}</label>
             <input type="number" id="max-tokens-${agent.id}" value="${agent.maxTokens}" min="50" max="65536" placeholder="使用模型默认值">
         `;
-        maxTokensGroup.querySelector('input').addEventListener('input', () => {
-            clearTimeout(agentItem._saveTimeout);
-            agentItem._saveTimeout = setTimeout(() => autoSaveAgentSettingsCallback(agent.id, agentItem), 500);
-        });
+        bindAgentAutoSaveEvents(maxTokensGroup.querySelector('input'), agent.id, agentItem, autoSaveAgentSettingsCallback);
         body.appendChild(maxTokensGroup);
 
         // --- Assembly & Events ---
@@ -185,6 +220,38 @@ export function updateAgentsListUI(state, elements, currentTranslations, autoSav
     });
 }
 
+export function flushPendingAgentSaves(elements) {
+    if (!elements?.agentsList) return;
+
+    elements.agentsList.querySelectorAll('.agent-item').forEach((agentItem) => {
+        if (agentItem._saveTimeout && typeof agentItem._flushAgentSave === 'function') {
+            agentItem._flushAgentSave();
+        }
+    });
+}
+
+function scheduleAgentAutoSave(agentId, agentItem, saveCallback, delay = 500) {
+    clearTimeout(agentItem._saveTimeout);
+    agentItem._saveTimeout = setTimeout(() => {
+        agentItem._saveTimeout = null;
+        saveCallback(agentId, agentItem);
+    }, delay);
+}
+
+function flushAgentAutoSave(agentId, agentItem, saveCallback) {
+    if (!agentItem._saveTimeout) return;
+    clearTimeout(agentItem._saveTimeout);
+    agentItem._saveTimeout = null;
+    saveCallback(agentId, agentItem);
+}
+
+function bindAgentAutoSaveEvents(input, agentId, agentItem, saveCallback) {
+    if (!input) return;
+    input.addEventListener('input', () => scheduleAgentAutoSave(agentId, agentItem, saveCallback));
+    input.addEventListener('change', () => flushAgentAutoSave(agentId, agentItem, saveCallback));
+    input.addEventListener('blur', () => flushAgentAutoSave(agentId, agentItem, saveCallback));
+}
+
 /**
  * Helper to create a slider group
  */
@@ -207,8 +274,10 @@ function createSliderGroup(agentId, settingName, labelText, value, min, max, ste
 
     sliderInput.addEventListener('input', (e) => {
         valueSpan.textContent = e.target.value;
-        clearTimeout(agentItem._saveTimeout);
-        agentItem._saveTimeout = setTimeout(() => saveCallback(agentId, agentItem), 300);
+        scheduleAgentAutoSave(agentId, agentItem, saveCallback, 300);
+    });
+    sliderInput.addEventListener('change', () => {
+        flushAgentAutoSave(agentId, agentItem, saveCallback);
     });
 
     return group;
@@ -490,15 +559,25 @@ export function updateAgentSelectionInChat(state, elements, currentTranslations)
  * @param {object} state - Global state reference
  */
 export function saveAgentsList(state) {
-    chrome.storage.sync.set({
+    const data = {
         agents: state.agents,
-        currentAgentId: state.currentAgentId
-    }, () => {
+        currentAgentId: state.currentAgentId,
+        agentsUpdatedAt: Date.now()
+    };
+
+    chrome.storage.local.set(data, () => {
         if (chrome.runtime.lastError) {
-            console.error("Error saving agents list:", chrome.runtime.lastError);
-            // Optionally show an error toast
+            console.error("Error saving agents list to local storage:", chrome.runtime.lastError);
         } else {
-            console.log("Agents list saved to storage.", state.agents);
+            console.log("Agents list saved to local storage.", state.agents);
+        }
+    });
+
+    chrome.storage.sync.set(data, () => {
+        if (chrome.runtime.lastError) {
+            console.warn("Error syncing agents list; local storage copy was kept:", chrome.runtime.lastError);
+        } else {
+            console.log("Agents list synced to storage.", state.agents);
         }
     });
 }
@@ -508,9 +587,17 @@ export function saveAgentsList(state) {
  * @param {object} state - Global state reference
  */
 export function saveCurrentAgentId(state) {
-    chrome.storage.sync.set({ currentAgentId: state.currentAgentId }, () => {
+    const data = { currentAgentId: state.currentAgentId };
+
+    chrome.storage.local.set(data, () => {
         if (chrome.runtime.lastError) {
-            console.error("Error saving current agent ID:", chrome.runtime.lastError);
+            console.error("Error saving current agent ID to local storage:", chrome.runtime.lastError);
+        }
+    });
+
+    chrome.storage.sync.set(data, () => {
+        if (chrome.runtime.lastError) {
+            console.warn("Error syncing current agent ID; local storage copy was kept:", chrome.runtime.lastError);
         } else {
             // console.log("Current agent ID saved.");
         }
