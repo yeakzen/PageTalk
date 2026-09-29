@@ -45,6 +45,8 @@ let abortControllers = new Map(); // 存储每个窗口的中断控制器 {windo
 let chatHistories = new Map(); // 存储每个聊天窗口的历史记录 {windowId: Array<{role: string, content: string}>}
 
 const AGENTS_STORAGE_KEYS = ['agents', 'currentAgentId', 'agentsUpdatedAt'];
+const TEXT_SELECTION_CHAT_MODEL_KEY = 'textSelectionHelperChatModel';
+const TEXT_SELECTION_CHAT_AGENT_KEY = 'textSelectionHelperChatAgentId';
 
 function hasStoredAgents(result) {
     return Array.isArray(result?.agents) && result.agents.length > 0;
@@ -71,6 +73,96 @@ function getStoredAgents() {
                     : syncResult);
             });
         });
+    });
+}
+
+function getStoredTextSelectionChatModel() {
+    return new Promise((resolve) => {
+        chrome.storage.local.get([TEXT_SELECTION_CHAT_MODEL_KEY], (localResult = {}) => {
+            if (chrome.runtime.lastError) {
+                console.warn('[TextSelectionHelper] Failed to load helper model from local storage:', chrome.runtime.lastError);
+                localResult = {};
+            }
+
+            if (localResult[TEXT_SELECTION_CHAT_MODEL_KEY]) {
+                resolve(localResult[TEXT_SELECTION_CHAT_MODEL_KEY]);
+                return;
+            }
+
+            chrome.storage.sync.get([TEXT_SELECTION_CHAT_MODEL_KEY, 'model'], (syncResult = {}) => {
+                if (chrome.runtime.lastError) {
+                    console.warn('[TextSelectionHelper] Failed to load helper model from sync storage:', chrome.runtime.lastError);
+                    syncResult = {};
+                }
+
+                const model = syncResult[TEXT_SELECTION_CHAT_MODEL_KEY] || syncResult.model || 'google::gemini-2.5-flash';
+                saveTextSelectionChatModel(model);
+                resolve(model);
+            });
+        });
+    });
+}
+
+function saveTextSelectionChatModel(model) {
+    if (!model) return;
+
+    const data = { [TEXT_SELECTION_CHAT_MODEL_KEY]: model };
+
+    chrome.storage.local.set(data, () => {
+        if (chrome.runtime.lastError) {
+            console.warn('[TextSelectionHelper] Failed to save helper model to local storage:', chrome.runtime.lastError);
+        }
+    });
+
+    chrome.storage.sync.set(data, () => {
+        if (chrome.runtime.lastError) {
+            console.warn('[TextSelectionHelper] Failed to sync helper model:', chrome.runtime.lastError);
+        }
+    });
+}
+
+function getStoredTextSelectionChatAgentId() {
+    return new Promise((resolve) => {
+        chrome.storage.local.get([TEXT_SELECTION_CHAT_AGENT_KEY, 'currentAgentId'], (localResult = {}) => {
+            if (chrome.runtime.lastError) {
+                console.warn('[TextSelectionHelper] Failed to load helper agent from local storage:', chrome.runtime.lastError);
+                localResult = {};
+            }
+
+            if (localResult[TEXT_SELECTION_CHAT_AGENT_KEY]) {
+                resolve(localResult[TEXT_SELECTION_CHAT_AGENT_KEY]);
+                return;
+            }
+
+            chrome.storage.sync.get([TEXT_SELECTION_CHAT_AGENT_KEY, 'currentAgentId'], (syncResult = {}) => {
+                if (chrome.runtime.lastError) {
+                    console.warn('[TextSelectionHelper] Failed to load helper agent from sync storage:', chrome.runtime.lastError);
+                    syncResult = {};
+                }
+
+                const agentId = syncResult[TEXT_SELECTION_CHAT_AGENT_KEY] || localResult.currentAgentId || syncResult.currentAgentId || 'default';
+                saveTextSelectionChatAgentId(agentId);
+                resolve(agentId);
+            });
+        });
+    });
+}
+
+function saveTextSelectionChatAgentId(agentId) {
+    if (!agentId) return;
+
+    const data = { [TEXT_SELECTION_CHAT_AGENT_KEY]: agentId };
+
+    chrome.storage.local.set(data, () => {
+        if (chrome.runtime.lastError) {
+            console.warn('[TextSelectionHelper] Failed to save helper agent to local storage:', chrome.runtime.lastError);
+        }
+    });
+
+    chrome.storage.sync.set(data, () => {
+        if (chrome.runtime.lastError) {
+            console.warn('[TextSelectionHelper] Failed to sync helper agent:', chrome.runtime.lastError);
+        }
     });
 }
 
@@ -2046,8 +2138,8 @@ async function createFunctionWindowContent(windowElement, optionId) {
     const customOption = settings.customOptions?.find(opt => opt.id === optionId);
 
     if (optionId === 'chat') {
-        // 获取主面板的模型设置
-        const currentModel = await getCurrentMainPanelModel();
+        // 获取划词助手自己的模型设置；首次使用时沿用主面板当前模型作为初始值。
+        const currentModel = await getStoredTextSelectionChatModel();
 
         // 构建模型选项 - 通过消息传递获取
         let modelOptions = [];
@@ -2138,10 +2230,11 @@ async function createFunctionWindowContent(windowElement, optionId) {
         let agentOptionsHTML = '';
         try {
             const result = await getStoredAgents();
+            const helperAgentId = await getStoredTextSelectionChatAgentId();
 
             if (result.agents && Array.isArray(result.agents)) {
                 result.agents.forEach(agent => {
-                    const selected = agent.id === result.currentAgentId ? 'selected' : '';
+                    const selected = agent.id === helperAgentId ? 'selected' : '';
                     // 对助手名称进行翻译处理
                     const translatedName = _tr(agent.name);
                     agentOptionsHTML += `<option value="${agent.id}" ${selected}>${translatedName}</option>`;
@@ -2246,6 +2339,7 @@ function setupFunctionWindowEvents(windowElement, optionId) {
         const textarea = windowElement.querySelector('textarea');
         const clearBtn = windowElement.querySelector('.pagetalk-clear-context');
         const modelSelect = windowElement.querySelector('.pagetalk-model-select');
+        const agentSelect = windowElement.querySelector('.pagetalk-agent-select');
 
         if (sendBtn && textarea) {
             sendBtn.addEventListener('click', (e) => {
@@ -2279,7 +2373,15 @@ function setupFunctionWindowEvents(windowElement, optionId) {
         if (modelSelect) {
             modelSelect.addEventListener('change', (e) => {
                 console.log('[TextSelectionHelper] Chat model changed to:', e.target.value);
-                // 模型变化时不需要特殊处理，下次发送消息时会自动使用新模型
+                saveTextSelectionChatModel(e.target.value);
+                // 模型变化时下次发送消息会自动使用新模型
+            });
+        }
+
+        if (agentSelect) {
+            agentSelect.addEventListener('change', (e) => {
+                console.log('[TextSelectionHelper] Chat agent changed to:', e.target.value);
+                saveTextSelectionChatAgentId(e.target.value);
             });
         }
 
@@ -4643,6 +4745,7 @@ async function refreshAllModelSelectors() {
                     if (!modelValues.includes(currentValue) && modelOptions.length > 0) {
                         const firstModelValue = typeof modelOptions[0] === 'object' ? modelOptions[0].value : modelOptions[0];
                         modelSelect.value = firstModelValue;
+                        saveTextSelectionChatModel(firstModelValue);
                         console.log(`[TextSelectionHelper] Model ${currentValue} no longer available, switched to ${firstModelValue}`);
                     }
                 }
