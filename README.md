@@ -1,158 +1,107 @@
-<h1 align="center">
-  <strong>PageTalk - Your Web Companion with AI ✨</strong>
-</h1>
+# PageTalk: Parallel Multi-Model Web Q&A
 
-<p align="center">
-  <a href="https://github.com/jeanchristophe13v/PageTalk"> <!-- Replace with your repo link if available -->
-    <img src="magic.png?raw=true" alt="Pagetalk Icon" title="Pagetalk Icon" width="250">
-  </a>
-</p>
+An enhanced fork of PageTalk that adds parallel multi-model comparison and the state-management workflow needed to continue, save, and revisit webpage-grounded AI conversations.
 
-#### [中文/Chinese](README-zh.md)
+## Project Overview
 
-## Introducing PageTalk 3.6.0 🎉
+PageTalk is a browser extension for contextual Q&A over the current webpage. In the version extended by this project, a user could query one selected model at a time. Comparing several answers required resubmitting the same webpage-grounded prompt, switching models between responses, and manually collecting the results.
 
-**🌟 Selection Tool - The Game Changer:**
-PageTalk is no longer just a sidebar AI extension! Now you can select any text on any webpage and instantly:
-- **Interpret** complex content with AI analysis
-- **Translate** to your preferred language
-- **Chat** about the selected text with full context
-- **Customize** your own selection options with personalized prompts
+This fork turns that serial workflow into a parallel comparison experience. A user can select several configured models, submit one question, and inspect independently streamed answers side by side. Each model receives its own conversation history for follow-up questions, while the full comparison can be saved and restored without losing answer ownership or display order.
 
-Simply select text → choose your action → get instant AI assistance. It's that simple!
+For a three-model comparison, the workflow changes from **3 prompt submissions to 1** (**66.7% fewer submissions**) and from **at least 2 model switches to 0** during answer collection. Because requests are dispatched concurrently, the completion path is bounded by the slowest selected request rather than by user-driven serial requests. This is an architectural property, not a benchmark latency claim.
 
-**Other Updates:**
-- **Multi-Provider Support**: Added support for multiple AI providers. You can now add and manage custom models from various platforms, including **OpenAI, Claude, Gemini, DeepSeek, OpenRouter, SiliconFlow, ChatGLM, ModelScope**, and more.
-- **Enhanced Proxy Support:** Updated HTTP and SOCKS5 proxy functionality for better connectivity
-- **Bug Fixes:** Resolved various minor issues for improved stability
+## Original Project and Fork Declaration
 
+This repository is based on [PageTalk](https://github.com/jeanchristophe13v/PageTalk) by Leun Ho and contributors. The upstream project provides the base browser extension, webpage-Q&A experience, provider integrations, and original UI.
 
-*Note: If you encounter any issues, please try deleting the former PageTalk extension, refreshing the webpage, reloading the new extension, or restarting the browser first.*
+This is a fork for independent learning and engineering development. My work is limited to the extensions and improvements documented below, beginning with commit `e30f009`; it does not claim authorship of the upstream project.
 
----
+## My Contributions
 
-**Selection Tool Demo**
+### New Features
 
+- Added multi-model selection, parallel API execution, and side-by-side streaming response columns for one webpage-grounded prompt.
+- Added model-specific conversation-history construction so each model receives its own prior answer during follow-up questions.
+- Added persistent multi-model sessions, including selected-model state, response maps, and stable response order for restore.
+- Added model-order tracking and response-matching compatibility for renamed or reconfigured model IDs.
+- Added webpage-context preview and hydration, saved-session organisation, follow-up questions, Obsidian export templates with optional AI metadata, and a text-selection helper.
 
-https://github.com/user-attachments/assets/3d998ee5-bf25-4a42-9269-417c80df6751
+### Refactoring and Optimisation
 
+- Separated multi-model dispatch, rendering, and completion handling from the original single-model path while retaining the single-model workflow.
+- Used `Promise.allSettled` to isolate provider failures so a failed request does not discard successful answers from other selected models.
+- Stored multi-model replies as an explicit model-ID-to-response map with `modelOrder`, rather than relying on one implicit active-model response.
+- Implemented exact-ID, longest-common-prefix, and final remaining-pair matching to retain model-specific context after model configuration changes.
 
+### Engineering Practices
 
----
+- Kept response rendering, message actions, and conversation history isolated per model to prevent cross-model answer contamination.
+- Preserved the original model order when restoring a saved comparison, making a saved question-to-answer group reproducible for later review.
+- Used a conservative fallback when a historical response cannot be matched to a current model, avoiding a silent assignment of another model's answer as context.
+- Linked the primary implementation areas below so reviewers can inspect the contribution without tracing the entire codebase.
 
-## Introduction
+## How This Fork Differs from the Upstream Project
 
-Pagetalk is a browser extension that enhances your web browsing by integrating Google's Gemini API. Summarize pages, chat contextually, and manage custom AI agents effortlessly.
+The upstream column describes the baseline immediately before the multi-model implementation, not necessarily the latest upstream release.
 
+| Area | Baseline PageTalk workflow | This Fork |
+| --- | --- | --- |
+| Webpage-grounded Q&A | One active model answers a prompt | Several selected models answer the same prompt concurrently |
+| Answer comparison | Re-submit the prompt and switch models manually | Compare labeled answers in parallel response columns |
+| Streaming UI | One response stream | Independent stream renderer and response state per model |
+| Follow-up context | Active model conversation | Model-specific histories assembled from each model's own prior answer |
+| Multi-model response storage | No multi-model response structure | Model-ID-to-response map plus stable model order |
+| Session recovery | No multi-model comparison state to recover | Restore selected models and ordered multi-model response groups |
+| Provider failure handling | One selected request per interaction | Other model responses remain available when one concurrent request fails |
 
-## Features
+## Results
 
-*   **Web Page Interaction:** Reads page content for contextual conversations.
-*   **Contextual Chat:** Discuss the current web page with AI.
-*   **Multi-Agent System:** Create, customize, switch, and **import/export** AI agents.
-*   **Image Input:** Upload or paste images for discussion.
-*   **Rich Content Rendering:** Supports Markdown, code highlighting, **LaTeX**, and **Mermaid** diagrams.
-*   **PDF Parsing & Chat:** Extract and chat with PDF content directly in web pages.
-*   **Url Context Extraction:** Gemini-2.0-flash and Gemini-2.5-flash-preview-05-20（ gemini-2.5-flash(-thinking) ） can automatically extract web page content as context.
-*   **Personalized Settings:** Configure API key, **language (EN/ZH)**, **theme (Light/Dark)**.
-*   **Chat Export:** Save conversations as Markdown or Text files.
-*   **Text Selection Helper:** Advanced text selection functionality with interpret, translate, and chat options.
-*   **Proxy Support:** HTTP and SOCKS5 proxy support for enhanced connectivity.
+- Reduced prompt submissions in a fixed three-model comparison from 3 to 1, a **66.7% reduction** in submission actions.
+- Reduced model switches during answer collection in the same workflow from at least 2 to 0.
+- Changed the wait path from repeated user-initiated serial requests to concurrent dispatch, with the slowest selected request determining overall completion.
+- Preserved a **1:N** relationship between one user question and N ordered model responses across session save and restore.
 
-## Examples
+The quantified results above are deterministic interaction counts for the three-model workflow. The repository does not currently include an automated latency benchmark, reliability suite, or CI workflow; no latency, adoption, or test-coverage figures are claimed.
 
-<strong>📸 Feature Demonstrations</strong>
+## Demonstration: Parallel Answers and Follow-up Questions
 
-### Multi-Tab Interaction & YouTube Parsing
-<div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin: 10px 0;">
-  <div>
-    <img src="https://github.com/user-attachments/assets/23d3b878-52f3-437a-a85a-c7d53f194fe7" alt="Type @ to select tabs" width="300" style="border-radius: 8px; box-shadow: 0 2px 8px rgba(0,0,0,0.1);"/>
-    <p><em>Type @ to select opened tabs</em></p>
-  </div>
-  <div>
-    <img src="https://github.com/user-attachments/assets/17d27bb0-47a9-4297-a8aa-8d637679a807" alt="Selected tabs display" width="300" style="border-radius: 8px; box-shadow: 0 2px 8px rgba(0,0,0,0.1);"/>
-    <p><em>All selected tabs context</em></p>
-  </div>
-  <div>
-    <img src="https://github.com/user-attachments/assets/dc001071-2580-414f-a5ce-f127f966e50d" alt="AI summarization" width="300" style="border-radius: 8px; box-shadow: 0 2px 8px rgba(0,0,0,0.1);"/>
-    <p><em>AI summarizes all content</em></p>
-  </div>
-  <div>
-    <img src="https://github.com/user-attachments/assets/dc5b1978-6bd6-4305-99d0-d1f9c18f9ca5" alt="YouTube URL parsing" width="300" style="border-radius: 8px; box-shadow: 0 2px 8px rgba(0,0,0,0.1);"/>
-    <p><em>Upload YouTube URLs</em></p>
-  </div>
-</div>
+The recording below shows a webpage-grounded question sent to several selected models in one interaction. Their responses stream in separate columns; a follow-up action then continues the comparison using each model's own conversation context.
 
-### Core Features Showcase
-<div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin: 10px 0;">
-  <div>
-    <img src="https://github.com/user-attachments/assets/4aa393e4-659d-433a-9d4c-583217c95158" alt="PageTalk interface" width="300" style="border-radius: 8px; box-shadow: 0 2px 8px rgba(0,0,0,0.1);"/>
-    <p><em>Main interface & chat</em></p>
-  </div>
-  <div>
-    <img src="https://github.com/user-attachments/assets/0dc31cbc-b714-4037-8185-cba15f7e4238" alt="Agent management" width="300" style="border-radius: 8px; box-shadow: 0 2px 8px rgba(0,0,0,0.1);"/>
-    <p><em>Dark mode support</em></p>
-  </div>
-  <div>
-    <img src="https://github.com/user-attachments/assets/58256468-0ce8-476b-9383-e9dab566dd24" alt="Rich content rendering" width="300" style="border-radius: 8px; box-shadow: 0 2px 8px rgba(0,0,0,0.1);"/>
-    <p><em>Mermaid rendering</em></p>
-  </div>
-  <div>
-    <img src="https://github.com/user-attachments/assets/9fef9086-be70-448c-b23e-e79629e42d2a" alt="Settings panel" width="300" style="border-radius: 8px; box-shadow: 0 2px 8px rgba(0,0,0,0.1);"/>
-    <p><em>url extract</em></p>
-  </div>
-</div>
+https://github.com/user-attachments/assets/8ff6f166-fe07-4216-83f2-87c4a420743b
 
+## Tech Stack
 
+| Category | Technologies |
+| --- | --- |
+| Extension platform | Chrome Extension Manifest V3, service worker, content scripts |
+| Application | JavaScript ES modules, HTML, CSS |
+| Browser APIs | `chrome.storage`, `chrome.runtime`, `chrome.scripting` |
+| AI providers | Gemini, OpenAI-compatible APIs, Anthropic-compatible APIs |
+| Rendering | Markdown, code highlighting, KaTeX, Mermaid |
 
+## Design Decisions and Trade-offs
 
+- **Isolate state by model rather than only splitting the UI.** A side-by-side layout alone cannot produce correct follow-up conversations. Per-model histories prevent a response from one model becoming context for another, at the cost of explicit state and response-mapping management.
+- **Dispatch concurrently and tolerate partial failure.** Parallel calls reduce interaction overhead, but providers can fail independently. `Promise.allSettled` allows available responses to remain visible while the failed column reaches its own error state.
+- **Persist response maps and order explicitly.** A comparison is useful only if it remains interpretable after restoration. Storing both response ownership and model order adds persistence complexity but preserves the comparison structure.
+- **Match model IDs conservatively.** Exact IDs are preferred; prefix and remaining-pair matching address configuration changes. When matching is unsafe, the implementation falls back to the ordinary history representation instead of guessing another model's answer.
 
-## Installation
+## Running the Project
 
-**Note:** Load as an unpacked extension in developer mode.
+1. Open `chrome://extensions/` or `edge://extensions/`, enable Developer mode, choose **Load unpacked**, and select this repository directory.
+2. Configure credentials for at least three available models in the extension settings.
+3. Open a public webpage, select the models, and submit one question about the page.
+4. Save and restore the session to verify that its ordered multi-model response group is retained.
 
-**Get API Key:** Before using the extension, please obtain your Gemini API key from [Google AI Studio](https://aistudio.google.com).
+## Key Implementation Areas
 
-### For common use
-1. Chrome: https://chromewebstore.google.com/detail/pagetalk-your-gemini-brow/pjmpcpolpfejiacaemgjnjnknlcfcami?authuser=0
-  
-2. Edge： https://microsoftedge.microsoft.com/addons/detail/pagetalk-your-gemini-br/mpmohgpcggkkbjdamcnmmnkblkmpldmi
+- [`js/chat.js`](js/chat.js): multi-model dispatch, independent stream rendering, model-specific histories, and response matching.
+- [`js/main.js`](js/main.js): session snapshots, local persistence, and reconstruction of ordered multi-model response groups.
+- [`js/content.js`](js/content.js): webpage-content extraction and context preparation.
+- [`js/obsidian-export.js`](js/obsidian-export.js): templated Obsidian export with optional AI metadata.
+- [`manifest.json`](manifest.json): Manifest V3 extension entry points and browser permissions.
 
-3. Firefox: https://addons.mozilla.org/zh-CN/firefox/addon/pagetalk-gemini-assistant/?utm_source=addons.mozilla.org&utm_medium=referral&utm_content=search
+## Future Improvements
 
-> ps: ⚠️PageTalk in Firefox is yet incomplete for some reasons, but it's still good for summary and conversation. Stay tuned~
-
-### For development 
-1. **Clone the repository or download the ZIP and unzip**
-```
-git clone https://github.com/jeanchristophe13v/PageTalk.git
-```
-
-2. **Load the folder** in your Browser
-- **Edge:** Go to `edge://extensions/`, enable "Developer mode", click "Load unpacked", select the project folder.
-- **Chrome:** Go to `chrome://extensions/`, enable "Developer mode", click "Load unpacked", select the project folder.
-
-## Usage
-
-- **Open:** Click the Pagetalk icon or use shortcut (default `Alt+P`).
-- **Settings Tab:** (Contains General, Agents, Model sub-tabs)
-    *   **General:** Switch Language/Theme, Export Chat History.
-    *   **Agents:** Manage agents, Import/Export configurations.
-    *   **Model:** Set API Key, select default model.
- 
-## ☕️ Support PageTalk
-
-### Buy me a coffee if you enjoy PageTalk ~ ☕️ 🩵❤️🧡🩷💛💚
-
-<table>
-  <tr>
-    <td align="center">
-      <img src="https://github.com/user-attachments/assets/cb4fc3c9-ef68-4acb-8c32-232876364a62" alt="WeChat" width="300" />
-      <br><sub>WeChat</sub>
-    </td>
-    <td align="center">
-      <img src="https://github.com/user-attachments/assets/e9111d96-3fa4-4b79-bcf0-0dfa6a67705f" alt="Alipay" width="300" />
-      <br><sub>Alipay</sub>
-    </td>
-  </tr>
-</table>
+- Add an automated benchmark using a fixed prompt set to compare serial and parallel completion time, including p50 and p95 measurements.
+- Add automated tests for history isolation, model-ID matching, partial provider failure, and session restoration.
